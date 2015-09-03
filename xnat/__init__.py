@@ -1,5 +1,6 @@
 import contextlib
 import imp
+import os
 import re
 import sys
 import tempfile
@@ -23,7 +24,8 @@ def connect(server):
     # Write code to temp file
     with tempfile.NamedTemporaryFile(mode='w', suffix='_generated_xnat.py', delete=False) as code_file:
 
-        with open('xnat_header.py') as fin:
+        header = os.path.join(os.path.dirname(__file__), 'xnat_header.py')
+        with open(header) as fin:
             for line in fin:
                 code_file.write(line)
 
