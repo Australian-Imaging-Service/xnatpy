@@ -1,30 +1,11 @@
 import contextlib
+import inspect
 import keyword
 import re
-import sys
-from xml.etree import ElementTree
 
 import isodate
-import requests
 
-def main():
-    resp = requests.get('https://xnat.bmia.nl/schemas/xnat/xnat.xsd')
-    root = ElementTree.fromstring(resp.text)
-    
-    parser = SchemaParser()
-    parser.parse(root)
-    with open('xnat_header.py') as fin:
-        for line in fin:
-            sys.stdout.write(line)
-
-    print('\n\n\n'.join(str(c).strip() for c in parser if not c.baseclass.startswith('xs:') and c.name is not None))
-    print('\n\nXNAT_CLASS_LOOKUP = {')
-    for cls in parser:
-        if cls.name is None or cls.baseclass.startswith('xs:'):
-            continue
-        print('    "xnat:{}": {},'.format(cls.name, cls.python_name))
-    print('    "xnat:fileData": FileData')
-    print('}\n')
+import xnatbases
 
 
 class ClassRepresentation(object):
@@ -82,7 +63,14 @@ class ClassRepresentation(object):
         return '<Class {}({})>'.format(self.name, self.baseclass)
 
     def __str__(self):
-        header = "class {name}({base}):\n".format(name=self.python_name, base=self.python_baseclass)
+        print('Base template class for {} is {}'.format(self.python_name, self.get_base_template()))
+        base = self.get_base_template()
+        if base is not None:
+            base_source = inspect.getsource(base)
+            header = base_source.strip() + '\n\n'
+        else:
+            header = '# No base template found for {}\n'.format(self.python_name)
+            header += "class {name}({base}):\n".format(name=self.python_name, base=self.python_baseclass)
 
         if 'fields' in self.properties:
             header += "    _HAS_FIELDS = True\n"
@@ -92,12 +80,8 @@ class ClassRepresentation(object):
             header += self.init
 
         properties = [self.properties[k] for k in sorted(self.properties.keys())]
-        if self.name in self.ADDITIONS:
-            for addition in self.ADDITIONS[self.name]:
-                if addition not in self.properties:
-                    properties.append(PropertyRepresentation(self.parser, addition))
 
-        properties = '\n\n'.join(self.print_property(p) for p in properties if p.clean_name not in self.BLACKLIST)
+        properties = '\n\n'.join(self.print_property(p) for p in properties if not hasattr(base, p.clean_name))
         return '{}{}'.format(header, properties)
 
     @property
@@ -107,6 +91,10 @@ class ClassRepresentation(object):
     @property
     def python_baseclass(self):
         return self.baseclass[0].upper() + self.baseclass[1:]
+
+    def get_base_template(self):
+        if hasattr(xnatbases, self.python_name):
+            return getattr(xnatbases, self.python_name)
 
     def print_property(self, prop):
         if (self.name, prop.name) in self.SUBSTITUTIONS:
@@ -147,30 +135,22 @@ class PropertyRepresentation(object):
         """    @property
     def {clean_name}(self):{docstring}
         # Generate automatically, type: {type}
-        return self.get_{type_convert}("{name}")
+        return self.get("{name}", type_="{type}")
     
     @ {clean_name}.setter
     def {clean_name}(self, value):{docstring}{restrictions}
         # Generate automatically, type: {type}
-        self.set_{type_convert}("{name}", value)""".format(clean_name=self.clean_name, docstring=docstring, name=self.name, type=self.type_, type_convert=self.TYPE_CODE_MAP.get(self.type_, 'str'), restrictions=self.restrictions_code())
+        self.set("{name}", value, type_="{type}")""".format(clean_name=self.clean_name, docstring=docstring, name=self.name, type=self.type_, restrictions=self.restrictions_code())
         else:
-            class_name = self.parser.class_list.get(self.type_, None)
-            if class_name is not None:
-                class_name = class_name.python_name
-            else:
-                class_name = 'LOOKUP_FAILED({})!'.format(self.type_)
-
             return \
         """    @property
     @caching
     def {clean_name}(self):{docstring}
         # Generated automatically, type: {type_}
-        return self.get_object("{name}")""".format(
-                clean_name=self.clean_name,
-                docstring=docstring,
-                name = self.name,
-                type_=self.type_)
-
+        return self.get_object("{name}")""".format(clean_name=self.clean_name,
+                                                   docstring=docstring,
+                                                   name = self.name,
+                                                   type_=self.type_)
 
     @property
     def clean_name(self):
@@ -356,8 +336,6 @@ class SchemaParser(object):
                 self.parse_children(element)
 
     def parse_restriction(self, element):
-        if self.current_property is None:
-            raise ValueError('AHHH! {}'.format(ElementTree.tostring(element)))
         old_type = self.current_property.type_
         new_type = element.get('base')
 
