@@ -11,38 +11,8 @@ import xnatbases
 class ClassRepresentation(object):
     # Override strings for certain properties
     SUBSTITUTIONS = {
-            "projects": "    @property\n    @caching\n    def projects(self):\n        return XNATListing(self.uri + '/projects', xnat=self.xnat, secondary_lookup_field='name', xsiType='xnat:projectData')",
-            "subjects": "    @property\n    @caching\n    def subjects(self):\n        return XNATListing(self.uri + '/subjects', xnat=self.xnat, secondary_lookup_field='label', xsiType='xnat:subjectData')",
-            "experiments": "    @property\n    @caching\n    def experiments(self):\n        return XNATListing(self.uri + '/experiments', xnat=self.xnat, secondary_lookup_field='label')",
-            "assessors": "    @property\n    @caching\n    def assessors(self):\n        return XNATListing(self.uri + '/assessors', xnat=self.xnat, secondary_lookup_field='label')",
-            "reconstructions": "    @property\n    @caching\n    def reconstructions(self):\n        return XNATListing(self.uri + '/reconstructions', xnat=self.xnat, secondary_lookup_field='label')",
             "fields": "    @property\n    def fields(self):\n        return self._fields",
-            "scans": "    @property\n    @caching\n    def scans(self):\n        return XNATListing(self.uri + '/scans', xnat=self.xnat, secondary_lookup_field='series_description')",
-            "resources": "    @property\n    @caching\n    def resources(self):\n        return XNATListing(self.uri + '/resources', xnat=self.xnat, secondary_lookup_field='label', xsiType='xnat:resource')",
-            "files": "    @property\n    @caching\n    def files(self):\n        return XNATListing(self.uri + '/files', xnat=self.xnat, secondary_lookup_field='name', xsiType='xnat:fileData')",
-            "download": "    def download(self, path):\n        self.xnat.download_zip(self.uri + '/files', path)",
-            # From here the specific override
-            ("subjectData", "experiments"): "    @property\n    @caching\n    def experiments(self):\n        # HACK because self.uri + '/subjects' does not work\n        uri = '/data/archive/projects/{}/subjects/{}/experiments'.format(self.project, self.id)\n        return XNATListing(uri, xnat=self.xnat, secondary_lookup_field='label')",
-            ("imageSessionData", "download"): "    def download(self, path):\n        self.xnat.download_zip(self.uri + '/scans/ALL/files', path)",
-
-            # Fullids here
-            ("projectData", "fulluri"): "    @property\n    def fulluri(self):\n        return '{}/projects/{}'.format(self.xnat.fulluri, self.id)",
-            ("subjectData", "fulluri"): "    @property\n    def fulluri(self):\n        return '{}/projects/{}/subjects/{}'.format(self.xnat.fulluri, self.project, self.id)",
-            ("experimentData", "fulluri"): "    @property\n    def fulluri(self):\n        return '{}/projects/{}/subjects/{}/experiments/{}'.format(self.xnat.fulluri, self.project, self.subject_id, self.id)",
             }
-
-    # Properties that have to be generated for a class
-    ADDITIONS = {
-            'projectData': ('subjects', 'experiments', 'fulluri'),
-            'subjectData': ('experiments', 'fulluri'),
-            'experimentData': ('download', 'fulluri'),
-            'imageSessionData': ('download',),
-            'imageScanData': ('resources', 'files', 'download'),
-            'abstractResource': ('files', 'download'),
-            }
-
-    # Properties that are not generated
-    BLACKLIST = ('id', 'uri')
 
     # Fields for lookup besides the id
     SECONDARY_LOOKUP_FIELDS = {
@@ -67,6 +37,7 @@ class ClassRepresentation(object):
         base = self.get_base_template()
         if base is not None:
             base_source = inspect.getsource(base)
+            base_source = re.sub(r'class {}\(XNATObject\):'.format(self.python_name), 'class {}({}):'.format(self.python_name, self.python_baseclass), base_source)
             header = base_source.strip() + '\n\n'
         else:
             header = '# No base template found for {}\n'.format(self.python_name)
@@ -97,9 +68,7 @@ class ClassRepresentation(object):
             return getattr(xnatbases, self.python_name)
 
     def print_property(self, prop):
-        if (self.name, prop.name) in self.SUBSTITUTIONS:
-            return self.SUBSTITUTIONS[self.name, prop.name]
-        elif prop.name in self.SUBSTITUTIONS:
+        if prop.name in self.SUBSTITUTIONS:
             return self.SUBSTITUTIONS[prop.name]
         else:
             data = str(prop)
@@ -114,7 +83,6 @@ class ClassRepresentation(object):
             return "    def __init__(self, uri, xnat, id_=None, datafields=None, {lookup}=None):\n        super({name}, self).__init__(uri, xnat, id_=id_, datafields=datafields)\n        if {lookup} is not None:\n            self._cache['{lookup}'] = {lookup}\n\n".format(name=self.python_name, lookup=self.SECONDARY_LOOKUP_FIELDS[self.name])
         else:
             return ""
-
 
 
 class PropertyRepresentation(object):
@@ -174,54 +142,6 @@ class PropertyRepresentation(object):
             return data
         else:
             return ''
-
-    @staticmethod
-    def to_date(value):
-        return isodate.parse_date(value)
-
-    @staticmethod
-    def to_time(value):
-        return isodate.parse_time(value)
-
-    @staticmethod
-    def to_datetime(value):
-        return isodate.parse_datetime(value)
-
-    @staticmethod
-    def to_timedelta(value):
-        return isodate.parse_duration(value).tdelta
-
-    @staticmethod
-    def to_bool(value):
-        return value in ["true", "1"]
-        
-    TYPE_MAP = {
-            'xs:anyURI': str,
-            'xs:string': str,
-            'xs:boolean': to_bool,
-            'xs:integer': int,
-            'xs:long': int,
-            'xs:float': float,
-            'xs:double': float,
-            'xs:dateTime': to_datetime,
-            'xs:time': to_time,
-            'xs:date': to_date,
-            'xs:duration': to_timedelta,
-            }
-
-    TYPE_CODE_MAP = {
-            'xs:anyURI': 'str',
-            'xs:string': 'str',
-            'xs:boolean': 'bool',
-            'xs:integer': 'int',
-            'xs:long': 'int',
-            'xs:float': 'float',
-            'xs:double': 'float',
-            'xs:dateTime': 'datetime',
-            'xs:time': 'time',
-            'xs:date': 'date',
-            'xs:duration': 'timedelta',
-            }
 
 
 class SchemaParser(object):
@@ -405,6 +325,8 @@ class SchemaParser(object):
             '{http://www.w3.org/2001/XMLSchema}schema': parse_schema,
             '{http://www.w3.org/2001/XMLSchema}import': parse_ignore,
             }
+
+
 if __name__ == '__main__':
     main()
 

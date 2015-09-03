@@ -20,13 +20,13 @@ class ProjectData(XNATObject):
 class SubjectData(XNATObject):
     @property
     def fulluri(self):
-        return '{}/projects/{}/subjects/{}'.format(self.xnat.fulluri, self.project_id, self.id)
+        return '{}/projects/{}/subjects/{}'.format(self.xnat.fulluri, self.project, self.id)
 
     @property
     @caching
     def experiments(self):
         # HACK because self.uri + '/subjects' does not work
-        uri = '/data/archive/projects/{}/subjects/{}/experiments'.format(self.project_id, self.id)
+        uri = '{}/experiments'.format(self.fulluri, self.id)
         return XNATListing(uri, xnat=self.xnat, secondary_lookup_field='label')
 
 

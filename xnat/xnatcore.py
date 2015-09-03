@@ -298,7 +298,7 @@ class XNATObject(object):
         value = self.data.get(name)
         if type_ is not None and value is not None:
             if isinstance(type_, str):
-                value = self.TYPE_TO_MAP.get(type_, str)(value)
+                value = TYPE_TO_MAP.get(type_, str)(value)
             else:
                 value = type_(value)
         return value
