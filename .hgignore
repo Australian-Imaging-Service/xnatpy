@@ -1,0 +1,8 @@
+syntax: glob
+
+*.pyc
+.idea/**
+build/**
+dist/**
+xnat.iml
+xnat/version.py
