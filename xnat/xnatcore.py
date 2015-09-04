@@ -304,8 +304,14 @@ class XNATObject(object):
                 value = type_(value)
         return value
     
-    TYPE_HINTS = {
+    _TYPE_HINTS = {
             'demographics': 'xnat:demographicData',
+            'investigator': 'xnat:investigatorData',
+            'metadata': 'xnat:subjectMetadata',
+            'pi': 'xnat:investigatorData',
+            'studyprotocol': 'xnat:studyProtocol',
+            'validation': 'xnat:validationData',
+            'baseimage': 'xnat:abstractResource',
             }
 
     def get_object(self, fieldname):
@@ -313,7 +319,7 @@ class XNATObject(object):
             data = next(x for x in self.fulldata['children'] if x['field'] == fieldname)['items'][0]
             type_ = data['meta']['xsi:type']
         except StopIteration:
-            type_ = self.TYPE_HINTS.get(fieldname)
+            type_ = self._TYPE_HINTS.get(fieldname)
         if type_ is None:
             raise ValueError('Cannot determine type of field {}!'.format(fieldname))
         return self.xnat.create_object(self.uri, type=type_, parent=self, fieldname=fieldname)
@@ -350,7 +356,12 @@ class XNATObject(object):
     @property
     @caching
     def id(self):
-        return self.data['ID']
+        if 'ID' in self.data:
+            return self.data['ID']
+        elif self.parent is not None:
+            return '{}/{}'.format(self.parent.id, self.fieldname)
+        else:
+            return '#NOID#'
 
     @property
     @caching
@@ -839,6 +850,24 @@ class XNAT(object):
 
         # We didn't return correctly, so we have an error
         raise XNATUploadError('Upload failed after {} attempts! Status code {}, response text {}'.format(retries, response.status_code, response.text))
+
+    @property
+    def scanners(self):
+        """
+        A list of scanners referenced in XNAT
+        """
+        return [x['scanner'] for x in self.xnat.get_json('/data/archive/scanners')['ResultSet']['Result']]
+
+    @property
+    def scan_types(self):
+        """
+         A list of scan types associated with this XNAT instance
+        """
+        return self.xnat.get_json('/data/archive/scan_types')['ResultSet']['Result']
+
+    @property
+    def xnat_version(self):
+        return self.get('/data/version').text
 
     def create_object(self, uri, type=None, **kwargs):
         if type is None:
