@@ -20,6 +20,13 @@ To get started, create a connection and start querying::
 when using IPython most functionality can be figured out by looking at the
 available attributes/methods of the returned objects.
 
+Credentials
+-----------
+
+To store credentials this module uses the .netrc file. This file contains login
+information and should be accessible ONLY by the user (if not, the module with
+throw an error to let you know the file is unsafe).
+
 Status
 ------
 
