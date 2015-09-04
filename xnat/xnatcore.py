@@ -16,6 +16,7 @@
 from abc import ABCMeta
 from collections import MutableMapping, Mapping, namedtuple
 import datetime
+import mimetypes
 import netrc
 import os
 import re
@@ -558,6 +559,8 @@ class XNAT(object):
         self._cache = {}
         self.caching = True
         self._source_code_file = None
+        self._services = Services(xnat=self)
+        self._prearchive = Prearchive(xnat=self)
 
         # Set the keep alive settings and spawn the keepalive thread for sending heartbeats
         if isinstance(keepalive, int) and keepalive > 0:
@@ -786,25 +789,36 @@ class XNAT(object):
     def download_zip(self, uri, target):
         self.download(uri, target, format='zip')
 
-    def upload(self, uri, file, retries=3):
-        uri = self._format_uri(uri)
+    def upload(self, uri, file, retries=1, query=None, content_type=None, method='put'):
+        uri = self._format_uri(uri, query=query)
         attempt = 0
-        success = False
         filename = os.path.basename(file)
 
-        while not success and attempt < retries:
+        while attempt < retries:
             with open(file, 'rb') as file_handle:
                 attempt += 1
 
                 try:
-                    response = requests.put(uri, files={filename: file_handle})
+                    if content_type is None:
+                        files = {filename: file_handle}
+                    else:
+                        files = {filename: (filename, file_handle, content_type)}
+                    print('Files argument: {}'.format(files))
+                    if method == 'put':
+                        print('Upload PUT uri: {}'.format(uri))
+                        response = requests.put(uri, files=files)
+                    elif method == 'post':
+                        print('Upload POST uri: {}'.format(uri))
+                        response = requests.post(uri, files=files)
+                    else:
+                        raise ValueError('Invalid upload method "{}" should be either put or post.'.format(method))
                     self._check_response(response)
-                    success = True
+                    return response
                 except XNATResponseError:
                     pass
 
-        if not success:
-            raise XNATUploadError('Upload failed after {} attempts! Status code {}, response text {}'.format(retries, response.status_code, response.text))
+        # We didn't return correctly, so we have an error
+        raise XNATUploadError('Upload failed after {} attempts! Status code {}, response text {}'.format(retries, response.status_code, response.text))
 
     def create_object(self, uri, type=None, **kwargs):
         if type is None:
@@ -834,7 +848,57 @@ class XNAT(object):
     def experiments(self):
         return XNATListing(self.uri + '/experiments', xnat=self.xnat, secondary_lookup_field='label')
 
+    @property
+    def prearchive(self):
+        return self._prearchive
+
+    @property
+    def services(self):
+        return self._services
+
     def clearcache(self):
         self._cache.clear()
+
+# Pre-archive
+
+# Services
+class Services(object):
+    def __init__(self, xnat):
+        self._xnat = xnat
+
+    @property
+    def xnat(self):
+        return self._xnat
+
+    def import_(self, path, overwrite=None, quarantine=False, dest=None, project=None):
+        query = {}
+        if overwrite is not None:
+            if overwrite not in ['none', 'append', 'delete']:
+                raise ValueError('Overwrite should be none, append or delete!')
+            query['overwrite'] = overwrite
+
+        if quarantine:
+            query['quarantine'] = 'true'
+
+        if dest is not None:
+            query['dest'] = dest
+
+        if project is not None:
+            query['project'] = project
+
+        # Get mimetype of file
+        content_type, transfer_encoding = mimetypes.guess_type(path)
+
+        uri = '/data/services/import'
+        return self.xnat.upload(uri=uri, file=path, query=query, content_type=content_type, method='post')
+
+
+class Prearchive(object):
+    def __init__(self, xnat):
+       self._xnat = xnat
+
+    @property
+    def xnat(self):
+        return self._xnat
 
 

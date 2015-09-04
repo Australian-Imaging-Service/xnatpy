@@ -3,8 +3,6 @@ import inspect
 import keyword
 import re
 
-import isodate
-
 import xnatbases
 
 
@@ -325,8 +323,4 @@ class SchemaParser(object):
             '{http://www.w3.org/2001/XMLSchema}schema': parse_schema,
             '{http://www.w3.org/2001/XMLSchema}import': parse_ignore,
             }
-
-
-if __name__ == '__main__':
-    main()
 
