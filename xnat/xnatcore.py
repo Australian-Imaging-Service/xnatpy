@@ -266,7 +266,7 @@ class XNATObject(object):
     def __init__(self, uri, xnat, id_=None, datafields=None, parent=None, fieldname=None):
         # Set the xnat session
         self._cache = {}
-        self.caching = True
+        self._caching = None
 
         self._xnat = xnat
         self._uri = uri
@@ -377,7 +377,25 @@ class XNATObject(object):
         return self._uri
 
     def clearcache(self):
-        self._cache.clear()
+        self._cache.clear()\
+
+    # This needs to be at the end of the class because it shadows the caching
+    # decorator for the remainder of the scope.
+    @property
+    def caching(self):
+        if self._caching is not None:
+            return self._caching
+        else:
+            return self.xnat.caching
+
+    @caching.setter
+    def caching(self, value):
+        self._caching = value
+
+    @caching.deleter
+    def caching(self):
+        self._caching = None
+
 
 
 class XNATListing(Mapping):
@@ -706,9 +724,10 @@ class XNAT(object):
         self._check_response(response, [200], uri=uri)  # Allow OK, as we want to get data
         return response
 
-    def post(self, path, data, format=None, query=None):
+    def post(self, path, data=None, format=None, query=None):
         uri = self._format_uri(path, format, query=query)
         try:
+            print('POST URI: {}'.format(uri))
             response = self._interface.post(uri, data=data)
         except requests.exceptions.SSLError:
             raise XNATSSLError('Encountered a problem with the SSL connection, are you sure the server is offering https?')
@@ -718,6 +737,7 @@ class XNAT(object):
     def put(self, path, data=None, files=None, format=None, query=None):
         uri = self._format_uri(path, format, query=query)
         try:
+            print('PUT URI: {}'.format(uri))
             response = self._interface.put(uri, data=data, files=files)
         except requests.exceptions.SSLError:
             raise XNATSSLError('Encountered a problem with the SSL connection, are you sure the server is offering https?')
@@ -870,7 +890,7 @@ class Services(object):
     def xnat(self):
         return self._xnat
 
-    def import_(self, path, overwrite=None, quarantine=False, dest=None, project=None):
+    def import_(self, path, overwrite=None, quarantine=False, destination=None, project=None):
         query = {}
         if overwrite is not None:
             if overwrite not in ['none', 'append', 'delete']:
@@ -880,8 +900,8 @@ class Services(object):
         if quarantine:
             query['quarantine'] = 'true'
 
-        if dest is not None:
-            query['dest'] = dest
+        if destination is not None:
+            query['dest'] = destination
 
         if project is not None:
             query['project'] = project
@@ -893,6 +913,155 @@ class Services(object):
         return self.xnat.upload(uri=uri, file=path, query=query, content_type=content_type, method='post')
 
 
+class PrearchiveEntry(XNATObject):
+    @property
+    def id(self):
+        return '{}/{}/{}'.format(self.data['project'], self.data['timestamp'], self.data['name'])
+
+    @property
+    @caching
+    def fulldata(self):
+        return self.xnat.get_json(self.uri)['ResultSet']['Result'][0]
+
+    @property
+    def data(self):
+        return self.fulldata
+
+    @property
+    def autoarchive(self):
+        return self.data['autoarchive']
+
+    @property
+    def folder_name(self):
+        return self.data['folderName']
+
+    @property
+    def lastmod(self):
+        return self.data['lastmod']
+
+    @property
+    def name(self):
+        return self.data['name']
+
+    @property
+    def prevent_anon(self):
+        return self.data['prevent_anon']
+
+    @property
+    def prevent_auto_commit(self):
+        return self.data['prevent_auto_commit']
+
+    @property
+    def project(self):
+        return self.data['project']
+
+    @property
+    def scan_date(self):
+        return self.data['scan_date']
+
+    @property
+    def scan_time(self):
+        return self.data['scan_time']
+
+    @property
+    def status(self):
+        return self.data['status']
+
+    @property
+    def subject(self):
+        return self.data['subject']
+
+    @property
+    def tag(self):
+        return self.data['tag']
+
+    @property
+    def timestamp(self):
+        return self.data['timestamp']
+
+    @property
+    def uploaded(self):
+        return self.data['uploaded']
+
+    def download(self, path):
+        self.xnat.download(self.uri, path)
+        return path
+
+    def archive(self, overwrite=None, quarantine=None, trigger_pipelines=None, destination=None):
+        query = {'src': self.uri}
+
+        if overwrite is not None:
+            if overwrite not in ['none', 'append', 'delete']:
+                raise ValueError('Overwrite should be none, append or delete!')
+            query['overwrite'] = overwrite
+
+        if quarantine is not None:
+            if isinstance(quarantine, bool):
+                if quarantine:
+                    query['quarantine'] = 'true'
+                else:
+                    query['quarantine'] = 'false'
+            else:
+                raise TypeError('Quarantine should be a boolean')
+
+        if trigger_pipelines is not None:
+            if isinstance(trigger_pipelines, bool):
+                if trigger_pipelines:
+                    query['triggerPipelines'] = 'true'
+                else:
+                    query['triggerPipelines'] = 'false'
+            else:
+                raise TypeError('trigger_pipelines should be a boolean')
+
+        if destination is not None:
+            query['dest'] = destination
+
+        return self.xnat.post('/data/services/archive', query=query)
+
+    def delete(self, async=None):
+        query = {'src': self.uri}
+
+        if async is not None:
+            if isinstance(async, bool):
+                if async:
+                    query['async'] = 'true'
+                else:
+                    query['async'] = 'false'
+            else:
+                raise TypeError('async should be a boolean')
+
+        return self.xnat.post('/data/services/prearchive/delete', query=query)
+
+    def rebuild(self, async=None):
+        query = {'src': self.uri}
+
+        if async is not None:
+            if isinstance(async, bool):
+                if async:
+                    query['async'] = 'true'
+                else:
+                    query['async'] = 'false'
+            else:
+                raise TypeError('async should be a boolean')
+
+        return self.xnat.post('/data/services/prearchive/rebuild',query=query)
+
+    def move(self, new_project, async=None):
+        query = {'src': self.uri,
+                 'newProject': new_project}
+
+        if async is not None:
+            if isinstance(async, bool):
+                if async:
+                    query['async'] = 'true'
+                else:
+                    query['async'] = 'false'
+            else:
+                raise TypeError('async should be a boolean')
+
+        return self.xnat.post('/data/services/prearchive/move', query=query)
+
+
 class Prearchive(object):
     def __init__(self, xnat):
        self._xnat = xnat
@@ -901,4 +1070,12 @@ class Prearchive(object):
     def xnat(self):
         return self._xnat
 
+    def sessions(self, project=None):
+        if project is None:
+            uri = '/data/prearchive/projects'
+        else:
+            uri = '/data/prearchive/projects/{}'.format(project)
 
+        data = self.xnat.get_json(uri)
+        # We need to prepend /data to our url (seems to be a bug?)
+        return [PrearchiveEntry('/data{}'.format(x['url']), self.xnat) for x in data['ResultSet']['Result']]
