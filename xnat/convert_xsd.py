@@ -46,7 +46,6 @@ class ClassRepresentation(object):
         return '<Class {}({})>'.format(self.name, self.baseclass)
 
     def __str__(self):
-        print('Base template class for {} is {}'.format(self.python_name, self.get_base_template()))
         base = self.get_base_template()
         if base is not None:
             base_source = inspect.getsource(base)
