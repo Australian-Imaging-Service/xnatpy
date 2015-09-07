@@ -25,6 +25,8 @@ import requests
 from xnatcore import XNAT
 from convert_xsd import SchemaParser
 
+FILENAME = __file__
+
 
 def connect(server, user=None, password=None):
     # Retrieve schema from XNAT server
@@ -56,7 +58,7 @@ def connect(server, user=None, password=None):
     # Write code to temp file
     with tempfile.NamedTemporaryFile(mode='w', suffix='_generated_xnat.py', delete=False) as code_file:
 
-        header = os.path.join(os.path.dirname(__file__), 'xnatcore.py')
+        header = os.path.join(os.path.dirname(FILENAME), 'xnatcore.py')
         with open(header) as fin:
             for line in fin:
                 code_file.write(line)
