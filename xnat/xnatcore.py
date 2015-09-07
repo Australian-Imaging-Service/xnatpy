@@ -16,6 +16,7 @@
 from abc import ABCMeta
 from collections import MutableMapping, Mapping, namedtuple
 import datetime
+import fnmatch
 import mimetypes
 import netrc
 import os
@@ -324,6 +325,7 @@ class XNATObject(object):
             raise ValueError('Cannot determine type of field {}!'.format(fieldname))
         return self.xnat.create_object(self.uri, type=type_, parent=self, fieldname=fieldname)
 
+    @property
     def fulluri(self):
         return self.uri
 
@@ -388,7 +390,7 @@ class XNATObject(object):
         return self._uri
 
     def clearcache(self):
-        self._cache.clear()\
+        self._cache.clear()
 
     # This needs to be at the end of the class because it shadows the caching
     # decorator for the remainder of the scope.
@@ -446,6 +448,11 @@ class XNATListing(Mapping):
                 if not 'ID' in entry:
                     entry['ID'] = '{}/files/{}'.format(entry['cat_ID'], entry['Name'])
                     entry['name'] = entry['Name']
+
+        # Post filter result if server side query did not work
+        result = [x for x in result if all(fnmatch.fnmatch(x.get(k), v) for k, v in self.used_filters.items())]
+
+        # Create object dictionary
         return {x['ID']: self.xnat.create_object(x['URI'], type=x.get('xsiType', self._xsiType), id_=x['ID'], **{self.secondary_lookup_field: x.get(self.secondary_lookup_field)}) for x in result}
 
     def __repr__(self):
@@ -563,13 +570,14 @@ class FileData(XNATObject):
 
     def __init__(self, uri, xnat, id_=None, datafields=None, name=None):
         super(FileData, self).__init__(uri, xnat, id_=id_, datafields=datafields)
-        if name is not None:
-            self._cache['name'] = name
+        self._name = name
 
     @property
-    @caching
     def name(self):
-        return self.data['name']
+        return self._name
+
+    def delete(self):
+        self.xnat.delete(self.uri)
 
     def download(self, path):
         self.xnat.download(self.uri, path)
@@ -820,13 +828,29 @@ class XNAT(object):
     def download_zip(self, uri, target):
         self.download(uri, target, format='zip')
 
-    def upload(self, uri, file, retries=1, query=None, content_type=None, method='put'):
+    def upload(self, uri, file_, retries=1, query=None, content_type=None, method='put'):
         uri = self._format_uri(uri, query=query)
         attempt = 0
-        filename = os.path.basename(file)
+        file_handle = None
+        opened_file = False
 
-        while attempt < retries:
-            with open(file, 'rb') as file_handle:
+        try:
+            while attempt < retries:
+                if isinstance(file_, file):
+                    # File is open file handle, seek to 0
+                    file_handle = file_
+                    file_.seek(0)
+                    filename = os.path.basename(uri)
+                elif os.path.isfile(file_):
+                    # File is str path to file
+                    file_handle = open(file_, 'rb')
+                    opened_file = True
+                    filename = os.path.basename(file_)
+                else:
+                    # File is data to upload
+                    file_handle = file_
+                    filename = os.path.basename(uri)
+
                 attempt += 1
 
                 try:
@@ -847,6 +871,9 @@ class XNAT(object):
                     return response
                 except XNATResponseError:
                     pass
+        finally:
+            if opened_file:
+                file_handle.close()
 
         # We didn't return correctly, so we have an error
         raise XNATUploadError('Upload failed after {} attempts! Status code {}, response text {}'.format(retries, response.status_code, response.text))
@@ -939,7 +966,7 @@ class Services(object):
         content_type, transfer_encoding = mimetypes.guess_type(path)
 
         uri = '/data/services/import'
-        return self.xnat.upload(uri=uri, file=path, query=query, content_type=content_type, method='post')
+        return self.xnat.upload(uri=uri, file_=path, query=query, content_type=content_type, method='post')
 
 
 class PrearchiveEntry(XNATObject):
@@ -971,6 +998,10 @@ class PrearchiveEntry(XNATObject):
     @property
     def name(self):
         return self.data['name']
+
+    @property
+    def label(self):
+        return self.name
 
     @property
     def prevent_anon(self):

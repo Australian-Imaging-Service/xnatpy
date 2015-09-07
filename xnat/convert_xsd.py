@@ -64,8 +64,20 @@ class ClassRepresentation(object):
 
         properties = [self.properties[k] for k in sorted(self.properties.keys())]
 
-        properties = '\n\n'.join(self.print_property(p) for p in properties if not hasattr(base, p.clean_name))
+        properties = '\n\n'.join(self.print_property(p) for p in properties if not self.hasattr(p.clean_name))
         return '{}{}'.format(header, properties)
+
+    def hasattr(self, name):
+        base = self.get_base_template()
+
+        if base is not None:
+            return hasattr(base, name)
+        else:
+            base = self.parser.class_list.get(self.baseclass)
+            if base is not None:
+                return base.hasattr(name)
+            else:
+                return False
 
     @property
     def python_name(self):
