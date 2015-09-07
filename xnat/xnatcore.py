@@ -23,6 +23,7 @@ import os
 import re
 import sys
 import textwrap
+import time
 import threading
 import urllib
 import urlparse
@@ -898,7 +899,7 @@ class XNAT(object):
 
     def create_object(self, uri, type=None, **kwargs):
         if type is None:
-            data = self.get_json(uri)
+            data = self.xnat.get_json(uri)
             type = data['items'][0]['meta']
             datafields = data['items'][0]['data_fields']
         else:
@@ -946,7 +947,7 @@ class Services(object):
     def xnat(self):
         return self._xnat
 
-    def import_(self, path, overwrite=None, quarantine=False, destination=None, project=None):
+    def import_(self, path, overwrite=None, quarantine=False, destination=None, project=None, content_type=None):
         query = {}
         if overwrite is not None:
             if overwrite not in ['none', 'append', 'delete']:
@@ -963,15 +964,18 @@ class Services(object):
             query['project'] = project
 
         # Get mimetype of file
-        content_type, transfer_encoding = mimetypes.guess_type(path)
+        if content_type is None:
+            content_type, transfer_encoding = mimetypes.guess_type(path)
 
         uri = '/data/services/import'
         response = self.xnat.upload(uri=uri, file_=path, query=query, content_type=content_type, method='post')
+        return response
 
-        if response.status_code != 200:
-            raise XNATResponseError('The response for uploading was ({}) {}'.format(response.status_code, response.text))
+        # TODO: figure out why the returned url is not valid!
+        #if response.status_code != 200:
+        #    raise XNATResponseError('The response for uploading was ({}) {}'.format(response.status_code, response.text))
 
-        return self.xnat.create_object(response.text)
+        #return self.xnat.create_object(response.text)
 
 
 class PrearchiveEntry(XNATObject):

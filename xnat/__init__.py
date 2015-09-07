@@ -15,20 +15,38 @@
 
 import imp
 import os
+import netrc
 import tempfile
 from xml.etree import ElementTree
-from convert_xsd import SchemaParser
+import urlparse
 
 import requests
 
 from xnatcore import XNAT
+from convert_xsd import SchemaParser
 
-def connect(server):
+def connect(server, user=None, password=None):
     # Retrieve schema from XNAT server
-    schema_uri = '{}/schemas/xnat/xnat.xsd'.format(server)
+    schema_uri = '{}/schemas/xnat/xnat.xsd'.format(server.rstrip('/'))
     print('Retrieving schema from {}'.format(schema_uri))
-    resp = requests.get(schema_uri)
-    root = ElementTree.fromstring(resp.text)
+    parsed_server = urlparse.urlparse(server)
+
+    if user is None and password is None:
+        print('[INFO] Retrieving login info for {}'.format(parsed_server.netloc))
+        try:
+            user, _, password = netrc.netrc().authenticators(parsed_server.netloc)
+        except TypeError:
+            raise ValueError('Could not retrieve login info for "{}" from the .netrc file!'.format(server))
+
+    requests_session = requests.Session()
+    if (user is not None) or (password is not None):
+        requests_session.auth = (user, password)
+
+    resp = requests_session.get(schema_uri)
+    try:
+        root = ElementTree.fromstring(resp.text)
+    except ElementTree.ParseError:
+        raise ValueError('Could not parse xnat.xsd, server response was ({}) {}'.format(resp.status_code, resp.text))
     
     # Parse xml schema
     parser = SchemaParser()
