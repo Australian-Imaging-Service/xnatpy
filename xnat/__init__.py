@@ -53,13 +53,11 @@ def connect(server):
 
     # Register all types parsed
     for cls in parser:
-        if cls.name is None or cls.baseclass.startswith('xs:'):
-            continue
-
-        XNAT.XNAT_CLASS_LOOKUP['xnat:{}'.format(cls.name)] = getattr(xnat_module, cls.python_name)
+        if not (cls.name is None or cls.baseclass.startswith('xs:')):
+            XNAT.XNAT_CLASS_LOOKUP['xnat:{}'.format(cls.name)] = getattr(xnat_module, cls.python_name)
 
     # Create the XNAT connection and return it
-    xnat = xnat_module.XNAT(server)
-    xnat._source_code_file = code_file.name
-    return xnat
+    session = xnat_module.XNAT(server)
+    session._source_code_file = code_file.name
+    return session
 

@@ -660,7 +660,7 @@ class XNAT(object):
 
         # Kill the session
         if self._server is not None and self._interface is not None:
-            self.delete('/data/JSESSION')
+            self.delete('/data/JSESSION', headers={'Connection': 'close'})
 
         # Set the server and interface to None
         self._interface = None
@@ -763,10 +763,10 @@ class XNAT(object):
         self._check_response(response, [200, 201], uri=uri)  # Allow created OK or Create status (OK if already exists)
         return response
 
-    def delete(self, path):
+    def delete(self, path, headers=None):
         uri = self._format_uri(path)
         try:
-            response = self.interface.delete(uri)
+            response = self.interface.delete(uri, headers=headers)
         except requests.exceptions.SSLError:
             raise XNATSSLError('Encountered a problem with the SSL connection, are you sure the server is offering https?')
         self._check_response(response, uri=uri)
@@ -966,7 +966,12 @@ class Services(object):
         content_type, transfer_encoding = mimetypes.guess_type(path)
 
         uri = '/data/services/import'
-        return self.xnat.upload(uri=uri, file_=path, query=query, content_type=content_type, method='post')
+        response = self.xnat.upload(uri=uri, file_=path, query=query, content_type=content_type, method='post')
+
+        if response.status_code != 200:
+            raise XNATResponseError('The response for uploading was ({}) {}'.format(response.status_code, response.text))
+
+        return self.xnat.create_object(response.text)
 
 
 class PrearchiveEntry(XNATObject):
