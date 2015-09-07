@@ -25,6 +25,7 @@ import requests
 from xnatcore import XNAT
 from convert_xsd import SchemaParser
 
+
 def connect(server, user=None, password=None):
     # Retrieve schema from XNAT server
     schema_uri = '{}/schemas/xnat/xnat.xsd'.format(server.rstrip('/'))
@@ -75,7 +76,7 @@ def connect(server, user=None, password=None):
             XNAT.XNAT_CLASS_LOOKUP['xnat:{}'.format(cls.name)] = getattr(xnat_module, cls.python_name)
 
     # Create the XNAT connection and return it
-    session = xnat_module.XNAT(server)
+    session = xnat_module.XNAT(server=server, interface=requests_session)
     session._source_code_file = code_file.name
     return session
 

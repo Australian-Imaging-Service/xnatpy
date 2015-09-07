@@ -47,6 +47,10 @@ class SubjectData(XNATObject):
 
 class ImageSessionData(XNATObject):
     @property
+    def fulluri(self):
+        return '/data/archive/projects/{}/subjects/{}/experiments/{}'.format(self.project, self.subject_id, self.id)
+
+    @property
     @caching
     def scans(self):
         return XNATListing(self.uri + '/scans', xnat=self.xnat, secondary_lookup_field='series_description')
@@ -62,12 +66,12 @@ class ImageSessionData(XNATObject):
         return XNATListing(self.uri + '/reconstructions', xnat=self.xnat, secondary_lookup_field='label')
 
     def create_assessor(self, label, type_='xnat:mrAssessorData'):
-        uri = '{}/assessors/{label}?xsiType={type}&label={label}&req_format=qs'.format(self.uri,
+        uri = '{}/assessors/{label}?xsiType={type}&label={label}&req_format=qs'.format(self.fulluri,
                                                                                        type=type_,
                                                                                        label=label)
-        self.xnat.put(uri, expected_code=(200, 201))
+        self.xnat.put(uri, accepted_status=(200, 201))
         self.clearcache()  # The resources changed, so we have to clear the cache
-        return self.xnat.create_object('{}/assessors/{}'.format(self.uri, label))
+        return self.xnat.create_object('{}/assessors/{}'.format(self.fulluri, label), type=type_)
 
     def download(self, path):
         self.xnat.download_zip(self.uri + '/scans/ALL/files', path)
@@ -89,10 +93,10 @@ class DerivedData(XNATObject):
         return XNATListing(self.fulluri + '/resources', xnat=self.xnat, secondary_lookup_field='label', xsiType='xnat:resourceCatalog')
 
     def create_resource(self, label, format=None):
-        uri = '{}/resources/{}'.format(self.uri, label)
+        uri = '{}/resources/{}'.format(self.fulluri, label)
         self.xnat.put(uri, format=format)
         self.clearcache()  # The resources changed, so we have to clear the cache
-        return self.xnat.create_object(uri)
+        return self.xnat.create_object(uri, type='xnat:resourceCatalog')
 
     def download(self, path):
         self.xnat.download_zip(self.uri + '/files', path)
@@ -113,13 +117,28 @@ class ImageScanData(XNATObject):
         uri = '{}/resources/{}'.format(self.uri, label)
         self.xnat.put(uri, format=format)
         self.clearcache()  # The resources changed, so we have to clear the cache
-        return self.xnat.create_object(uri)
+        return self.xnat.create_object(uri, type='xnat:resourceCatalog')
 
     def download(self, path):
         self.xnat.download_zip(self.uri + '/files', path)
 
 
 class AbstractResource(XNATObject):
+    @property
+    @caching
+    def fulldata(self):
+        # FIXME: ugly hack because direct query fails
+        uri, label = self.uri.rsplit('/', 1)
+        data = self.xnat.get_json(uri)['ResultSet']['Result']
+        try:
+            return next(x for x in data if x['label'] == label)
+        except StopIteration:
+            raise ValueError('Cannot find full data!')
+
+    @property
+    def data(self):
+        return self.fulldata
+
     @property
     @caching
     def files(self):
@@ -129,7 +148,6 @@ class AbstractResource(XNATObject):
         self.xnat.download_zip(self.uri + '/files', path)
 
     def upload(self, data, remotepath):
-        print('[INFO] Upload to resource {}, local {}, remote {}'.format(self.id, data[:100], remotepath))
         uri = '{}/files/{}'.format(self.uri, remotepath)
         self.xnat.upload(uri, data)
 

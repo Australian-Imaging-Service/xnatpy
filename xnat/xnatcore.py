@@ -590,10 +590,10 @@ class XNAT(object):
         "xnat:fileData": FileData,
     }
 
-    def __init__(self, server=None, user=None, password=None, keepalive=840):
-        self._interface = None
+    def __init__(self, server, interface=None, user=None, password=None, keepalive=840):
+        self._interface = interface
         self._projects = None
-        self._server = None
+        self._server = urlparse.urlparse(server) if server else None
         self._cache = {}
         self.caching = True
         self._source_code_file = None
@@ -613,8 +613,7 @@ class XNAT(object):
         self._keepalive_event = threading.Event()
 
         # If needed connect here
-        if server is not None:
-            self.connect(server, user, password)
+        self.connect(server=server, user=user, password=password)
 
     def __del__(self):
         self.disconnect()
@@ -625,23 +624,27 @@ class XNAT(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.disconnect()
 
-    def connect(self, server, user=None, password=None):
-        print('[INFO] Connecting to server {}'.format(server))
-        if self._interface is not None:
-            self.disconnect()
+    def connect(self, server=None, user=None, password=None):
+        # If not connected, connect now
+        if self.interface is None:
+            if server is None:
+                raise ValueError('Cannot connect if no server is given')
+            print('[INFO] Connecting to server {}'.format(server))
+            if self._interface is not None:
+                self.disconnect()
 
-        self._server = urlparse.urlparse(server)
+            self._server = urlparse.urlparse(server)
 
-        if user is None and password is None:
-            print('[INFO] Retrieving login info for {}'.format(self._server.netloc))
-            try:
-                user, _, password = netrc.netrc().authenticators(self._server.netloc)
-            except TypeError:
-                raise ValueError('Could not retrieve login info for "{}" from the .netrc file!'.format(server))
+            if user is None and password is None:
+                print('[INFO] Retrieving login info for {}'.format(self._server.netloc))
+                try:
+                    user, _, password = netrc.netrc().authenticators(self._server.netloc)
+                except TypeError:
+                    raise ValueError('Could not retrieve login info for "{}" from the .netrc file!'.format(server))
 
-        self._interface = requests.Session()
-        if (user is not None) or (password is not None):
-            self._interface.auth = (user, password)
+            self._interface = requests.Session()
+            if (user is not None) or (password is not None):
+                self._interface.auth = (user, password)
 
         # Create a keepalive thread
         self._keepalive_running = True
@@ -735,42 +738,44 @@ class XNAT(object):
         if response.status_code not in accepted_status or response.text.startswith(('<!DOCTYPE', '<html>')):
             raise XNATResponseError('Invalid response from XNAT for url {} (status {}):\n{}'.format(uri, response.status_code, response.text))
 
-    def get(self, path, format=None, query=None):
+    def get(self, path, format=None, query=None, accepted_status=None):
+        accepted_status = accepted_status or [200]
         uri = self._format_uri(path, format, query=query)
         try:
             response = self.interface.get(uri)
         except requests.exceptions.SSLError:
             raise XNATSSLError('Encountered a problem with the SSL connection, are you sure the server is offering https?')
-        self._check_response(response, [200], uri=uri)  # Allow OK, as we want to get data
+        self._check_response(response, accepted_status=accepted_status, uri=uri)  # Allow OK, as we want to get data
         return response
 
-    def post(self, path, data=None, format=None, query=None):
+    def post(self, path, data=None, format=None, query=None, accepted_status=None):
+        accepted_status = accepted_status or [200]
         uri = self._format_uri(path, format, query=query)
         try:
-            print('POST URI: {}'.format(uri))
             response = self._interface.post(uri, data=data)
         except requests.exceptions.SSLError:
             raise XNATSSLError('Encountered a problem with the SSL connection, are you sure the server is offering https?')
-        self._check_response(response, uri=uri)
+        self._check_response(response, accepted_status=accepted_status, uri=uri)
         return response
 
-    def put(self, path, data=None, files=None, format=None, query=None):
+    def put(self, path, data=None, files=None, format=None, query=None, accepted_status=None):
+        accepted_status = accepted_status or [200, 201]
         uri = self._format_uri(path, format, query=query)
         try:
-            print('PUT URI: {}'.format(uri))
             response = self._interface.put(uri, data=data, files=files)
         except requests.exceptions.SSLError:
             raise XNATSSLError('Encountered a problem with the SSL connection, are you sure the server is offering https?')
-        self._check_response(response, [200, 201], uri=uri)  # Allow created OK or Create status (OK if already exists)
+        self._check_response(response, accepted_status=accepted_status, uri=uri)  # Allow created OK or Create status (OK if already exists)
         return response
 
-    def delete(self, path, headers=None):
+    def delete(self, path, headers=None, accepted_status=None):
+        accepted_status = accepted_status or [200]
         uri = self._format_uri(path)
         try:
             response = self.interface.delete(uri, headers=headers)
         except requests.exceptions.SSLError:
             raise XNATSSLError('Encountered a problem with the SSL connection, are you sure the server is offering https?')
-        self._check_response(response, uri=uri)
+        self._check_response(response, accepted_status=accepted_status, uri=uri)
         return response
 
     def _format_uri(self, path, format=None, query=None):
@@ -800,7 +805,10 @@ class XNAT(object):
 
     def get_json(self, uri, query=None):
         response = self.get(uri, format='json', query=query)
-        return response.json()
+        try:
+            return response.json()
+        except ValueError:
+            raise ValueError('Could not decode JSON from {}'.format(response.text))
 
     def download(self, uri, target, format=None):
         uri = self._format_uri(uri, format=format)
@@ -859,12 +867,9 @@ class XNAT(object):
                         files = {filename: file_handle}
                     else:
                         files = {filename: (filename, file_handle, content_type)}
-                    print('Files argument: {}'.format(files))
                     if method == 'put':
-                        print('Upload PUT uri: {}'.format(uri))
                         response = requests.put(uri, files=files)
                     elif method == 'post':
-                        print('Upload POST uri: {}'.format(uri))
                         response = requests.post(uri, files=files)
                     else:
                         raise ValueError('Invalid upload method "{}" should be either put or post.'.format(method))
