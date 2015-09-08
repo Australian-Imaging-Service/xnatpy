@@ -59,19 +59,19 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'XNAT'
-copyright = u'2011 -- 2015, Marcel Koek and Hakim Achterberg'
+copyright = u'2011 -- 2015, Hakim Achterberg'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 #
 # Get version
-version_module = imp.load_source('version', os.path.join(os.path.dirname(__file__), '../xnat/version.py'))
+setup_module = imp.load_source('setup', os.path.join(os.path.dirname(__file__), '../setup.py'))
 
 # The short X.Y version.
-version = version_module.version.rsplit('.')[0]
+version = setup_module.version.rsplit('.')[0]
 # The full version, including alpha/beta/rc tags.
-release = version_module.version
+release = setup_module.version
 
 # Create temporary code for documentation
 sys.path.append(os.path.abspath('../xnat'))
@@ -206,7 +206,7 @@ latex_paper_size = 'a4'
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
     ('index', 'XNAT.tex', u'XNAT Python Client Documentation',
-     u'Marcel Koek and Hakim Achterberg', 'manual'),
+     u'Hakim Achterberg', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -239,7 +239,7 @@ latex_documents = [
 # (source start file, name, description, authors, manual section).
 man_pages = [
     ('index', 'bigr-xnat', u'XNAT Python Client Documentation',
-     [u'Marcel Koek and Hakim Achterberg'], 1)
+     [u'Hakim Achterberg'], 1)
 ]
 
 # Some autogeneration of documentation (make autodoc index, generate plugin
