@@ -13,6 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+This package contains the entire client. The connect function is the only
+function actually in the package. All following classes are created based on
+the https://central.xnat.org/schema/xnat/xnat.xsd schema and the xnatcore and
+xnatbase modules, using the convert_xsd.
+"""
+
 import imp
 import os
 import netrc
@@ -29,13 +36,35 @@ FILENAME = __file__
 
 __all__ = ['connect']
 
-"""
-This package contains the entire client. The connect function is the only
-function actually in the package. All following classes are created based on
-the https://central.xnat.org/schema/xnat/xnat.xsd schema.
-"""
-
 def connect(server, user=None, password=None):
+    """
+    Connect to a server and generate the correct classed based on the servers xnat.xsd
+    This function returns an object that can be used as a context operator. It will call
+    disconnect automatically when the context is left. If it is used as a function, then
+    the user should call ``.disconnect()`` to destroy the session and temporary code file.
+
+    :param str server: uri of the server to connect to (including http:// or https://)
+    :param str user: username to use, leave empty to use netrc entry or anonymous login.
+    :param str password: password to use with the username
+    :return: XNAT session object
+
+    Preferred use::
+
+        >>> import xnat
+        >>> with xnat.connect('https://central.xnat.org') as session:
+        ...    subjects = session.projects['Sample_DICOM'].subjects
+        ...    print('Subjects in the SampleDICOM project: {}'.format(subjects))
+        Subjects in the SampleDICOM project: <XNATListing (CENTRAL_S01894, dcmtest1): <SubjectData CENTRAL_S01894>, (CENTRAL_S00461, PACE_HF_SUPINE): <SubjectData CENTRAL_S00461>>
+
+    Alternative use::
+
+        >>> import xnat
+        >>> session = xnat.connect('https://central.xnat.org')
+        >>> subjects = session.projects['Sample_DICOM'].subjects
+        >>> print('Subjects in the SampleDICOM project: {}'.format(subjects))
+        Subjects in the SampleDICOM project: <XNATListing (CENTRAL_S01894, dcmtest1): <SubjectData CENTRAL_S01894>, (CENTRAL_S00461, PACE_HF_SUPINE): <SubjectData CENTRAL_S00461>>
+        >>> session.disconnect()
+    """
     # Retrieve schema from XNAT server
     schema_uri = '{}/schemas/xnat/xnat.xsd'.format(server.rstrip('/'))
     print('Retrieving schema from {}'.format(schema_uri))
