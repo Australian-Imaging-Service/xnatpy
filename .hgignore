@@ -6,3 +6,4 @@ build/**
 dist/**
 xnat.iml
 xnat/version.py
+doc/_build/**

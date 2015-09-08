@@ -14,9 +14,6 @@
 # limitations under the License.
 
 import os
-import ez_setup
-ez_setup.use_setuptools()
-
 from setuptools import setup
 
 # Get the requirements
@@ -24,7 +21,7 @@ with open('requirements.txt', 'r') as fh:
     _requires = fh.read().splitlines()
 
 # Get information about the version (polling mercurial if possible)
-version = '0.1.0'
+version = '0.1.3'
 dirstate = './.hg/dirstate'
 if os.path.isfile(dirstate):
     with open(dirstate, 'rb') as f_dirstate:
@@ -53,13 +50,25 @@ with open('./xnat/version.py', 'w') as f_version:
 
 setup(
     name='xnat',
-    version='0.1.0',
+    version=version,
     author='H.C. Achterberg',
     author_email='hakim.achterberg@gmail.com',
     packages=['xnat'],
     url='https://bitbucket.org/bigr_erasmusmc/xnat',
-    license='LICENSE',
-    description='A package that allows you to check MR sessions (a directory of dicoms) against a schema to validate it matches the expected MR experiment.',
+    license='Apache 2.0',
+    description='An XNAT client that exposes the XNAT REST interface as python objects. Part of the interface is automatically generated based on the servers data model as defined by the xnat schema.',
     long_description=open('README').read(),
-    install_requires=_requires
+    install_requires=_requires,
+    classifiers = [
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Developers",
+        "Intended Audience :: Healthcare Industry",
+        "Intended Audience :: Science/Research",
+        "License :: OSI Approved :: Apache Software License",
+        "Natural Language :: English",
+        "Programming Language :: Python :: 2.7",
+        "Topic :: Scientific/Engineering :: Bio-Informatics",
+        "Topic :: Scientific/Engineering :: Medical Science Apps.",
+        ]
+
 )

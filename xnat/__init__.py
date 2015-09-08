@@ -27,6 +27,13 @@ from convert_xsd import SchemaParser
 
 FILENAME = __file__
 
+__all__ = ['connect']
+
+"""
+This package contains the entire client. The connect function is the only
+function actually in the package. All following classes are created based on
+the https://central.xnat.org/schema/xnat/xnat.xsd schema.
+"""
 
 def connect(server, user=None, password=None):
     # Retrieve schema from XNAT server
@@ -39,7 +46,7 @@ def connect(server, user=None, password=None):
         try:
             user, _, password = netrc.netrc().authenticators(parsed_server.netloc)
         except TypeError:
-            raise ValueError('Could not retrieve login info for "{}" from the .netrc file!'.format(server))
+            print('[INFO] Could not found login, continuing without login')
 
     requests_session = requests.Session()
     if (user is not None) or (password is not None):
@@ -72,10 +79,16 @@ def connect(server, user=None, password=None):
     xnat_module = imp.load_source('xnat', code_file.name)
     xnat_module._SOURCE_CODE_FILE = code_file.name
 
+    # Add classes to the __all__
+    __all__.extend(['XNAT', 'XNATObject', 'XNATListing', 'Services', 'Prearchive', 'PrearchiveEntry', 'FileData',])
+
     # Register all types parsed
     for cls in parser:
         if not (cls.name is None or cls.baseclass.startswith('xs:')):
             XNAT.XNAT_CLASS_LOOKUP['xnat:{}'.format(cls.name)] = getattr(xnat_module, cls.python_name)
+
+            # Add classes to the __all__
+            __all__.append(cls.python_name)
 
     # Create the XNAT connection and return it
     session = xnat_module.XNAT(server=server, interface=requests_session)
