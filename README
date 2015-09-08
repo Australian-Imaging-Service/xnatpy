@@ -27,6 +27,12 @@ To store credentials this module uses the .netrc file. This file contains login
 information and should be accessible ONLY by the user (if not, the module with
 throw an error to let you know the file is unsafe).
 
+Documentation
+-------------
+
+The official documentation can be found at `xnat.readthedocs.org <http://xnat.readthedocs.org>`_
+This documentation is a stub, but shows the classes and methods available.
+
 Status
 ------
 
