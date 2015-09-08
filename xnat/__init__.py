@@ -45,7 +45,7 @@ def connect(server, user=None, password=None):
         print('[INFO] Retrieving login info for {}'.format(parsed_server.netloc))
         try:
             user, _, password = netrc.netrc().authenticators(parsed_server.netloc)
-        except TypeError:
+        except (TypeError, IOError):
             print('[INFO] Could not found login, continuing without login')
 
     requests_session = requests.Session()
