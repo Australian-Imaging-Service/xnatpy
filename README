@@ -11,6 +11,10 @@ To install just use the setup.py normally::
 
   python setup.py install
 
+or install directly using pip::
+
+  pip install xnat
+
 To get started, create a connection and start querying::
 
   >>> import xnat
