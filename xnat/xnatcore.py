@@ -409,6 +409,19 @@ class XNATObject(object):
     def caching(self):
         self._caching = None
 
+    def delete(self, remove_files=True):
+        """
+        Remove the item from XNAT
+        """
+        query = {}
+
+        if remove_files:
+            query['removeFiles'] = 'true'
+
+        self.xnat.delete(self.fulluri, query=query)
+        # Make sure there is no cache, this will cause 404 erros on subsequent use
+        # of this object, indicating that is has been in fact removed
+        self.clearcache()
 
 
 class XNATListing(Mapping):
@@ -767,9 +780,9 @@ class XNAT(object):
         self._check_response(response, accepted_status=accepted_status, uri=uri)  # Allow created OK or Create status (OK if already exists)
         return response
 
-    def delete(self, path, headers=None, accepted_status=None):
+    def delete(self, path, headers=None, accepted_status=None, query=None):
         accepted_status = accepted_status or [200]
-        uri = self._format_uri(path)
+        uri = self._format_uri(path, query=query)
         try:
             response = self.interface.delete(uri, headers=headers)
         except requests.exceptions.SSLError:
