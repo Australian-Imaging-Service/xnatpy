@@ -953,7 +953,6 @@ class XNAT(object):
     def clearcache(self):
         self._cache.clear()
 
-# Pre-archive
 
 # Services
 class Services(object):
@@ -995,6 +994,7 @@ class Services(object):
         #return self.xnat.create_object(response.text)
 
 
+# Pre-archive
 class PrearchiveEntry(XNATObject):
     @property
     def id(self):
