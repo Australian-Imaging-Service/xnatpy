@@ -36,7 +36,8 @@ FILENAME = __file__
 
 __all__ = ['connect']
 
-def connect(server, user=None, password=None):
+
+def connect(server, user=None, password=None, verify=True):
     """
     Connect to a server and generate the correct classed based on the servers xnat.xsd
     This function returns an object that can be used as a context operator. It will call
@@ -80,6 +81,9 @@ def connect(server, user=None, password=None):
     requests_session = requests.Session()
     if (user is not None) or (password is not None):
         requests_session.auth = (user, password)
+
+    if not verify:
+        requests_session.verify = False
 
     resp = requests_session.get(schema_uri)
     try:
