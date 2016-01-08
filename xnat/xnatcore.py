@@ -880,9 +880,9 @@ class XNAT(object):
                     else:
                         files = {filename: (filename, file_handle, content_type)}
                     if method == 'put':
-                        response = requests.put(uri, files=files)
+                        response = self.interface.put(uri, files=files)
                     elif method == 'post':
-                        response = requests.post(uri, files=files)
+                        response = self.interface.post(uri, files=files)
                     else:
                         raise ValueError('Invalid upload method "{}" should be either put or post.'.format(method))
                     self._check_response(response)
