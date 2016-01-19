@@ -20,6 +20,7 @@ the https://central.xnat.org/schema/xnat/xnat.xsd schema and the xnatcore and
 xnatbase modules, using the convert_xsd.
 """
 
+import getpass
 import imp
 import os
 import netrc
@@ -78,8 +79,12 @@ def connect(server, user=None, password=None, verify=True):
         except (TypeError, IOError):
             print('[INFO] Could not found login, continuing without login')
 
+    if user is not None and password is None:
+        password = getpass.getpass(prompt="Please enter the password for user '{}':".format(user))
+
     requests_session = requests.Session()
-    if (user is not None) or (password is not None):
+
+    if user is not None:
         requests_session.auth = (user, password)
 
     if not verify:
