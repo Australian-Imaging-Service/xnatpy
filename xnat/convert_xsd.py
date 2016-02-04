@@ -32,7 +32,7 @@ class ClassRepresentation(object):
             "projectData": "name",
             "subjectData": "label",
             "experimentData": "label",
-            "imageScanData": "series_description",
+            "imageScanData": "type",
             "abstractResource": "label"
             }
 

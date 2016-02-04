@@ -53,7 +53,7 @@ class ImageSessionData(XNATObject):
     @property
     @caching
     def scans(self):
-        return XNATListing(self.uri + '/scans', xnat=self.xnat, secondary_lookup_field='series_description')
+        return XNATListing(self.uri + '/scans', xnat=self.xnat, secondary_lookup_field='type')
 
     @property
     @caching
@@ -71,7 +71,7 @@ class ImageSessionData(XNATObject):
                                                                                        label=label)
         self.xnat.put(uri, accepted_status=(200, 201))
         self.clearcache()  # The resources changed, so we have to clear the cache
-        return self.xnat.create_object('{}/assessors/{}'.format(self.fulluri, label), type=type_)
+        return self.xnat.create_object('{}/assessors/{}'.format(self.fulluri, label), type_=type_)
 
     def download(self, path):
         self.xnat.download_zip(self.uri + '/scans/ALL/files', path)
@@ -96,7 +96,7 @@ class DerivedData(XNATObject):
         uri = '{}/resources/{}'.format(self.fulluri, label)
         self.xnat.put(uri, format=format)
         self.clearcache()  # The resources changed, so we have to clear the cache
-        return self.xnat.create_object(uri, type='xnat:resourceCatalog')
+        return self.xnat.create_object(uri, type_='xnat:resourceCatalog')
 
     def download(self, path):
         self.xnat.download_zip(self.uri + '/files', path)
@@ -117,7 +117,7 @@ class ImageScanData(XNATObject):
         uri = '{}/resources/{}'.format(self.uri, label)
         self.xnat.put(uri, format=format)
         self.clearcache()  # The resources changed, so we have to clear the cache
-        return self.xnat.create_object(uri, type='xnat:resourceCatalog')
+        return self.xnat.create_object(uri, type_='xnat:resourceCatalog')
 
     def download(self, path):
         self.xnat.download_zip(self.uri + '/files', path)

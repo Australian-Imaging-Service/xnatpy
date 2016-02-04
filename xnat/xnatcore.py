@@ -323,7 +323,7 @@ class XNATObject(object):
             type_ = self._TYPE_HINTS.get(fieldname)
         if type_ is None:
             raise ValueError('Cannot determine type of field {}!'.format(fieldname))
-        return self.xnat.create_object(self.uri, type=type_, parent=self, fieldname=fieldname)
+        return self.xnat.create_object(self.uri, type_=type_, parent=self, fieldname=fieldname)
 
     @property
     def fulluri(self):
@@ -333,7 +333,7 @@ class XNATObject(object):
         if type_ is not None:
             if isinstance(type_, str):
                 # Make sure we have a valid string here that is properly casted
-                value = self.TYPE_FROM_MAP[type_](value)
+                value = TYPE_FROM_MAP[type_](value)
             else:
                 value = type_(value)
 
@@ -466,7 +466,7 @@ class XNATListing(Mapping):
         result = [x for x in result if all(fnmatch.fnmatch(x.get(k), v) for k, v in self.used_filters.items())]
 
         # Create object dictionary
-        return {x['ID']: self.xnat.create_object(x['URI'], type=x.get('xsiType', self._xsiType), id_=x['ID'], **{self.secondary_lookup_field: x.get(self.secondary_lookup_field)}) for x in result}
+        return {x['ID']: self.xnat.create_object(x['URI'], type_=x.get('xsiType', self._xsiType), id_=x['ID'], **{self.secondary_lookup_field: x.get(self.secondary_lookup_field)}) for x in result}
 
     def __repr__(self):
         content = ', '.join('({}, {}): {}'.format(k, getattr(v, self.secondary_lookup_field), v) for k, v in self.items())
@@ -914,18 +914,18 @@ class XNAT(object):
     def xnat_version(self):
         return self.get('/data/version').text
 
-    def create_object(self, uri, type=None, **kwargs):
-        if type is None:
+    def create_object(self, uri, type_=None, **kwargs):
+        if type_ is None:
             data = self.xnat.get_json(uri)
-            type = data['items'][0]['meta']
+            type_ = data['items'][0]['meta']
             datafields = data['items'][0]['data_fields']
         else:
             datafields = None
 
-        if type not in self.XNAT_CLASS_LOOKUP:
-            raise KeyError('Type {} unknow to this XNAT REST client (see XNAT_CLASS_LOOKUP class variable)'.format(type))
+        if type_ not in self.XNAT_CLASS_LOOKUP:
+            raise KeyError('Type {} unknow to this XNAT REST client (see XNAT_CLASS_LOOKUP class variable)'.format(type_))
 
-        return self.XNAT_CLASS_LOOKUP[type](uri, self, datafields=datafields, **kwargs)
+        return self.XNAT_CLASS_LOOKUP[type_](uri, self, datafields=datafields, **kwargs)
 
     @property
     @caching
