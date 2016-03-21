@@ -1051,11 +1051,17 @@ class PrearchiveSession(XNATObject):
 
     @property
     def scan_date(self):
-        return to_date(self.data['scan_date'])
+        try:
+            return to_date(self.data['scan_date'])
+        except isodate.ISO8601Error:
+            return None
 
     @property
     def scan_time(self):
-        return to_time(self.data['scan_time'])
+        try:
+            return to_time(self.data['scan_time'])
+        except isodate.ISO8601Error:
+            return None
 
     @property
     def status(self):
@@ -1076,7 +1082,10 @@ class PrearchiveSession(XNATObject):
     @property
     def uploaded(self):
         uploaded_string = self.data['uploaded']
-        return datetime.datetime.strptime(uploaded_string, '%Y-%m-%d %H:%M:%S.%f')
+        try:
+            return datetime.datetime.strptime(uploaded_string, '%Y-%m-%d %H:%M:%S.%f')
+        except ValueError:
+            return None
 
     @property
     @caching
