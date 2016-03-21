@@ -17,7 +17,7 @@ import os
 from setuptools import setup
 
 # Get information about the version (polling mercurial if possible)
-version = '0.1.1'
+version = '0.1.2'
 dirstate = './.hg/dirstate'
 
 if __name__ == '__main__':

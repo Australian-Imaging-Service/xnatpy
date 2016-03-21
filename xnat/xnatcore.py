@@ -225,7 +225,7 @@ class VariableMap(MutableMapping):
             self.clearcache()
 
     def __delitem__(self, key):
-        print('[WARNING] Deleting of custom variables is currently not supported!')
+        print('[WARNING] Deleting of variables is currently not supported!')
 
     def __iter__(self):
         for key in self.data.keys():
@@ -1019,7 +1019,8 @@ class PrearchiveEntry(XNATObject):
 
     @property
     def lastmod(self):
-        return self.data['lastmod']
+        lastmod_string = self.data['lastmod']
+        return datetime.datetime.strptime(lastmod_string, '%Y-%m-%d %H:%M:%S.%f')
 
     @property
     def name(self):
@@ -1043,11 +1044,11 @@ class PrearchiveEntry(XNATObject):
 
     @property
     def scan_date(self):
-        return self.data['scan_date']
+        return to_date(self.data['scan_date'])
 
     @property
     def scan_time(self):
-        return self.data['scan_time']
+        return to_time(self.data['scan_time'])
 
     @property
     def status(self):
@@ -1067,7 +1068,8 @@ class PrearchiveEntry(XNATObject):
 
     @property
     def uploaded(self):
-        return self.data['uploaded']
+        uploaded_string = self.data['uploaded']
+        return datetime.datetime.strptime(uploaded_string, '%Y-%m-%d %H:%M:%S.%f')
 
     def download(self, path):
         self.xnat.download(self.uri, path)
