@@ -118,7 +118,7 @@ def connect(server, user=None, password=None, verify=True):
     xnat_module._SOURCE_CODE_FILE = code_file.name
 
     # Add classes to the __all__
-    __all__.extend(['XNAT', 'XNATObject', 'XNATListing', 'Services', 'Prearchive', 'PrearchiveEntry', 'FileData',])
+    __all__.extend(['XNAT', 'XNATObject', 'XNATListing', 'Services', 'Prearchive', 'PrearchiveSession', 'PrearchiveScan', 'FileData',])
 
     # Register all types parsed
     for cls in parser:

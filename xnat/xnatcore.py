@@ -1002,7 +1002,7 @@ class Services(object):
 
 
 # Pre-archive
-class PrearchiveEntry(XNATObject):
+class PrearchiveSession(XNATObject):
     @property
     def id(self):
         return '{}/{}/{}'.format(self.data['project'], self.data['timestamp'], self.data['name'])
@@ -1078,8 +1078,18 @@ class PrearchiveEntry(XNATObject):
         uploaded_string = self.data['uploaded']
         return datetime.datetime.strptime(uploaded_string, '%Y-%m-%d %H:%M:%S.%f')
 
+    @property
+    @caching
+    def scans(self):
+        data = self.xnat.get_json(self.uri + '/scans')
+        # We need to prepend /data to our url (seems to be a bug?)
+
+        return [PrearchiveScan('{}/scans/{}'.format(self.uri, x['ID']),
+                               self.xnat,
+                               datafields=x) for x in data['ResultSet']['Result']]
+
     def download(self, path):
-        self.xnat.download(self.uri, path)
+        self.xnat.download_zip(self.uri, path)
         return path
 
     def archive(self, overwrite=None, quarantine=None, trigger_pipelines=None, destination=None):
@@ -1139,7 +1149,7 @@ class PrearchiveEntry(XNATObject):
             else:
                 raise TypeError('async should be a boolean')
 
-        return self.xnat.post('/data/services/prearchive/rebuild',query=query)
+        return self.xnat.post('/data/services/prearchive/rebuild', query=query)
 
     def move(self, new_project, async=None):
         query = {'src': self.uri,
@@ -1155,6 +1165,30 @@ class PrearchiveEntry(XNATObject):
                 raise TypeError('async should be a boolean')
 
         return self.xnat.post('/data/services/prearchive/move', query=query)
+
+
+class PrearchiveScan(XNATObject):
+    def __init__(self, uri, xnat, id_=None, datafields=None, parent=None, fieldname=None):
+        super(PrearchiveScan, self).__init__(uri=uri,
+                                             xnat=xnat,
+                                             id_=id_,
+                                             datafields=datafields,
+                                             parent=parent,
+                                             fieldname=fieldname)
+
+        self._fulldata = {'data_fields': datafields}
+
+    @property
+    def series_description(self):
+        return self.data['series_description']
+
+    def download(self, path):
+        self.xnat.download_zip(self.uri, path)
+        return path
+
+    @property
+    def fulldata(self):
+        return self._fulldata
 
 
 class Prearchive(object):
@@ -1173,4 +1207,4 @@ class Prearchive(object):
 
         data = self.xnat.get_json(uri)
         # We need to prepend /data to our url (seems to be a bug?)
-        return [PrearchiveEntry('/data{}'.format(x['url']), self.xnat) for x in data['ResultSet']['Result']]
+        return [PrearchiveSession('/data{}'.format(x['url']), self.xnat) for x in data['ResultSet']['Result']]
