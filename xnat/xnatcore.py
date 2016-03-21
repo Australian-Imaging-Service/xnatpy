@@ -822,7 +822,7 @@ class XNAT(object):
         except ValueError:
             raise ValueError('Could not decode JSON from {}'.format(response.text))
 
-    def download(self, uri, target, format=None):
+    def download_stream(self, uri, target_stream, format=None, verbose=True, chunk_size=524288):
         uri = self._format_uri(uri, format=format)
 
         # Stream the get and write to file
@@ -832,22 +832,29 @@ class XNAT(object):
             raise ValueError('Invalid response from XNAT (status {}):\n{}'.format(response.status_code, response.text))
 
         bytes_read = 0
-        print('Downloading {}:'.format(uri))
-        with open(target, 'wb') as out_fh:
-            for chunk in response.iter_content(512 * 1024):
-                if bytes_read == 0 and chunk.startswith(('<!DOCTYPE', '<html>')):
-                    raise ValueError('Invalid response from XNAT (status {}):\n{}'.format(response.status_code, chunk))
+        if verbose:
+            print('Downloading {}:'.format(uri))
+        for chunk in response.iter_content(chunk_size):
+            if bytes_read == 0 and chunk.startswith(('<!DOCTYPE', '<html>')):
+                raise ValueError('Invalid response from XNAT (status {}):\n{}'.format(response.status_code, chunk))
 
-                bytes_read += len(chunk)
-                out_fh.write(chunk)
+            bytes_read += len(chunk)
+            target_stream.write(chunk)
+
+            if verbose:
                 sys.stdout.write('\r{:d} kb'.format(bytes_read / 1024))
                 sys.stdout.flush()
 
-        sys.stdout.write('\nSaved as {}...\n'.format(target))
-        sys.stdout.flush()
+    def download(self, uri, target, format=None, verbose=True):
+        with open(target, 'wb') as out_fh:
+            self.download_stream(uri, out_fh, format=format, verbose=verbose)
 
-    def download_zip(self, uri, target):
-        self.download(uri, target, format='zip')
+        if verbose:
+            sys.stdout.write('\nSaved as {}...\n'.format(target))
+            sys.stdout.flush()
+
+    def download_zip(self, uri, target, verbose=True):
+        self.download(uri, target, format='zip', verbose=verbose)
 
     def upload(self, uri, file_, retries=1, query=None, content_type=None, method='put'):
         uri = self._format_uri(uri, query=query)
