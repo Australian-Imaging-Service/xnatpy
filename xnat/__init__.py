@@ -38,7 +38,7 @@ FILENAME = __file__
 __all__ = ['connect']
 
 
-def connect(server, user=None, password=None, verify=True):
+def connect(server, user=None, password=None, verify=True, netrc_file=None):
     """
     Connect to a server and generate the correct classed based on the servers xnat.xsd
     This function returns an object that can be used as a context operator. It will call
@@ -75,7 +75,10 @@ def connect(server, user=None, password=None, verify=True):
     if user is None and password is None:
         print('[INFO] Retrieving login info for {}'.format(parsed_server.netloc))
         try:
-            user, _, password = netrc.netrc().authenticators(parsed_server.netloc)
+            if netrc_file is None:
+                netrc_file = os.path.join('~', '_netrc' if os.name == 'nt' else '.netrc')
+                netrc_file = os.path.expanduser(netrc_file)
+            user, _, password = netrc.netrc(netrc_file).authenticators(parsed_server.netloc)
         except (TypeError, IOError):
             print('[INFO] Could not found login, continuing without login')
 
@@ -90,12 +93,16 @@ def connect(server, user=None, password=None, verify=True):
     if not verify:
         requests_session.verify = False
 
-    resp = requests_session.get(schema_uri)
+    resp = requests_session.get(schema_uri, headers={'Accept-Encoding': None})
     try:
         root = ElementTree.fromstring(resp.text)
-    except ElementTree.ParseError:
-        raise ValueError('Could not parse xnat.xsd, server response was ({}) {}'.format(resp.status_code, resp.text))
-    
+    except ElementTree.ParseError as exception:
+        if len(resp.text) > 2000:
+            excerpt = resp.text[:1000] + '\n ... [CUT] ... \n' + resp.text[-1000:]
+        else:
+            excerpt = resp.text
+        raise ValueError('Could not parse xnat.xsd, server response was ({}):\n"{}"\nOriginal exception: {}'.format(resp.status_code, excerpt, exception))
+
     # Parse xml schema
     parser = SchemaParser()
     parser.parse(root)
