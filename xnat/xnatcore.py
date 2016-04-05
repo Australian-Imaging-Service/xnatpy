@@ -441,7 +441,7 @@ class XNATListing(Mapping):
 
     @property
     @caching
-    def data(self):
+    def data_maps(self):
         xsi_type = ',xsiType' if self._xsiType is None else ''
         columns = 'ID,URI,{}{}'.format(self.secondary_lookup_field, xsi_type)
         query = dict(self.used_filters)
@@ -450,23 +450,41 @@ class XNATListing(Mapping):
         if not all('URI' in x for x in result):
             # HACK: This is a Resource, that misses the URI and ID field (let's fix that)
             for entry in result:
-                if not 'URI' in entry:
+                if 'URI' not in entry:
                     entry['URI'] = '{}/{}'.format(self.uri, entry['label'])
-                if not 'ID' in entry:
+                if 'ID' not in entry:
                     entry['ID'] = entry['xnat_abstractresource_id']
 
         elif not all('ID' in x for x in result):
             # HACK: This is a File and it misses an ID field and has Name (let's fix that)
             for entry in result:
-                if not 'ID' in entry:
+                if 'ID' not in entry:
                     entry['ID'] = '{}/files/{}'.format(entry['cat_ID'], entry['Name'])
                     entry['name'] = entry['Name']
 
         # Post filter result if server side query did not work
         result = [x for x in result if all(fnmatch.fnmatch(x.get(k), v) for k, v in self.used_filters.items())]
 
-        # Create object dictionary
-        return {x['ID']: self.xnat.create_object(x['URI'], type_=x.get('xsiType', self._xsiType), id_=x['ID'], **{self.secondary_lookup_field: x.get(self.secondary_lookup_field)}) for x in result}
+        # Create object dictionaries
+        id_map = {}
+        key_map = {}
+        for x in result:
+            new_object = self.xnat.create_object(x['URI'],
+                                                 type_=x.get('xsiType', self._xsiType),
+                                                 id_=x['ID'],
+                                                 **{self.secondary_lookup_field: x.get(self.secondary_lookup_field)})
+            id_map[x['ID']] = new_object
+            key_map[x.get(self.secondary_lookup_field)] = new_object
+
+        return id_map, key_map
+
+    @property
+    def data(self):
+        return self.data_maps[0]
+
+    @property
+    def key_map(self):
+        return self.data_maps[1]
 
     def __repr__(self):
         content = ', '.join('({}, {}): {}'.format(k, getattr(v, self.secondary_lookup_field), v) for k, v in self.items())
@@ -477,7 +495,7 @@ class XNATListing(Mapping):
             return self.data[item]
         except KeyError:
             try:
-                return next(x for x in self.values() if getattr(x, self.secondary_lookup_field) == item)
+                return self.key_map[item]
             except StopIteration:
                 raise KeyError('Could not find ID/label {} in collection!'.format(item))
 
@@ -520,11 +538,11 @@ class XNATListing(Mapping):
                 result_columns = [x for x in columns if x in result_columns]
 
             # Replace all non-alphanumeric characters with an underscore
-            result_columns = [re.sub('[^0-9a-zA-Z]+', '_', s) for s in result_columns]
-            rowtype = namedtuple('TableRow', result_columns)
+            result_columns = {s: re.sub('[^0-9a-zA-Z]+', '_', s) for s in result_columns}
+            rowtype = namedtuple('TableRow', result_columns.values())
 
             # Replace all non-alphanumeric characters in each key of the keyword dictionary
-            return tuple(rowtype(**{re.sub('[^0-9a-zA-Z]+', '_', k): v for k, v in x.items()}) for x in result['ResultSet']['Result'])
+            return tuple(rowtype(**{result_columns[k]: v for k, v in x.items()}) for x in result['ResultSet']['Result'])
         else:
             return ()
 
@@ -829,7 +847,7 @@ class XNAT(object):
         response = self.interface.get(uri, stream=True)
 
         if response.status_code != 200:
-            raise ValueError('Invalid response from XNAT (status {}):\n{}'.format(response.status_code, response.text))
+            raise XNATResponseError('Invalid response from XNAT for url {} (status {}):\n{}'.format(uri, response.status_code, response.text))
 
         bytes_read = 0
         if verbose:
