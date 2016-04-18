@@ -38,7 +38,7 @@ FILENAME = __file__
 __all__ = ['connect']
 
 
-def connect(server, user=None, password=None, verify=True, netrc_file=None):
+def connect(server, user=None, password=None, verify=True, netrc_file=None, debug=False):
     """
     Connect to a server and generate the correct classed based on the servers xnat.xsd
     This function returns an object that can be used as a context operator. It will call
@@ -47,7 +47,15 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None):
 
     :param str server: uri of the server to connect to (including http:// or https://)
     :param str user: username to use, leave empty to use netrc entry or anonymous login.
-    :param str password: password to use with the username
+    :param str password: password to use with the username, leave empty when using netrc.
+                         If a username is given and no password, there will be a prompt
+                         on the console requesting the password.
+    :param bool verify: verify the https certificates, if this is false the connection will
+                        be encrypted with ssl, but the certificates are not checked. This is
+                        potentially dangerous, but required for self-signed certificates.
+    :param str netrc_file: alternative location to use for the netrc file (path pointing to
+                           a file following the netrc syntax)
+    :param debug bool: Set debug information printing on
     :return: XNAT session object
 
     Preferred use::
@@ -69,7 +77,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None):
     """
     # Retrieve schema from XNAT server
     schema_uri = '{}/schemas/xnat/xnat.xsd'.format(server.rstrip('/'))
-    print('Retrieving schema from {}'.format(schema_uri))
+    print('[INFO] Retrieving schema from {}'.format(schema_uri))
     parsed_server = urlparse.urlparse(server)
 
     if user is None and password is None:
@@ -93,7 +101,10 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None):
     if not verify:
         requests_session.verify = False
 
+    if debug:
+        print('[DEBUG] GET SCHEMA {}'.format(schema_uri))
     resp = requests_session.get(schema_uri, headers={'Accept-Encoding': None})
+
     try:
         root = ElementTree.fromstring(resp.text)
     except ElementTree.ParseError as exception:
@@ -118,11 +129,15 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None):
         code_file.write('# The following code represents the data struction of {}\n# It is automatically generated using {} as input\n'.format(server, schema_uri))
         code_file.write('\n\n\n'.join(str(c).strip() for c in parser if not c.baseclass.startswith('xs:') and c.name is not None))
 
-    print('Code file written to: {}'.format(code_file.name))
+    if debug:
+        print('[DEBUG] Code file written to: {}'.format(code_file.name))
 
     # Import temp file as a module
     xnat_module = imp.load_source('xnat', code_file.name)
     xnat_module._SOURCE_CODE_FILE = code_file.name
+
+    if debug:
+        print('[DEBUG] Loaded generated module')
 
     # Add classes to the __all__
     __all__.extend(['XNAT', 'XNATObject', 'XNATListing', 'Services', 'Prearchive', 'PrearchiveSession', 'PrearchiveScan', 'FileData',])
@@ -136,7 +151,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None):
             __all__.append(cls.python_name)
 
     # Create the XNAT connection and return it
-    session = xnat_module.XNAT(server=server, interface=requests_session)
+    session = xnat_module.XNAT(server=server, interface=requests_session, debug=debug)
     session._source_code_file = code_file.name
     return session
 

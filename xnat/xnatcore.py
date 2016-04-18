@@ -615,12 +615,49 @@ class FileData(XNATObject):
 
 
 class XNAT(object):
+    """
+    The main XNAT session class. It keeps a connection to XNAT alive and
+    manages the main communication to XNAT. To keep the connection alive
+    there is a background thread that sends a heart-beat to avoid a time-out.
+
+    The main starting points for working with the XNAT server are:
+
+    * :py:meth:`XNAT.projects <xnat.XNAT.projects>`
+    * :py:meth:`XNAT.subjects <xnat.XNAT.subjects>`
+    * :py:meth:`XNAT.experiments <xnat.XNAT.experiments>`
+    * :py:meth:`XNAT.prearchive <xnat.XNAT.prearchive>`
+    * :py:meth:`XNAT.services <xnat.XNAT.services>`
+
+    .. note:: Some methods create listing that are using the :py:class:`xnat.XNATListing`
+              class. They allow for indexing with both XNAT ID and a secondary key (often the
+              label). Also they support basic filtering and tabulation.
+
+    There are also methods for more low level communication. The main methods
+    are :py:meth:`XNAT.get <xnat.XNAT.get>`, :py:meth:`XNAT.post <xnat.XNAT.post>`,
+    :py:meth:`XNAT.put <xnat.XNAT.put>`, and :py:meth:`XNAT.delete <xnat.XNAT.delete>`.
+    The methods do not query URIs but instead query XNAT REST paths as described in the
+    `XNAT 1.6 REST API Directory <https://wiki.xnat.org/display/XNAT16/XNAT+REST+API+Directory>`_.
+
+    For an even lower level interfaces, the py:attr:`XNAT.interface <xnat.XNAT.interface>`
+    gives access to the underlying `requests <https://requests.readthedocs.org>`_ interface.
+    This interface has the user credentials and benefits from the keep alive of this class.
+
+    .. note:: XNAT Objects have a client-side cache. This is for efficiency, but might cause
+              problems if the server is being changed by a different client. It is possible
+              to clear the current cache using :py:meth:`XNAT.clearcache <xnat.XNAT.clearcache>`.
+              Turning off caching complete can be done by setting
+              :py:attr:`XNAT.caching <xnat.XNAT.caching>`.
+
+    .. warning:: You should NOT try use this class directly, it should only
+                 be created by :py:func:`xnat.connect <xnat.connect>`.
+    """
+
     # Class lookup to populate
     XNAT_CLASS_LOOKUP = {
         "xnat:fileData": FileData,
     }
 
-    def __init__(self, server, interface=None, user=None, password=None, keepalive=840):
+    def __init__(self, server, interface=None, user=None, password=None, keepalive=840, debug=False):
         self._interface = interface
         self._projects = None
         self._server = urlparse.urlparse(server) if server else None
@@ -629,6 +666,7 @@ class XNAT(object):
         self._source_code_file = None
         self._services = Services(xnat=self)
         self._prearchive = Prearchive(xnat=self)
+        self._debug = debug
 
         # Set the keep alive settings and spawn the keepalive thread for sending heartbeats
         if isinstance(keepalive, int) and keepalive > 0:
@@ -747,7 +785,14 @@ class XNAT(object):
                 self._keepalive_event.clear()
 
     @property
+    def debug(self):
+        return self._debug
+
+    @property
     def interface(self):
+        """
+        The underlying `requests <https://requests.readthedocs.org>`_ interface used.
+        """
         return self._interface
 
     @property
@@ -763,6 +808,9 @@ class XNAT(object):
         return self
 
     def _check_response(self, response, accepted_status=None, uri=None):
+        if self.debug:
+            print('[DEBUG] Received response with status code: {}'.format(response.status_code))
+
         if accepted_status is None:
             accepted_status = [200, 201, 202, 203, 204, 205, 206]  # All successful responses of HTML
         if response.status_code not in accepted_status or response.text.startswith(('<!DOCTYPE', '<html>')):
@@ -771,6 +819,10 @@ class XNAT(object):
     def get(self, path, format=None, query=None, accepted_status=None):
         accepted_status = accepted_status or [200]
         uri = self._format_uri(path, format, query=query)
+
+        if self.debug:
+            print('[DEBUG] GET URI {}'.format(uri))
+
         try:
             response = self.interface.get(uri)
         except requests.exceptions.SSLError:
@@ -781,6 +833,11 @@ class XNAT(object):
     def post(self, path, data=None, format=None, query=None, accepted_status=None):
         accepted_status = accepted_status or [200]
         uri = self._format_uri(path, format, query=query)
+
+        if self.debug:
+            print('[DEBUG] POST URI {}'.format(uri))
+            print('[DEBUG] POST DATA {}'.format(data))
+
         try:
             response = self._interface.post(uri, data=data)
         except requests.exceptions.SSLError:
@@ -791,6 +848,12 @@ class XNAT(object):
     def put(self, path, data=None, files=None, format=None, query=None, accepted_status=None):
         accepted_status = accepted_status or [200, 201]
         uri = self._format_uri(path, format, query=query)
+
+        if self.debug:
+            print('[DEBUG] PUT URI {}'.format(uri))
+            print('[DEBUG] PUT DATA {}'.format(data))
+            print('[DEBUG] PUT FILES {}'.format(data))
+
         try:
             response = self._interface.put(uri, data=data, files=files)
         except requests.exceptions.SSLError:
@@ -801,6 +864,11 @@ class XNAT(object):
     def delete(self, path, headers=None, accepted_status=None, query=None):
         accepted_status = accepted_status or [200]
         uri = self._format_uri(path, query=query)
+
+        if self.debug:
+            print('[DEBUG] DELETE URI {}'.format(uri))
+            print('[DEBUG] DELETE HEADERS {}'.format(headers))
+
         try:
             response = self.interface.delete(uri, headers=headers)
         except requests.exceptions.SSLError:

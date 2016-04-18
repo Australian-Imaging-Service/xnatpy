@@ -16,8 +16,14 @@ To get started, create a connection and start querying::
   >>> import xnat
   >>> session = xnat.connect('https://central.xnat.org', user="", password="")
   >>> session.projects['Sample_DICOM'].subjects
+  >>> session.disconnect()
 
-when using IPython most functionality can be figured out by looking at the
+To see all options for creating connections see the :py:func:`xnat.connect`.
+
+The :py:class:`XNAT session <xnat.XNAT>` is the main class for interacting with XNAT.
+It contains the main communication functions.
+
+When using IPython most functionality can be figured out by looking at the
 available attributes/methods of the returned objects.
 
 Credentials
@@ -33,7 +39,7 @@ Status
 Currently we do not support the creation of Projects, Subjects, Experiments, etc
 via code. You can create resources and uploads files to them. Also it is
 possible to import data via the import service (upload a zip file). There is
-also some support for working with the prearchive (reading, moving, deleting and
+also support for working with the prearchive (reading, moving, deleting and
 archiving).
 
 There is virtuall no documentation or testing, this is a known limitation.
