@@ -638,7 +638,7 @@ class XNAT(object):
     The methods do not query URIs but instead query XNAT REST paths as described in the
     `XNAT 1.6 REST API Directory <https://wiki.xnat.org/display/XNAT16/XNAT+REST+API+Directory>`_.
 
-    For an even lower level interfaces, the py:attr:`XNAT.interface <xnat.XNAT.interface>`
+    For an even lower level interfaces, the :py:attr:`XNAT.interface <xnat.XNAT.interface>`
     gives access to the underlying `requests <https://requests.readthedocs.org>`_ interface.
     This interface has the user credentials and benefits from the keep alive of this class.
 
