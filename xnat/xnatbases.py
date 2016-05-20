@@ -13,6 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import tempfile
+from zipfile import ZipFile
+
 from xnatcore import caching, XNATObject, XNATListing
 
 
@@ -31,6 +35,17 @@ class ProjectData(XNATObject):
     def experiments(self):
         return XNATListing(self.uri + '/experiments', xnat=self.xnat, secondary_lookup_field='label')
 
+    def download_dir(self, target_dir, verbose=True):
+        project_dir = os.path.join(target_dir, self.name)
+        if not os.path.isdir(project_dir):
+            os.mkdir(project_dir)
+
+        for subject in self.subjects.values():
+            subject.download_dir(project_dir, verbose=verbose)
+
+        if verbose:
+            print('Downloaded subject to {}'.format(project_dir))
+
 
 class SubjectData(XNATObject):
     @property
@@ -43,6 +58,17 @@ class SubjectData(XNATObject):
         # HACK because self.uri + '/subjects' does not work
         uri = '{}/experiments'.format(self.fulluri, self.id)
         return XNATListing(uri, xnat=self.xnat, secondary_lookup_field='label')
+
+    def download_dir(self, target_dir, verbose=True):
+        subject_dir = os.path.join(target_dir, self.label)
+        if not os.path.isdir(subject_dir):
+            os.mkdir(subject_dir)
+
+        for experiment in self.experiments.values():
+            experiment.download_dir(subject_dir, verbose=verbose)
+
+        if verbose:
+            print('Downloaded subject to {}'.format(subject_dir))
 
 
 class ImageSessionData(XNATObject):
@@ -75,6 +101,16 @@ class ImageSessionData(XNATObject):
 
     def download(self, path):
         self.xnat.download_zip(self.uri + '/scans/ALL/files', path)
+
+    def download_dir(self, target_dir, verbose=True):
+        with tempfile.TemporaryFile() as temp_path:
+            self.xnat.download_stream(self.uri + '/scans/ALL/files', temp_path, format='zip', verbose=verbose)
+
+            with ZipFile(temp_path) as zip_file:
+                zip_file.extractall(target_dir)
+
+        if verbose:
+            print('Downloaded image session to {}'.format(target_dir))
 
 
 class DerivedData(XNATObject):

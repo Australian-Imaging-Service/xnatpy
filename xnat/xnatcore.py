@@ -22,10 +22,12 @@ import netrc
 import os
 import re
 import sys
+import tempfile  # Needed by generated code
 import textwrap
 import threading
 import urllib
 import urlparse
+from zipfile import ZipFile  # Needed by generated code
 
 import isodate
 import requests
@@ -661,7 +663,7 @@ class XNAT(object):
         self._interface = interface
         self._projects = None
         self._server = urlparse.urlparse(server) if server else None
-        self._cache = {}
+        self._cache = {'__objects__': {}}
         self.caching = True
         self._source_code_file = None
         self._services = Services(xnat=self)
@@ -1008,17 +1010,22 @@ class XNAT(object):
         return self.get('/data/version').text
 
     def create_object(self, uri, type_=None, **kwargs):
-        if type_ is None:
-            data = self.xnat.get_json(uri)
-            type_ = data['items'][0]['meta']
-            datafields = data['items'][0]['data_fields']
-        else:
-            datafields = None
+        if uri not in self._cache['__objects__']:
+            if type_ is None:
+                data = self.xnat.get_json(uri)
+                type_ = data['items'][0]['meta']
+                datafields = data['items'][0]['data_fields']
+            else:
+                datafields = None
 
-        if type_ not in self.XNAT_CLASS_LOOKUP:
-            raise KeyError('Type {} unknow to this XNAT REST client (see XNAT_CLASS_LOOKUP class variable)'.format(type_))
+            if type_ not in self.XNAT_CLASS_LOOKUP:
+                raise KeyError('Type {} unknow to this XNAT REST client (see XNAT_CLASS_LOOKUP class variable)'.format(type_))
 
-        return self.XNAT_CLASS_LOOKUP[type_](uri, self, datafields=datafields, **kwargs)
+            self._cache['__objects__'][uri] = self.XNAT_CLASS_LOOKUP[type_](uri, self, datafields=datafields, **kwargs)
+        elif self.debug:
+            print('[DEBUG] Fetching object {} from cache'.format(uri))
+
+        return self._cache['__objects__'][uri]
 
     @property
     @caching
@@ -1045,6 +1052,7 @@ class XNAT(object):
 
     def clearcache(self):
         self._cache.clear()
+        self._cache['__objects__'] = {}
 
 
 # Services
