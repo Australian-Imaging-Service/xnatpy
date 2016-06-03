@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import absolute_import
+from __future__ import print_function
+from __future__ import unicode_literals
 from abc import ABCMeta
 from collections import MutableMapping, Mapping, namedtuple
 import datetime
@@ -25,12 +28,12 @@ import sys
 import tempfile  # Needed by generated code
 import textwrap
 import threading
-import urllib
-import urlparse
+from six.moves.urllib import parse
 from zipfile import ZipFile  # Needed by generated code
 
 import isodate
 import requests
+import six
 
 
 # Some type conversion functions
@@ -157,7 +160,7 @@ def caching(func):
     retrieved multiple times. This works for properties or functions without
     arguments.
     """
-    name = func.func_name
+    name = func.__name__
 
     def wrapper(self):
         # We use self._cache here, in the decorator _cache will be a member of
@@ -261,8 +264,7 @@ class CustomVariableMap(VariableMap):
             self.clearcache()
 
 
-class XNATObject(object):
-    __metaclass__ = ABCMeta
+class XNATObject(six.with_metaclass(ABCMeta, object)):
     _HAS_FIELDS = False
     _XSI_TYPE = 'xnat:baseObject'
 
@@ -533,7 +535,7 @@ class XNATListing(Mapping):
 
         result = self.xnat.get_json(self.uri, query=query)
         if len(result['ResultSet']['Result']) > 0:
-            result_columns = result['ResultSet']['Result'][0].keys()
+            result_columns = list(result['ResultSet']['Result'][0].keys())
 
             # Retain requested order
             if columns != ('DEFAULT',):
@@ -541,7 +543,7 @@ class XNATListing(Mapping):
 
             # Replace all non-alphanumeric characters with an underscore
             result_columns = {s: re.sub('[^0-9a-zA-Z]+', '_', s) for s in result_columns}
-            rowtype = namedtuple('TableRow', result_columns.values())
+            rowtype = namedtuple('TableRow', list(result_columns.values()))
 
             # Replace all non-alphanumeric characters in each key of the keyword dictionary
             return tuple(rowtype(**{result_columns[k]: v for k, v in x.items()}) for x in result['ResultSet']['Result'])
@@ -662,7 +664,7 @@ class XNAT(object):
     def __init__(self, server, interface=None, user=None, password=None, keepalive=840, debug=False):
         self._interface = interface
         self._projects = None
-        self._server = urlparse.urlparse(server) if server else None
+        self._server = parse.urlparse(server) if server else None
         self._cache = {'__objects__': {}}
         self.caching = True
         self._source_code_file = None
@@ -703,7 +705,7 @@ class XNAT(object):
             if self._interface is not None:
                 self.disconnect()
 
-            self._server = urlparse.urlparse(server)
+            self._server = parse.urlparse(server)
 
             if user is None and password is None:
                 print('[INFO] Retrieving login info for {}'.format(self._server.netloc))
@@ -854,7 +856,7 @@ class XNAT(object):
         if self.debug:
             print('[DEBUG] PUT URI {}'.format(uri))
             print('[DEBUG] PUT DATA {}'.format(data))
-            print('[DEBUG] PUT FILES {}'.format(data))
+            print('[DEBUG] PUT FILES {}'.format(files))
 
         try:
             response = self._interface.put(uri, data=data, files=files)
@@ -890,7 +892,7 @@ class XNAT(object):
 
         # Create the query string
         if len(query) > 0:
-            query_string = urllib.urlencode(query)
+            query_string = parse.urlencode(query)
         else:
             query_string = ''
 
@@ -901,7 +903,7 @@ class XNAT(object):
                 query_string,
                 '')
 
-        return urlparse.urlunparse(data)
+        return parse.urlunparse(data)
 
     def get_json(self, uri, query=None):
         response = self.get(uri, format='json', query=query)

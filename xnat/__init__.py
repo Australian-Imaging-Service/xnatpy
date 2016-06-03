@@ -20,18 +20,21 @@ the https://central.xnat.org/schema/xnat/xnat.xsd schema and the xnatcore and
 xnatbase modules, using the convert_xsd.
 """
 
+from __future__ import absolute_import
+from __future__ import print_function
+from __future__ import unicode_literals
 import getpass
 import imp
 import os
 import netrc
 import tempfile
 from xml.etree import ElementTree
-import urlparse
+from six.moves.urllib import parse
 
 import requests
 
-from xnatcore import XNAT
-from convert_xsd import SchemaParser
+from .xnatcore import XNAT
+from .convert_xsd import SchemaParser
 
 FILENAME = __file__
 
@@ -78,7 +81,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     # Retrieve schema from XNAT server
     schema_uri = '{}/schemas/xnat/xnat.xsd'.format(server.rstrip('/'))
     print('[INFO] Retrieving schema from {}'.format(schema_uri))
-    parsed_server = urlparse.urlparse(server)
+    parsed_server = parse.urlparse(server)
 
     if user is None and password is None:
         print('[INFO] Retrieving login info for {}'.format(parsed_server.netloc))

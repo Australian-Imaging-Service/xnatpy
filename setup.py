@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import absolute_import
+from __future__ import unicode_literals
+import binascii
 import os
 from setuptools import setup
 
@@ -27,7 +30,7 @@ if __name__ == '__main__':
 
     if os.path.isfile(dirstate):
         with open(dirstate, 'rb') as f_dirstate:
-            hg_version = f_dirstate.read(20).encode('hex')
+            hg_version = binascii.hexlify(f_dirstate.read(20))
     else:
         hg_version = None
 
