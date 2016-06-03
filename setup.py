@@ -17,6 +17,7 @@ from __future__ import absolute_import
 from __future__ import unicode_literals
 import binascii
 import os
+import six
 from setuptools import setup
 
 # Get information about the version (polling mercurial if possible)
@@ -31,6 +32,9 @@ if __name__ == '__main__':
     if os.path.isfile(dirstate):
         with open(dirstate, 'rb') as f_dirstate:
             hg_version = binascii.hexlify(f_dirstate.read(20))
+
+            if six.PY3:
+                hg_version = hg_version.decode('utf-8')
     else:
         hg_version = None
 
