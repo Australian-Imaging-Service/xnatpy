@@ -985,28 +985,27 @@ class XNAT(object):
                     # File is open file handle, seek to 0
                     file_handle = file_
                     file_.seek(0)
-                    filename = os.path.basename(uri)
                 elif os.path.isfile(file_):
                     # File is str path to file
                     file_handle = open(file_, 'rb')
                     opened_file = True
-                    filename = os.path.basename(file_)
                 else:
                     # File is data to upload
                     file_handle = file_
-                    filename = os.path.basename(uri)
 
                 attempt += 1
 
                 try:
+                    # Set the content type header
                     if content_type is None:
-                        files = {filename: file_handle}
+                        headers = {'Content-Type': 'application/octet-stream'}
                     else:
-                        files = {filename: (filename, file_handle, content_type)}
+                        headers = {'Content-Type': content_type}
+
                     if method == 'put':
-                        response = self.interface.put(uri, files=files)
+                        response = self.interface.put(uri, data=file_handle, headers=headers)
                     elif method == 'post':
-                        response = self.interface.post(uri, files=files)
+                        response = self.interface.post(uri, data=file_handle, headers=headers)
                     else:
                         raise ValueError('Invalid upload method "{}" should be either put or post.'.format(method))
                     self._check_response(response)
