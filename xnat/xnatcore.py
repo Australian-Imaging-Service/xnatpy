@@ -16,7 +16,6 @@
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import unicode_literals
-from abc import ABCMeta
 from collections import MutableMapping, Mapping, namedtuple
 import datetime
 import fnmatch
@@ -34,6 +33,8 @@ from zipfile import ZipFile  # Needed by generated code
 import isodate
 import requests
 import six
+
+import orm
 
 
 # Some type conversion functions
@@ -59,7 +60,7 @@ def to_bool(value):
 
 def from_datetime(value):
     if isinstance(value, str):
-        value = isodate.parse_datetime(str)
+        value = isodate.parse_datetime(value)
 
     if isinstance(value, datetime.datetime):
         return value.isoformat()
@@ -69,7 +70,7 @@ def from_datetime(value):
 
 def from_date(value):
     if isinstance(value, str):
-        value = isodate.parse_date(str)
+        value = isodate.parse_date(value)
 
     if isinstance(value, datetime.date):
         return value.isoformat()
@@ -79,7 +80,7 @@ def from_date(value):
 
 def from_time(value):
     if isinstance(value, str):
-        value = isodate.parse_time(str)
+        value = isodate.parse_time(value)
 
     if isinstance(value, datetime.time):
         return value.isoformat()
@@ -89,7 +90,7 @@ def from_time(value):
 
 def from_timedelta(value):
     if isinstance(value, str):
-        value = isodate.parse_duration(str)
+        value = isodate.parse_duration(value)
     elif isinstance(value, datetime.timedelta):
         value = isodate.duration.Duration(days=value.days,
                                           seconds=value.seconds,
@@ -115,13 +116,13 @@ def from_bool(value):
 
 def from_int(value):
     if not isinstance(value, int):
-        value = int(str)
+        value = int(value)
     return str(value)
 
 
 def from_float(value):
     if not isinstance(value, float):
-        value = float(str)
+        value = float(value)
     return str(value)
 
 
@@ -264,7 +265,7 @@ class CustomVariableMap(VariableMap):
             self.clearcache()
 
 
-class XNATObject(six.with_metaclass(ABCMeta, object)):
+class XNATObject(six.with_metaclass(orm.ORMMeta, object)):
     _HAS_FIELDS = False
     _XSI_TYPE = 'xnat:baseObject'
 
@@ -319,14 +320,15 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
             'baseimage': 'xnat:abstractResource',
             }
 
-    def get_object(self, fieldname):
-        try:
-            data = next(x for x in self.fulldata['children'] if x['field'] == fieldname)['items'][0]
-            type_ = data['meta']['xsi:type']
-        except StopIteration:
-            type_ = self._TYPE_HINTS.get(fieldname)
+    def get_object(self, fieldname, type_=None):
         if type_ is None:
-            raise ValueError('Cannot determine type of field {}!'.format(fieldname))
+            try:
+                data = next(x for x in self.fulldata['children'] if x['field'] == fieldname)['items'][0]
+                type_ = data['meta']['xsi:type']
+            except StopIteration:
+                type_ = self._TYPE_HINTS.get(fieldname)
+            if type_ is None:
+                raise ValueError('Cannot determine type of field {}!'.format(fieldname))
         return self.xnat.create_object(self.uri, type_=type_, parent=self, fieldname=fieldname)
 
     @property
@@ -349,9 +351,9 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
         else:
             query = {'xsiType': self.parent.xsi_type,
                      '{parent_type}/{fieldname}[@xsi:type={xsitype}]/{name}'.format(parent_type=self.parent.xsi_type,
-                                                                                 fieldname=self.fieldname,
-                                                                                 xsitype=self.xsi_type,
-                                                                                 name=name): value}
+                                                                                    fieldname=self.fieldname,
+                                                                                    xsitype=self.xsi_type,
+                                                                                    name=name): value}
             self.xnat.put(self.parent.fulluri, query=query)
             self.parent.clearcache()
 
@@ -427,6 +429,32 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
         # of this object, indicating that is has been in fact removed
         self.clearcache()
 
+    @classmethod
+    def query(self, session):
+        return orm.Query(self._XSI_TYPE, session)
+
+
+class XNATSubObject(XNATObject):
+    @property
+    def xsi_type(self):
+        return self.parent.xsi_type
+
+    @property
+    def data(self):
+        prefix = '{}/'.format(self.fieldname)
+
+        result = self.parent.data
+        result = {k[len(prefix):]: v for k, v in result.items() if k.startswith(prefix)}
+
+        return result
+
+    def set(self, name, value, type_=None):
+        name = '{}/{}'.format(self.fieldname, name)
+        self.parent.set(name, value, type_)
+
+    #def get(self, name, type_=None):
+    #    return self.parent.get('{}/{}'.format(self.id, name))
+
 
 class XNATListing(Mapping):
     def __init__(self, uri, xnat, secondary_lookup_field, xsiType=None, filter=None):
@@ -451,6 +479,7 @@ class XNATListing(Mapping):
         query = dict(self.used_filters)
         query['columns'] = columns
         result = self.xnat.get_json(self.uri, query=query)['ResultSet']['Result']
+
         if not all('URI' in x for x in result):
             # HACK: This is a Resource, that misses the URI and ID field (let's fix that)
             for entry in result:
@@ -958,28 +987,27 @@ class XNAT(object):
                     # File is open file handle, seek to 0
                     file_handle = file_
                     file_.seek(0)
-                    filename = os.path.basename(uri)
                 elif os.path.isfile(file_):
                     # File is str path to file
                     file_handle = open(file_, 'rb')
                     opened_file = True
-                    filename = os.path.basename(file_)
                 else:
                     # File is data to upload
                     file_handle = file_
-                    filename = os.path.basename(uri)
 
                 attempt += 1
 
                 try:
+                    # Set the content type header
                     if content_type is None:
-                        files = {filename: file_handle}
+                        headers = {'Content-Type': 'application/octet-stream'}
                     else:
-                        files = {filename: (filename, file_handle, content_type)}
+                        headers = {'Content-Type': content_type}
+
                     if method == 'put':
-                        response = self.interface.put(uri, files=files)
+                        response = self.interface.put(uri, data=file_handle, headers=headers)
                     elif method == 'post':
-                        response = self.interface.post(uri, files=files)
+                        response = self.interface.post(uri, data=file_handle, headers=headers)
                     else:
                         raise ValueError('Invalid upload method "{}" should be either put or post.'.format(method))
                     self._check_response(response)
@@ -1011,9 +1039,11 @@ class XNAT(object):
     def xnat_version(self):
         return self.get('/data/version').text
 
-    def create_object(self, uri, type_=None, **kwargs):
-        if uri not in self._cache['__objects__']:
+    def create_object(self, uri, type_=None, fieldname=None, **kwargs):
+        if (uri, fieldname) not in self._cache['__objects__']:
             if type_ is None:
+                if self.xnat.debug:
+                    print('[DEBUG] Type unknown, fetching data to get type')
                 data = self.xnat.get_json(uri)
                 type_ = data['items'][0]['meta']
                 datafields = data['items'][0]['data_fields']
@@ -1023,11 +1053,16 @@ class XNAT(object):
             if type_ not in self.XNAT_CLASS_LOOKUP:
                 raise KeyError('Type {} unknow to this XNAT REST client (see XNAT_CLASS_LOOKUP class variable)'.format(type_))
 
-            self._cache['__objects__'][uri] = self.XNAT_CLASS_LOOKUP[type_](uri, self, datafields=datafields, **kwargs)
+            cls = self.XNAT_CLASS_LOOKUP[type_]
+
+            if self.xnat.debug:
+                print('[DEBUG] Creating object of type {}'.format(cls))
+
+            self._cache['__objects__'][uri, fieldname] = cls(uri, self, datafields=datafields, fieldname=fieldname, **kwargs)
         elif self.debug:
             print('[DEBUG] Fetching object {} from cache'.format(uri))
 
-        return self._cache['__objects__'][uri]
+        return self._cache['__objects__'][uri, fieldname]
 
     @property
     @caching
