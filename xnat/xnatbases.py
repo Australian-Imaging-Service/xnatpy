@@ -65,7 +65,7 @@ class SubjectData(XNATObject):
     @property
     @caching
     def experiments(self):
-        # HACK because self.uri + '/subjects' does not work
+        # HACK because self.uri + '/experiments' does not work
         uri = '{}/experiments'.format(self.fulluri, self.id)
         return XNATListing(uri, xnat=self.xnat, secondary_lookup_field='label')
 

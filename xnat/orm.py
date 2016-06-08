@@ -19,6 +19,9 @@ class ORMproperty(property):
     _prop_class = None
 
     def __init__(self, fget, fset=None, fdel=None, doc=None):
+        if doc is None:
+            doc = fget.__doc__
+
         super(ORMproperty, self).__init__(fget=fget, fset=fset, fdel=fdel, doc=doc)
 
     @property

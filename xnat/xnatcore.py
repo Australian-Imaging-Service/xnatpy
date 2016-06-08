@@ -57,7 +57,7 @@ def to_bool(value):
 
 def from_datetime(value):
     if isinstance(value, str):
-        value = isodate.parse_datetime(str)
+        value = isodate.parse_datetime(value)
 
     if isinstance(value, datetime.datetime):
         return value.isoformat()
@@ -67,7 +67,7 @@ def from_datetime(value):
 
 def from_date(value):
     if isinstance(value, str):
-        value = isodate.parse_date(str)
+        value = isodate.parse_date(value)
 
     if isinstance(value, datetime.date):
         return value.isoformat()
@@ -77,7 +77,7 @@ def from_date(value):
 
 def from_time(value):
     if isinstance(value, str):
-        value = isodate.parse_time(str)
+        value = isodate.parse_time(value)
 
     if isinstance(value, datetime.time):
         return value.isoformat()
@@ -87,7 +87,7 @@ def from_time(value):
 
 def from_timedelta(value):
     if isinstance(value, str):
-        value = isodate.parse_duration(str)
+        value = isodate.parse_duration(value)
     elif isinstance(value, datetime.timedelta):
         value = isodate.duration.Duration(days=value.days,
                                           seconds=value.seconds,
@@ -113,13 +113,13 @@ def from_bool(value):
 
 def from_int(value):
     if not isinstance(value, int):
-        value = int(str)
+        value = int(value)
     return str(value)
 
 
 def from_float(value):
     if not isinstance(value, float):
-        value = float(str)
+        value = float(value)
     return str(value)
 
 
@@ -348,9 +348,9 @@ class XNATObject(object):
         else:
             query = {'xsiType': self.parent.xsi_type,
                      '{parent_type}/{fieldname}[@xsi:type={xsitype}]/{name}'.format(parent_type=self.parent.xsi_type,
-                                                                                 fieldname=self.fieldname,
-                                                                                 xsitype=self.xsi_type,
-                                                                                 name=name): value}
+                                                                                    fieldname=self.fieldname,
+                                                                                    xsitype=self.xsi_type,
+                                                                                    name=name): value}
             self.xnat.put(self.parent.fulluri, query=query)
             self.parent.clearcache()
 
@@ -429,6 +429,28 @@ class XNATObject(object):
     @classmethod
     def query(self, session):
         return orm.Query(self._XSI_TYPE, session)
+
+
+class XNATSubObject(XNATObject):
+    @property
+    def xsi_type(self):
+        return self.parent.xsi_type
+
+    @property
+    def data(self):
+        prefix = '{}/'.format(self.fieldname)
+
+        result = self.parent.data
+        result = {k[len(prefix):]: v for k, v in result.items() if k.startswith(prefix)}
+
+        return result
+
+    def set(self, name, value, type_=None):
+        name = '{}/{}'.format(self.fieldname, name)
+        self.parent.set(name, value, type_)
+
+    #def get(self, name, type_=None):
+    #    return self.parent.get('{}/{}'.format(self.id, name))
 
 
 class XNATListing(Mapping):
@@ -1015,8 +1037,8 @@ class XNAT(object):
     def xnat_version(self):
         return self.get('/data/version').text
 
-    def create_object(self, uri, type_=None, **kwargs):
-        if uri not in self._cache['__objects__']:
+    def create_object(self, uri, type_=None, fieldname=None, **kwargs):
+        if (uri, fieldname) not in self._cache['__objects__']:
             if type_ is None:
                 if self.xnat.debug:
                     print('[DEBUG] Type unknown, fetching data to get type')
@@ -1029,14 +1051,16 @@ class XNAT(object):
             if type_ not in self.XNAT_CLASS_LOOKUP:
                 raise KeyError('Type {} unknow to this XNAT REST client (see XNAT_CLASS_LOOKUP class variable)'.format(type_))
 
-            if self.xnat.debug:
-                print('[DEBUG] Creating object using datafields: {}'.format(datafields))
+            cls = self.XNAT_CLASS_LOOKUP[type_]
 
-            self._cache['__objects__'][uri] = self.XNAT_CLASS_LOOKUP[type_](uri, self, datafields=datafields, **kwargs)
+            if self.xnat.debug:
+                print('[DEBUG] Creating object of type {}'.format(cls))
+
+            self._cache['__objects__'][uri, fieldname] = cls(uri, self, datafields=datafields, fieldname=fieldname, **kwargs)
         elif self.debug:
             print('[DEBUG] Fetching object {} from cache'.format(uri))
 
-        return self._cache['__objects__'][uri]
+        return self._cache['__objects__'][uri, fieldname]
 
     @property
     @caching

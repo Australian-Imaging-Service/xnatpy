@@ -37,10 +37,10 @@ class ClassRepresentation(object):
             "abstractResource": "label"
             }
 
-    def __init__(self, parser, name):
+    def __init__(self, parser, name, base_class = 'XNATObject'):
         self.parser = parser
         self.name = name
-        self.baseclass = 'XNATObject'
+        self.baseclass = base_class
         self.properties = {}
 
     def __repr__(self):
@@ -78,7 +78,7 @@ class ClassRepresentation(object):
             if base is not None:
                 return base.hasattr(name)
             else:
-                base = xnatcore.XNATObject
+                base = self.get_super_class()
                 return hasattr(base, name)
 
     @property
@@ -93,6 +93,10 @@ class ClassRepresentation(object):
         if hasattr(xnatbases, self.python_name):
             return getattr(xnatbases, self.python_name)
 
+    def get_super_class(self):
+        if hasattr(xnatcore, self.python_baseclass):
+            return getattr(xnatcore, self.python_baseclass)
+
     def print_property(self, prop):
         if prop.name in self.SUBSTITUTIONS:
             return self.SUBSTITUTIONS[prop.name]
@@ -106,7 +110,7 @@ class ClassRepresentation(object):
     @property
     def init(self):
         if self.name in self.SECONDARY_LOOKUP_FIELDS:
-            return "    def __init__(self, uri, xnat, id_=None, datafields=None, {lookup}=None):\n        super({name}, self).__init__(uri, xnat, id_=id_, datafields=datafields)\n        if {lookup} is not None:\n            self._cache['{lookup}'] = {lookup}\n\n".format(name=self.python_name, lookup=self.SECONDARY_LOOKUP_FIELDS[self.name])
+            return "    def __init__(self, uri, xnat, id_=None, datafields=None, {lookup}=None, **kwargs):\n        super({name}, self).__init__(uri, xnat, id_=id_, datafields=datafields, **kwargs)\n        if {lookup} is not None:\n            self._cache['{lookup}'] = {lookup}\n\n".format(name=self.python_name, lookup=self.SECONDARY_LOOKUP_FIELDS[self.name])
         else:
             return ""
 
@@ -176,9 +180,10 @@ class SchemaParser(object):
         self.unknown_tags = set()
         self.new_class_stack = [None]
         self.new_property_stack = [None]
+        self.property_prefixes = []
 
     def __iter__(self):
-        visited = set(['XNATObject'])
+        visited = set(['XNATObject', 'XNATSubObject'])
         tries = 0
         while len(visited) < len(self.class_list) and tries < 50:
             for key, value in self.class_list.items():
@@ -199,11 +204,13 @@ class SchemaParser(object):
             print('Missed: {}'.format(set(self.class_list.keys()) - visited))
 
     @contextlib.contextmanager
-    def descend(self, new_class=None, new_property=None):
+    def descend(self, new_class=None, new_property=None, property_prefix=None):
         if new_class is not None:
             self.new_class_stack.append(new_class)
         if new_property is not None:
             self.new_property_stack.append(new_property)
+        if property_prefix is not None:
+            self.property_prefixes.append(property_prefix)
 
         yield
 
@@ -211,6 +218,8 @@ class SchemaParser(object):
             self.new_class_stack.pop()
         if new_property is not None:
             self.new_property_stack.pop()
+        if property_prefix is not None:
+            self.property_prefixes.pop()
 
     @property
     def current_class(self):
@@ -228,10 +237,15 @@ class SchemaParser(object):
 
     def parse_complex_type(self, element):
         name = element.get('name')
+        base_class = 'XNATObject'
 
-        new_class = ClassRepresentation(self, name)
+        if name is None:
+            name = self.current_class.python_name + self.current_property.name.capitalize()
+            base_class = 'XNATSubObject'
+
+        new_class = ClassRepresentation(self, name, base_class=base_class)
         self.class_list[name] = new_class
-        
+
         # Descend
         with self.descend(new_class=new_class):
             self.parse_children(element)
@@ -254,7 +268,7 @@ class SchemaParser(object):
         new_base = element.get('base')
         if new_base.startswith('xnat:'):
             new_base = new_base[5:]
-        if old_base == 'XNATObject':
+        if old_base in ['XNATObject', 'XNATSubObject']:
             self.current_class.baseclass = new_base
         else:
             raise ValueError('Trying to reset base class again from {} to {}'.format(old_base, new_base))
