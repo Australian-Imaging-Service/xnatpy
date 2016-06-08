@@ -18,6 +18,7 @@ import inspect
 import keyword
 import re
 
+import xnatcore
 import xnatbases
 
 
@@ -43,7 +44,7 @@ class ClassRepresentation(object):
         self.properties = {}
 
     def __repr__(self):
-        return '<Class {}({})>'.format(self.name, self.baseclass)
+        return '<ClassRepresentation {}({})>'.format(self.name, self.baseclass)
 
     def __str__(self):
         base = self.get_base_template()
@@ -77,7 +78,8 @@ class ClassRepresentation(object):
             if base is not None:
                 return base.hasattr(name)
             else:
-                return False
+                base = xnatcore.XNATObject
+                return hasattr(base, name)
 
     @property
     def python_name(self):
@@ -118,13 +120,13 @@ class PropertyRepresentation(object):
         self.docstring = None
 
     def __repr__(self):
-        return '<Property {}({})>'.format(self.name, self.type_)
+        return '<PropertyRepresentation {}({})>'.format(self.name, self.type_)
 
     def __str__(self):
         docstring = '\n        """{}"""'.format(self.docstring) if self.docstring is not None else ''
         if self.type_ is None or not self.type_.startswith('xnat:'):
             return \
-        """    @property
+        """    @orm.ORMproperty
     def {clean_name}(self):{docstring}
         # Generate automatically, type: {type}
         return self.get("{name}", type_="{type}")
@@ -135,7 +137,7 @@ class PropertyRepresentation(object):
         self.set("{name}", value, type_="{type}")""".format(clean_name=self.clean_name, docstring=docstring, name=self.name, type=self.type_, restrictions=self.restrictions_code())
         else:
             return \
-        """    @property
+        """    @orm.ORMproperty
     @caching
     def {clean_name}(self):{docstring}
         # Generated automatically, type: {type_}

@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABCMeta
 from collections import MutableMapping, Mapping, namedtuple
 import datetime
 import fnmatch
@@ -31,6 +30,8 @@ from zipfile import ZipFile  # Needed by generated code
 
 import isodate
 import requests
+
+import orm
 
 
 # Some type conversion functions
@@ -262,7 +263,7 @@ class CustomVariableMap(VariableMap):
 
 
 class XNATObject(object):
-    __metaclass__ = ABCMeta
+    __metaclass__ = orm.ORMMeta
     _HAS_FIELDS = False
     _XSI_TYPE = 'xnat:baseObject'
 
@@ -425,6 +426,10 @@ class XNATObject(object):
         # of this object, indicating that is has been in fact removed
         self.clearcache()
 
+    @classmethod
+    def query(self, session):
+        return orm.Query(self._XSI_TYPE, session)
+
 
 class XNATListing(Mapping):
     def __init__(self, uri, xnat, secondary_lookup_field, xsiType=None, filter=None):
@@ -449,6 +454,7 @@ class XNATListing(Mapping):
         query = dict(self.used_filters)
         query['columns'] = columns
         result = self.xnat.get_json(self.uri, query=query)['ResultSet']['Result']
+
         if not all('URI' in x for x in result):
             # HACK: This is a Resource, that misses the URI and ID field (let's fix that)
             for entry in result:
@@ -1012,6 +1018,8 @@ class XNAT(object):
     def create_object(self, uri, type_=None, **kwargs):
         if uri not in self._cache['__objects__']:
             if type_ is None:
+                if self.xnat.debug:
+                    print('[DEBUG] Type unknown, fetching data to get type')
                 data = self.xnat.get_json(uri)
                 type_ = data['items'][0]['meta']
                 datafields = data['items'][0]['data_fields']
@@ -1020,6 +1028,9 @@ class XNAT(object):
 
             if type_ not in self.XNAT_CLASS_LOOKUP:
                 raise KeyError('Type {} unknow to this XNAT REST client (see XNAT_CLASS_LOOKUP class variable)'.format(type_))
+
+            if self.xnat.debug:
+                print('[DEBUG] Creating object using datafields: {}'.format(datafields))
 
             self._cache['__objects__'][uri] = self.XNAT_CLASS_LOOKUP[type_](uri, self, datafields=datafields, **kwargs)
         elif self.debug:
