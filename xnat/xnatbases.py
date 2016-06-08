@@ -35,6 +35,16 @@ class ProjectData(XNATObject):
     def experiments(self):
         return XNATListing(self.uri + '/experiments', xnat=self.xnat, secondary_lookup_field='label')
 
+    @property
+    @caching
+    def files(self):
+        return XNATListing(self.uri + '/files', xnat=self.xnat, secondary_lookup_field='name', xsiType='xnat:fileData')
+
+    @property
+    @caching
+    def resources(self):
+        return XNATListing(self.uri + '/resources', xnat=self.xnat, secondary_lookup_field='label', xsiType='xnat:resourceCatalog')
+
     def download_dir(self, target_dir, verbose=True):
         project_dir = os.path.join(target_dir, self.name)
         if not os.path.isdir(project_dir):
@@ -58,6 +68,16 @@ class SubjectData(XNATObject):
         # HACK because self.uri + '/subjects' does not work
         uri = '{}/experiments'.format(self.fulluri, self.id)
         return XNATListing(uri, xnat=self.xnat, secondary_lookup_field='label')
+
+    @property
+    @caching
+    def files(self):
+        return XNATListing(self.uri + '/files', xnat=self.xnat, secondary_lookup_field='name', xsiType='xnat:fileData')
+
+    @property
+    @caching
+    def resources(self):
+        return XNATListing(self.uri + '/resources', xnat=self.xnat, secondary_lookup_field='label', xsiType='xnat:resourceCatalog')
 
     def download_dir(self, target_dir, verbose=True):
         subject_dir = os.path.join(target_dir, self.label)
@@ -90,6 +110,16 @@ class ImageSessionData(XNATObject):
     @caching
     def reconstructions(self):
         return XNATListing(self.uri + '/reconstructions', xnat=self.xnat, secondary_lookup_field='label')
+
+    @property
+    @caching
+    def files(self):
+        return XNATListing(self.uri + '/files', xnat=self.xnat, secondary_lookup_field='name', xsiType='xnat:fileData')
+
+    @property
+    @caching
+    def resources(self):
+        return XNATListing(self.uri + '/resources', xnat=self.xnat, secondary_lookup_field='label', xsiType='xnat:resourceCatalog')
 
     def create_assessor(self, label, type_='xnat:mrAssessorData'):
         uri = '{}/assessors/{label}?xsiType={type}&label={label}&req_format=qs'.format(self.fulluri,
