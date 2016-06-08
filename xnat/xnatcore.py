@@ -318,14 +318,15 @@ class XNATObject(object):
             'baseimage': 'xnat:abstractResource',
             }
 
-    def get_object(self, fieldname):
-        try:
-            data = next(x for x in self.fulldata['children'] if x['field'] == fieldname)['items'][0]
-            type_ = data['meta']['xsi:type']
-        except StopIteration:
-            type_ = self._TYPE_HINTS.get(fieldname)
+    def get_object(self, fieldname, type_=None):
         if type_ is None:
-            raise ValueError('Cannot determine type of field {}!'.format(fieldname))
+            try:
+                data = next(x for x in self.fulldata['children'] if x['field'] == fieldname)['items'][0]
+                type_ = data['meta']['xsi:type']
+            except StopIteration:
+                type_ = self._TYPE_HINTS.get(fieldname)
+            if type_ is None:
+                raise ValueError('Cannot determine type of field {}!'.format(fieldname))
         return self.xnat.create_object(self.uri, type_=type_, parent=self, fieldname=fieldname)
 
     @property

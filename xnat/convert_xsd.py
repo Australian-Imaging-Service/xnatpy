@@ -128,17 +128,29 @@ class PropertyRepresentation(object):
 
     def __str__(self):
         docstring = '\n        """{}"""'.format(self.docstring) if self.docstring is not None else ''
-        if self.type_ is None or not self.type_.startswith('xnat:'):
+        if not (self.type_ is None or self.type_.startswith('xnat:')):
             return \
         """    @orm.ORMproperty
     def {clean_name}(self):{docstring}
         # Generate automatically, type: {type}
         return self.get("{name}", type_="{type}")
-    
+
     @ {clean_name}.setter
     def {clean_name}(self, value):{docstring}{restrictions}
         # Generate automatically, type: {type}
         self.set("{name}", value, type_="{type}")""".format(clean_name=self.clean_name, docstring=docstring, name=self.name, type=self.type_, restrictions=self.restrictions_code())
+        elif self.type_ is None:
+            xsi_type = "self._XSI_TYPE + '{}'".format(self.name.capitalize())
+            return \
+        """    @orm.ORMproperty
+    @caching
+    def {clean_name}(self):{docstring}
+        # Generated automatically, type: {type_}
+        return self.get_object("{name}", {xsi_type})""".format(clean_name=self.clean_name,
+                                                       docstring=docstring,
+                                                       name = self.name,
+                                                       type_=self.type_,
+                                                       xsi_type=xsi_type)
         else:
             return \
         """    @orm.ORMproperty
@@ -146,9 +158,9 @@ class PropertyRepresentation(object):
     def {clean_name}(self):{docstring}
         # Generated automatically, type: {type_}
         return self.get_object("{name}")""".format(clean_name=self.clean_name,
-                                                   docstring=docstring,
-                                                   name = self.name,
-                                                   type_=self.type_)
+                                                               docstring=docstring,
+                                                               name = self.name,
+                                                               type_=self.type_)
 
     @property
     def clean_name(self):
@@ -240,7 +252,7 @@ class SchemaParser(object):
         base_class = 'XNATObject'
 
         if name is None:
-            name = self.current_class.python_name + self.current_property.name.capitalize()
+            name = self.current_class.name + self.current_property.name.capitalize()
             base_class = 'XNATSubObject'
 
         new_class = ClassRepresentation(self, name, base_class=base_class)
