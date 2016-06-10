@@ -31,7 +31,7 @@ from zipfile import ZipFile  # Needed by generated code
 import isodate
 import requests
 
-import orm
+import xnat.orm as orm
 
 
 # Some type conversion functions
