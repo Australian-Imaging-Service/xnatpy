@@ -150,16 +150,10 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
         if debug:
             print('[DEBUG] Loaded generated module')
 
-        # Add classes to the __all__
-        __all__.extend(['XNAT', 'XNATObject', 'XNATListing', 'Services', 'Prearchive', 'PrearchiveSession', 'PrearchiveScan', 'FileData',])
-
         # Register all types parsed
         for cls in parser:
             if not (cls.name is None or cls.baseclass.startswith('xs:')):
                 xnat_module.XNAT.XNAT_CLASS_LOOKUP['xnat:{}'.format(cls.name)] = getattr(xnat_module, cls.python_name)
-
-                # Add classes to the __all__
-                __all__.append(cls.python_name)
 
         # Cache the module for re-use
         GEN_MODULES[schema_uri] = xnat_module
@@ -169,6 +163,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
 
     # Create the XNAT connection and return it
     session = xnat_module.XNAT(server=server, interface=requests_session, debug=debug)
+    session.classes = xnat_module
     session._source_code_file = xnat_module._SOURCE_CODE_FILE
     return session
 
