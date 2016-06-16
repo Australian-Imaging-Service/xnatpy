@@ -26,7 +26,6 @@ import imp
 import os
 import netrc
 import tempfile
-from xml.etree import ElementTree
 import urlparse
 
 import requests
@@ -40,7 +39,7 @@ GEN_MODULES = {}
 __all__ = ['connect']
 
 
-def connect(server, user=None, password=None, verify=True, netrc_file=None, debug=False):
+def connect(server, user=None, password=None, verify=True, netrc_file=None, debug=False, extension_types=True):
     """
     Connect to a server and generate the correct classed based on the servers xnat.xsd
     This function returns an object that can be used as a context operator. It will call
@@ -107,24 +106,40 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
 
     # Generate module if it is not cached
     if schema_uri not in GEN_MODULES:
-        print('[INFO] Retrieving schema from {}'.format(schema_uri))
+        parser = SchemaParser(debug=debug)
+        success = parser.parse_schema_uri(requests_session=requests_session,
+                                          schema_uri=schema_uri)
 
-        if debug:
-            print('[DEBUG] GET SCHEMA {}'.format(schema_uri))
-        resp = requests_session.get(schema_uri, headers={'Accept-Encoding': None})
+        if not success:
+            raise RuntimeError('Could not parse the xnat.xsd! Cannot build data model!')
 
-        try:
-            root = ElementTree.fromstring(resp.text)
-        except ElementTree.ParseError as exception:
-            if len(resp.text) > 2000:
-                excerpt = resp.text[:1000] + '\n ... [CUT] ... \n' + resp.text[-1000:]
-            else:
-                excerpt = resp.text
-            raise ValueError('Could not parse xnat.xsd, server response was ({}):\n"{}"\nOriginal exception: {}'.format(resp.status_code, excerpt, exception))
+        # Parse extension types
+        if extension_types:
+            projects_uri = '{}/data/projects?format=json'.format(server.rstrip('/'))
+            response = requests.get(projects_uri)
+            if response.status_code != 200:
+                raise ValueError('Could not requests projects from {}'.format(projects_uri))
+            try:
+                project_id = response.json()['ResultSet']['Result'][0]['ID']
+            except (KeyError, IndexError):
+                raise ValueError('Could not get an example for scanning extenion types!')
 
-        # Parse xml schema
-        parser = SchemaParser()
-        parser.parse(root)
+            project_uri = '{}/data/projects/{}?format=xml'.format(server.rstrip('/'), project_id)
+            response = requests.get(project_uri)
+
+            if response.status_code != 200:
+                raise ValueError('Could not request example project from {}'.format(project_uri))
+
+            schemas = parser.find_schema_uris(response.text)
+            if schema_uri in schemas:
+                if debug:
+                    print('[DEBUG] Removing schema {} from list'.format(schema_uri))
+                schemas.remove(schema_uri)
+            print('[INFO] Found schemas: {}'.format(schemas))
+
+            for schema in schemas:
+                parser.parse_schema_uri(requests_session=requests_session,
+                                        schema_uri=schema)
 
         # Write code to temp file
         with tempfile.NamedTemporaryFile(mode='w', suffix='_generated_xnat.py', delete=False) as code_file:

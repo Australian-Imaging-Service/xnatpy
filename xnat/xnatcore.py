@@ -267,14 +267,31 @@ class XNATObject(object):
     _HAS_FIELDS = False
     _XSI_TYPE = 'xnat:baseObject'
 
-    def __init__(self, uri, xnat, id_=None, datafields=None, parent=None, fieldname=None):
+    def __init__(self, uri=None, xnat=None, id_=None, datafields=None, parent=None, fieldname=None):
+        if (uri is None or xnat is None) and parent is None:
+            raise ValueError('Either the uri and xnat session have to be given, or the parent object')
+
         # Set the xnat session
         self._cache = {}
         self._caching = None
 
-        self._xnat = xnat
-        self._uri = uri
-        self._parent = parent
+        if uri is None and parent is not None:
+            self._xnat = parent.xnat
+            if isinstance(parent, XNATListing):
+                put_uri = parent.uri
+            else:
+                listing_field = {'xsi:projectData': 'projects',
+                                 'xsi:subjectData': 'subjects',
+                                 }
+                put_uri = '{}/{}'.format(parent.uri, listing_field)
+            put_uri = parent.uri
+            self._uri = parent.uri + label
+            self._parent = None
+        else:
+            self._xnat = xnat
+            self._uri = uri
+            self._parent = parent
+
         self._fieldname = fieldname
 
         if self._HAS_FIELDS:

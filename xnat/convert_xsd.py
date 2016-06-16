@@ -17,6 +17,7 @@ import contextlib
 import inspect
 import keyword
 import re
+from xml.etree import ElementTree
 
 import xnatcore
 import xnatbases
@@ -127,7 +128,7 @@ class PropertyRepresentation(object):
         return '<PropertyRepresentation {}({})>'.format(self.name, self.type_)
 
     def __str__(self):
-        docstring = '\n        """{}"""'.format(self.docstring) if self.docstring is not None else ''
+        docstring = '\n        """ {} """'.format(self.docstring) if self.docstring is not None else ''
         if not (self.type_ is None or self.type_.startswith('xnat:')):
             return \
         """    @orm.ORMproperty
@@ -165,8 +166,9 @@ class PropertyRepresentation(object):
     @property
     def clean_name(self):
         name = re.sub('[^0-9a-zA-Z]+', '_', self.name)
+
         if keyword.iskeyword(name):
-            name = name + '_'
+            name += '_'
         return name.lower()
 
     def restrictions_code(self):
@@ -179,7 +181,7 @@ class PropertyRepresentation(object):
             if 'maxlength' in self.restrictions:
                 data += "\n        if len(value) > {maxlength}:\n            raise ValueError('length {name} has to be smaller than or equal to {maxlength}')\n".format(name=self.name, maxlength=self.restrictions['maxlength'])
             if 'enum' in self.restrictions:
-                data += "\n        if value not in [{enum}]:\n            raise ValueError('{name} has to be one of: {enum}')\n".format(name=self.name, enum=', '.join('"{}"'.format(x) for x in self.restrictions['enum']))
+                data += "\n        if value not in [{enum}]:\n            raise ValueError('{name} has to be one of: {enum}')\n".format(name=self.name, enum=', '.join('"{}"'.format(x.replace("'", "\\'")) for x in self.restrictions['enum']))
 
             return data
         else:
@@ -187,12 +189,42 @@ class PropertyRepresentation(object):
 
 
 class SchemaParser(object):
-    def __init__(self):
+    def __init__(self, debug=False):
         self.class_list = {}
         self.unknown_tags = set()
         self.new_class_stack = [None]
         self.new_property_stack = [None]
         self.property_prefixes = []
+        self.debug = debug
+
+    def parse_schema_uri(self, requests_session, schema_uri):
+        print('[INFO] Retrieving schema from {}'.format(schema_uri))
+
+        if self.debug:
+            print('[DEBUG] GET SCHEMA {}'.format(schema_uri))
+        resp = requests_session.get(schema_uri, headers={'Accept-Encoding': None})
+
+        try:
+            root = ElementTree.fromstring(resp.text)
+        except ElementTree.ParseError as exception:
+            print('Could not parse schema from {}'.format(schema_uri))
+            return False
+
+        # Parse xml schema
+        self.parse(root, toplevel=True)
+        return True
+
+    @staticmethod
+    def find_schema_uris(text):
+        try:
+            root = ElementTree.fromstring(text)
+        except ElementTree.ParseError:
+            raise ValueError('Could not parse xml file')
+
+        schemas_string = root.attrib.get('{http://www.w3.org/2001/XMLSchema-instance}schemaLocation', '')
+        schemas = [x for x in schemas_string.split() if x.endswith('.xsd')]
+
+        return schemas
 
     def __iter__(self):
         visited = set(['XNATObject', 'XNATSubObject'])
@@ -241,11 +273,23 @@ class SchemaParser(object):
     def current_property(self):
         return self.new_property_stack[-1]
 
-    def parse(self, element):
-        if element.tag in self.PARSERS:
-            self.PARSERS[element.tag](self, element)
+    def parse(self, element, toplevel=False):
+        if toplevel:
+            if element.tag != '{http://www.w3.org/2001/XMLSchema}schema':
+                raise ValueError('File should contain a schema as root element!')
+
+            for child in element.getchildren():
+                if child.tag != '{http://www.w3.org/2001/XMLSchema}complexType':
+                    if self.debug:
+                        print('[DEBUG] skipping non-class tag {}'.format(child.tag))
+                    continue
+
+                self.parse(child)
         else:
-            self.parse_unknown(element)
+            if element.tag in self.PARSERS:
+                self.PARSERS[element.tag](self, element)
+            else:
+                self.parse_unknown(element)
 
     def parse_complex_type(self, element):
         name = element.get('name')
@@ -301,6 +345,10 @@ class SchemaParser(object):
         type_ = element.get('type')
 
         if self.current_class is not None:
+            if name is None:
+                if self.debug:
+                    print('[DEBUG] Encountered attribute without name')
+                return
             new_property = PropertyRepresentation(self, name, type_)
             self.current_class.properties[name] = new_property
 
@@ -348,6 +396,11 @@ class SchemaParser(object):
         type_ = element.get('type')
 
         if self.current_class is not None:
+            if name is None:
+                if self.debug:
+                    print('[DEBUG] Encountered attribute without name')
+                return
+
             new_property = PropertyRepresentation(self, name, type_)
             self.current_class.properties[name] = new_property
 
