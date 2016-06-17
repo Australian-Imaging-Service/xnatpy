@@ -243,7 +243,7 @@ class VariableMap(MutableMapping):
 
     @property
     def xnat(self):
-        return self.parent.xnat
+        return self.parent.xnat_session
 
     def clearcache(self):
         self._cache.clear()
@@ -267,8 +267,8 @@ class XNATObject(object):
     _HAS_FIELDS = False
     _XSI_TYPE = 'xnat:baseObject'
 
-    def __init__(self, uri=None, xnat=None, id_=None, datafields=None, parent=None, fieldname=None):
-        if (uri is None or xnat is None) and parent is None:
+    def __init__(self, uri=None, xnat_session=None, id_=None, datafields=None, parent=None, fieldname=None):
+        if (uri is None or xnat_session is None) and parent is None:
             raise ValueError('Either the uri and xnat session have to be given, or the parent object')
 
         # Set the xnat session
@@ -276,7 +276,7 @@ class XNATObject(object):
         self._caching = None
 
         if uri is None and parent is not None:
-            self._xnat = parent.xnat
+            self._xnat_session = parent.xnat_session
             if isinstance(parent, XNATListing):
                 put_uri = parent.uri
             else:
@@ -288,7 +288,7 @@ class XNATObject(object):
             self._uri = parent.uri + label
             self._parent = None
         else:
-            self._xnat = xnat
+            self._xnat_session = xnat_session
             self._uri = uri
             self._parent = parent
 
@@ -344,7 +344,7 @@ class XNATObject(object):
                 type_ = self._TYPE_HINTS.get(fieldname)
             if type_ is None:
                 raise ValueError('Cannot determine type of field {}!'.format(fieldname))
-        return self.xnat.create_object(self.uri, type_=type_, parent=self, fieldname=fieldname)
+        return self.xnat_session.create_object(self.uri, type_=type_, parent=self, fieldname=fieldname)
 
     @property
     def fulluri(self):
@@ -361,7 +361,7 @@ class XNATObject(object):
         if self.parent is None:
             query = {'xsiType': self.xsi_type,
                     '{xsitype}/{name}'.format(xsitype=self.xsi_type, name=name): value}
-            self.xnat.put(self.fulluri, query=query)
+            self.xnat_session.put(self.fulluri, query=query)
             self.clearcache()
         else:
             query = {'xsiType': self.parent.xsi_type,
@@ -369,7 +369,7 @@ class XNATObject(object):
                                                                                     fieldname=self.fieldname,
                                                                                     xsitype=self.xsi_type,
                                                                                     name=name): value}
-            self.xnat.put(self.parent.fulluri, query=query)
+            self.xnat_session.put(self.parent.fulluri, query=query)
             self.parent.clearcache()
 
     @property
@@ -389,7 +389,7 @@ class XNATObject(object):
     @property
     @caching
     def fulldata(self):
-        return self.xnat.get_json(self.uri)['items'][0]
+        return self.xnat_session.get_json(self.uri)['items'][0]
 
     @property
     def data(self):
@@ -403,8 +403,8 @@ class XNATObject(object):
             return data
 
     @property
-    def xnat(self):
-        return self._xnat
+    def xnat_session(self):
+        return self._xnat_session
 
     @property
     def uri(self):
@@ -420,7 +420,7 @@ class XNATObject(object):
         if self._caching is not None:
             return self._caching
         else:
-            return self.xnat.caching
+            return self.xnat_session.caching
 
     @caching.setter
     def caching(self, value):
@@ -432,14 +432,14 @@ class XNATObject(object):
 
     def delete(self, remove_files=True):
         """
-        Remove the item from XNAT
+        Remove the item from XNATSession
         """
         query = {}
 
         if remove_files:
             query['removeFiles'] = 'true'
 
-        self.xnat.delete(self.fulluri, query=query)
+        self.xnat_session.delete(self.fulluri, query=query)
         # Make sure there is no cache, this will cause 404 erros on subsequent use
         # of this object, indicating that is has been in fact removed
         self.clearcache()
@@ -472,13 +472,13 @@ class XNATSubObject(XNATObject):
 
 
 class XNATListing(Mapping):
-    def __init__(self, uri, xnat, secondary_lookup_field, xsiType=None, filter=None):
+    def __init__(self, uri, xnat_session, secondary_lookup_field, xsiType=None, filter=None):
         # Cache fields
         self._cache = {}
         self.caching = True
 
         # Important for communication
-        self._xnat = xnat
+        self._xnat_session = xnat_session
         self._uri = uri
         self._xsiType = xsiType
 
@@ -493,7 +493,7 @@ class XNATListing(Mapping):
         columns = 'ID,URI,{}{}'.format(self.secondary_lookup_field, xsi_type)
         query = dict(self.used_filters)
         query['columns'] = columns
-        result = self.xnat.get_json(self.uri, query=query)['ResultSet']['Result']
+        result = self.xnat_session.get_json(self.uri, query=query)['ResultSet']['Result']
 
         if not all('URI' in x for x in result):
             # HACK: This is a Resource, that misses the URI and ID field (let's fix that)
@@ -517,10 +517,10 @@ class XNATListing(Mapping):
         id_map = {}
         key_map = {}
         for x in result:
-            new_object = self.xnat.create_object(x['URI'],
-                                                 type_=x.get('xsiType', self._xsiType),
-                                                 id_=x['ID'],
-                                                 **{self.secondary_lookup_field: x.get(self.secondary_lookup_field)})
+            new_object = self.xnat_session.create_object(x['URI'],
+                                                         type_=x.get('xsiType', self._xsiType),
+                                                         id_=x['ID'],
+                                                         **{self.secondary_lookup_field: x.get(self.secondary_lookup_field)})
             id_map[x['ID']] = new_object
             key_map[x.get(self.secondary_lookup_field)] = new_object
 
@@ -577,7 +577,7 @@ class XNATListing(Mapping):
         query = dict(filter)
         query['columns'] = ','.join(columns)
 
-        result = self.xnat.get_json(self.uri, query=query)
+        result = self.xnat_session.get_json(self.uri, query=query)
         if len(result['ResultSet']['Result']) > 0:
             result_columns = result['ResultSet']['Result'][0].keys()
 
@@ -633,22 +633,22 @@ class XNATListing(Mapping):
             filters = kwargs
 
         new_filters = self.merge_filters(self.used_filters, filters)
-        return XNATListing(self.uri, self.xnat, self.secondary_lookup_field, self._xsiType, new_filters)
+        return XNATListing(self.uri, self.xnat_session, self.secondary_lookup_field, self._xsiType, new_filters)
 
     @property
     def uri(self):
         return self._uri
 
     @property
-    def xnat(self):
-        return self._xnat
+    def xnat_session(self):
+        return self._xnat_session
 
 
 class FileData(XNATObject):
     _XSI_TYPE = 'xnat:fileData'
 
-    def __init__(self, uri, xnat, id_=None, datafields=None, name=None):
-        super(FileData, self).__init__(uri, xnat, id_=id_, datafields=datafields)
+    def __init__(self, uri, xnat_session, id_=None, datafields=None, name=None):
+        super(FileData, self).__init__(uri, xnat_session, id_=id_, datafields=datafields)
         self._name = name
 
     @property
@@ -656,45 +656,45 @@ class FileData(XNATObject):
         return self._name
 
     def delete(self):
-        self.xnat.delete(self.uri)
+        self.xnat_session.delete(self.uri)
 
     def download(self, path):
-        self.xnat.download(self.uri, path)
+        self.xnat_session.download(self.uri, path)
 
 
-class XNAT(object):
+class XNATSession(object):
     """
-    The main XNAT session class. It keeps a connection to XNAT alive and
-    manages the main communication to XNAT. To keep the connection alive
+    The main XNATSession session class. It keeps a connection to XNATSession alive and
+    manages the main communication to XNATSession. To keep the connection alive
     there is a background thread that sends a heart-beat to avoid a time-out.
 
-    The main starting points for working with the XNAT server are:
+    The main starting points for working with the XNATSession server are:
 
-    * :py:meth:`XNAT.projects <xnat.XNAT.projects>`
-    * :py:meth:`XNAT.subjects <xnat.XNAT.subjects>`
-    * :py:meth:`XNAT.experiments <xnat.XNAT.experiments>`
-    * :py:meth:`XNAT.prearchive <xnat.XNAT.prearchive>`
-    * :py:meth:`XNAT.services <xnat.XNAT.services>`
+    * :py:meth:`XNATSession.projects <xnat.XNATSession.projects>`
+    * :py:meth:`XNATSession.subjects <xnat.XNATSession.subjects>`
+    * :py:meth:`XNATSession.experiments <xnat.XNATSession.experiments>`
+    * :py:meth:`XNATSession.prearchive <xnat.XNATSession.prearchive>`
+    * :py:meth:`XNATSession.services <xnat.XNATSession.services>`
 
     .. note:: Some methods create listing that are using the :py:class:`xnat.XNATListing`
-              class. They allow for indexing with both XNAT ID and a secondary key (often the
+              class. They allow for indexing with both XNATSession ID and a secondary key (often the
               label). Also they support basic filtering and tabulation.
 
     There are also methods for more low level communication. The main methods
-    are :py:meth:`XNAT.get <xnat.XNAT.get>`, :py:meth:`XNAT.post <xnat.XNAT.post>`,
-    :py:meth:`XNAT.put <xnat.XNAT.put>`, and :py:meth:`XNAT.delete <xnat.XNAT.delete>`.
-    The methods do not query URIs but instead query XNAT REST paths as described in the
-    `XNAT 1.6 REST API Directory <https://wiki.xnat.org/display/XNAT16/XNAT+REST+API+Directory>`_.
+    are :py:meth:`XNATSession.get <xnat.XNATSession.get>`, :py:meth:`XNATSession.post <xnat.XNATSession.post>`,
+    :py:meth:`XNATSession.put <xnat.XNATSession.put>`, and :py:meth:`XNATSession.delete <xnat.XNATSession.delete>`.
+    The methods do not query URIs but instead query XNATSession REST paths as described in the
+    `XNATSession 1.6 REST API Directory <https://wiki.xnat.org/display/XNAT16/XNATSession+REST+API+Directory>`_.
 
-    For an even lower level interfaces, the :py:attr:`XNAT.interface <xnat.XNAT.interface>`
+    For an even lower level interfaces, the :py:attr:`XNATSession.interface <xnat.XNATSession.interface>`
     gives access to the underlying `requests <https://requests.readthedocs.org>`_ interface.
     This interface has the user credentials and benefits from the keep alive of this class.
 
-    .. note:: XNAT Objects have a client-side cache. This is for efficiency, but might cause
+    .. note:: XNATSession Objects have a client-side cache. This is for efficiency, but might cause
               problems if the server is being changed by a different client. It is possible
-              to clear the current cache using :py:meth:`XNAT.clearcache <xnat.XNAT.clearcache>`.
+              to clear the current cache using :py:meth:`XNATSession.clearcache <xnat.XNATSession.clearcache>`.
               Turning off caching complete can be done by setting
-              :py:attr:`XNAT.caching <xnat.XNAT.caching>`.
+              :py:attr:`XNATSession.caching <xnat.XNATSession.caching>`.
 
     .. warning:: You should NOT try use this class directly, it should only
                  be created by :py:func:`xnat.connect <xnat.connect>`.
@@ -712,8 +712,8 @@ class XNAT(object):
         self._cache = {'__objects__': {}}
         self.caching = True
         self._source_code_file = None
-        self._services = Services(xnat=self)
-        self._prearchive = Prearchive(xnat=self)
+        self._services = Services(xnat_session=self)
+        self._prearchive = Prearchive(xnat_session=self)
         self._debug = debug
         self.inspect = Inspect(self)
 
@@ -853,7 +853,7 @@ class XNAT(object):
         return self.uri
 
     @property
-    def xnat(self):
+    def xnat_session(self):
         return self
 
     def _check_response(self, response, accepted_status=None, uri=None):
@@ -863,7 +863,7 @@ class XNAT(object):
         if accepted_status is None:
             accepted_status = [200, 201, 202, 203, 204, 205, 206]  # All successful responses of HTML
         if response.status_code not in accepted_status or response.text.startswith(('<!DOCTYPE', '<html>')):
-            raise XNATResponseError('Invalid response from XNAT for url {} (status {}):\n{}'.format(uri, response.status_code, response.text))
+            raise XNATResponseError('Invalid response from XNATSession for url {} (status {}):\n{}'.format(uri, response.status_code, response.text))
 
     def get(self, path, format=None, query=None, accepted_status=None):
         accepted_status = accepted_status or [200]
@@ -964,14 +964,14 @@ class XNAT(object):
         response = self.interface.get(uri, stream=True)
 
         if response.status_code != 200:
-            raise XNATResponseError('Invalid response from XNAT for url {} (status {}):\n{}'.format(uri, response.status_code, response.text))
+            raise XNATResponseError('Invalid response from XNATSession for url {} (status {}):\n{}'.format(uri, response.status_code, response.text))
 
         bytes_read = 0
         if verbose:
             print('Downloading {}:'.format(uri))
         for chunk in response.iter_content(chunk_size):
             if bytes_read == 0 and chunk.startswith(('<!DOCTYPE', '<html>')):
-                raise ValueError('Invalid response from XNAT (status {}):\n{}'.format(response.status_code, chunk))
+                raise ValueError('Invalid response from XNATSession (status {}):\n{}'.format(response.status_code, chunk))
 
             bytes_read += len(chunk)
             target_stream.write(chunk)
@@ -1040,16 +1040,16 @@ class XNAT(object):
     @property
     def scanners(self):
         """
-        A list of scanners referenced in XNAT
+        A list of scanners referenced in XNATSession
         """
-        return [x['scanner'] for x in self.xnat.get_json('/data/archive/scanners')['ResultSet']['Result']]
+        return [x['scanner'] for x in self.xnat_session.get_json('/data/archive/scanners')['ResultSet']['Result']]
 
     @property
     def scan_types(self):
         """
-         A list of scan types associated with this XNAT instance
+         A list of scan types associated with this XNATSession instance
         """
-        return self.xnat.get_json('/data/archive/scan_types')['ResultSet']['Result']
+        return self.xnat_session.get_json('/data/archive/scan_types')['ResultSet']['Result']
 
     @property
     def xnat_version(self):
@@ -1058,20 +1058,20 @@ class XNAT(object):
     def create_object(self, uri, type_=None, fieldname=None, **kwargs):
         if (uri, fieldname) not in self._cache['__objects__']:
             if type_ is None:
-                if self.xnat.debug:
+                if self.xnat_session.debug:
                     print('[DEBUG] Type unknown, fetching data to get type')
-                data = self.xnat.get_json(uri)
+                data = self.xnat_session.get_json(uri)
                 type_ = data['items'][0]['meta']
                 datafields = data['items'][0]['data_fields']
             else:
                 datafields = None
 
             if type_ not in self.XNAT_CLASS_LOOKUP:
-                raise KeyError('Type {} unknow to this XNAT REST client (see XNAT_CLASS_LOOKUP class variable)'.format(type_))
+                raise KeyError('Type {} unknow to this XNATSession REST client (see XNAT_CLASS_LOOKUP class variable)'.format(type_))
 
             cls = self.XNAT_CLASS_LOOKUP[type_]
 
-            if self.xnat.debug:
+            if self.xnat_session.debug:
                 print('[DEBUG] Creating object of type {}'.format(cls))
 
             self._cache['__objects__'][uri, fieldname] = cls(uri, self, datafields=datafields, fieldname=fieldname, **kwargs)
@@ -1083,17 +1083,17 @@ class XNAT(object):
     @property
     @caching
     def projects(self):
-        return XNATListing(self.uri + '/projects', xnat=self.xnat, secondary_lookup_field='name', xsiType='xnat:projectData')
+        return XNATListing(self.uri + '/projects', xnat_session=self.xnat_session, secondary_lookup_field='name', xsiType='xnat:projectData')
 
     @property
     @caching
     def subjects(self):
-        return XNATListing(self.uri + '/subjects', xnat=self.xnat, secondary_lookup_field='label', xsiType='xnat:subjectData')
+        return XNATListing(self.uri + '/subjects', xnat_session=self.xnat_session, secondary_lookup_field='label', xsiType='xnat:subjectData')
 
     @property
     @caching
     def experiments(self):
-        return XNATListing(self.uri + '/experiments', xnat=self.xnat, secondary_lookup_field='label')
+        return XNATListing(self.uri + '/experiments', xnat_session=self.xnat_session, secondary_lookup_field='label')
 
     @property
     def prearchive(self):
@@ -1110,12 +1110,12 @@ class XNAT(object):
 
 # Services
 class Services(object):
-    def __init__(self, xnat):
-        self._xnat = xnat
+    def __init__(self, xnat_session):
+        self._xnat_session = xnat_session
 
     @property
-    def xnat(self):
-        return self._xnat
+    def xnat_session(self):
+        return self._xnat_session
 
     def import_(self, path, overwrite=None, quarantine=False, destination=None, project=None, content_type=None):
         query = {}
@@ -1138,7 +1138,7 @@ class Services(object):
             content_type, transfer_encoding = mimetypes.guess_type(path)
 
         uri = '/data/services/import'
-        response = self.xnat.upload(uri=uri, file_=path, query=query, content_type=content_type, method='post')
+        response = self.xnat_session.upload(uri=uri, file_=path, query=query, content_type=content_type, method='post')
         return response
 
         # TODO: figure out why the returned url is not valid!
@@ -1157,7 +1157,7 @@ class PrearchiveSession(XNATObject):
     @property
     @caching
     def fulldata(self):
-        return self.xnat.get_json(self.uri)['ResultSet']['Result'][0]
+        return self.xnat_session.get_json(self.uri)['ResultSet']['Result'][0]
 
     @property
     def data(self):
@@ -1237,15 +1237,15 @@ class PrearchiveSession(XNATObject):
     @property
     @caching
     def scans(self):
-        data = self.xnat.get_json(self.uri + '/scans')
+        data = self.xnat_session.get_json(self.uri + '/scans')
         # We need to prepend /data to our url (seems to be a bug?)
 
         return [PrearchiveScan('{}/scans/{}'.format(self.uri, x['ID']),
-                               self.xnat,
+                               self.xnat_session,
                                datafields=x) for x in data['ResultSet']['Result']]
 
     def download(self, path):
-        self.xnat.download_zip(self.uri, path)
+        self.xnat_session.download_zip(self.uri, path)
         return path
 
     def archive(self, overwrite=None, quarantine=None, trigger_pipelines=None, destination=None):
@@ -1277,7 +1277,7 @@ class PrearchiveSession(XNATObject):
         if destination is not None:
             query['dest'] = destination
 
-        return self.xnat.post('/data/services/archive', query=query)
+        return self.xnat_session.post('/data/services/archive', query=query)
 
     def delete(self, async=None):
         query = {'src': self.uri}
@@ -1291,7 +1291,7 @@ class PrearchiveSession(XNATObject):
             else:
                 raise TypeError('async should be a boolean')
 
-        return self.xnat.post('/data/services/prearchive/delete', query=query)
+        return self.xnat_session.post('/data/services/prearchive/delete', query=query)
 
     def rebuild(self, async=None):
         query = {'src': self.uri}
@@ -1305,7 +1305,7 @@ class PrearchiveSession(XNATObject):
             else:
                 raise TypeError('async should be a boolean')
 
-        return self.xnat.post('/data/services/prearchive/rebuild', query=query)
+        return self.xnat_session.post('/data/services/prearchive/rebuild', query=query)
 
     def move(self, new_project, async=None):
         query = {'src': self.uri,
@@ -1320,13 +1320,13 @@ class PrearchiveSession(XNATObject):
             else:
                 raise TypeError('async should be a boolean')
 
-        return self.xnat.post('/data/services/prearchive/move', query=query)
+        return self.xnat_session.post('/data/services/prearchive/move', query=query)
 
 
 class PrearchiveScan(XNATObject):
-    def __init__(self, uri, xnat, id_=None, datafields=None, parent=None, fieldname=None):
+    def __init__(self, uri, xnat_session, id_=None, datafields=None, parent=None, fieldname=None):
         super(PrearchiveScan, self).__init__(uri=uri,
-                                             xnat=xnat,
+                                             xnat_session=xnat_session,
                                              id_=id_,
                                              datafields=datafields,
                                              parent=parent,
@@ -1339,7 +1339,7 @@ class PrearchiveScan(XNATObject):
         return self.data['series_description']
 
     def download(self, path):
-        self.xnat.download_zip(self.uri, path)
+        self.xnat_session.download_zip(self.uri, path)
         return path
 
     @property
@@ -1348,12 +1348,12 @@ class PrearchiveScan(XNATObject):
 
 
 class Prearchive(object):
-    def __init__(self, xnat):
-       self._xnat = xnat
+    def __init__(self, xnat_session):
+        self._xnat_session = xnat_session
 
     @property
-    def xnat(self):
-        return self._xnat
+    def xnat_session(self):
+        return self._xnat_session
 
     def sessions(self, project=None):
         if project is None:
@@ -1361,21 +1361,21 @@ class Prearchive(object):
         else:
             uri = '/data/prearchive/projects/{}'.format(project)
 
-        data = self.xnat.get_json(uri)
+        data = self.xnat_session.get_json(uri)
         # We need to prepend /data to our url (seems to be a bug?)
-        return [PrearchiveSession('/data{}'.format(x['url']), self.xnat) for x in data['ResultSet']['Result']]
+        return [PrearchiveSession('/data{}'.format(x['url']), self.xnat_session) for x in data['ResultSet']['Result']]
 
 
 class Inspect(object):
-    def __init__(self, xnat):
-        self._xnat = xnat
+    def __init__(self, xnat_session):
+        self._xnat_session = xnat_session
 
     @property
-    def xnat(self):
-        return self._xnat
+    def xnat_session(self):
+        return self._xnat_session
 
     def datatypes(self, pattern='*', fields_pattern=None):
-        elements = self.xnat.get_json('/data/search/elements')
+        elements = self.xnat_session.get_json('/data/search/elements')
 
         elements = [x['ELEMENT_NAME'] for x in elements['ResultSet']['Result']]
 
@@ -1389,7 +1389,7 @@ class Inspect(object):
             return [field for element in elements for field in self.datafields(datatype=element, pattern=fields_pattern)]
 
     def datafields(self, datatype, pattern='*', prepend_type=True):
-        search_fields = self.xnat.get_json('/data/search/elements/{}'.format(datatype))
+        search_fields = self.xnat_session.get_json('/data/search/elements/{}'.format(datatype))
 
         # Select data from JSON
         search_fields = [x['FIELD_ID'] for x in search_fields['ResultSet']['Result']]

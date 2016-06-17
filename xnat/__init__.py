@@ -30,7 +30,7 @@ import urlparse
 
 import requests
 
-from xnatcore import XNAT
+from xnatcore import XNATSession
 from convert_xsd import SchemaParser
 
 FILENAME = __file__
@@ -58,6 +58,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
                            a file following the netrc syntax)
     :param debug bool: Set debug information printing on
     :return: XNAT session object
+    :rtype: XNATSession
 
     Preferred use::
 
@@ -168,7 +169,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
         # Register all types parsed
         for cls in parser:
             if not (cls.name is None or cls.baseclass.startswith('xs:')):
-                xnat_module.XNAT.XNAT_CLASS_LOOKUP['xnat:{}'.format(cls.name)] = getattr(xnat_module, cls.python_name)
+                xnat_module.XNATSession.XNAT_CLASS_LOOKUP['xnat:{}'.format(cls.name)] = getattr(xnat_module, cls.python_name)
 
         # Cache the module for re-use
         GEN_MODULES[schema_uri] = xnat_module
@@ -177,7 +178,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
         xnat_module = GEN_MODULES[schema_uri]
 
     # Create the XNAT connection and return it
-    session = xnat_module.XNAT(server=server, interface=requests_session, debug=debug)
+    session = xnat_module.XNATSession(server=server, interface=requests_session, debug=debug)
     session.classes = xnat_module
     session._source_code_file = xnat_module._SOURCE_CODE_FILE
     return session
