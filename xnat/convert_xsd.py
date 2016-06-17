@@ -19,8 +19,43 @@ import keyword
 import re
 from xml.etree import ElementTree
 
-import xnatcore
+import core
 import xnatbases
+
+
+FILE_HEADER = \
+"""
+# Copyright 2011-2015 Biomedical Imaging Group Rotterdam, Departments of
+# Medical Informatics and Radiology, Erasmus MC, Rotterdam, The Netherlands
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import os
+import tempfile  # Needed by generated code
+from zipfile import ZipFile  # Needed by generated code
+
+from xnat import orm
+from xnat.core import XNATObject, XNATSubObject, XNATListing, caching
+
+# Empty class lookup to place all new lookup values
+XNAT_CLASS_LOOKUP = {{}}
+
+# The following code represents the data structure of the XNAT server
+# It is automatically generated using
+{}
+
+
+"""
 
 
 class ClassRepresentation(object):
@@ -95,8 +130,8 @@ class ClassRepresentation(object):
             return getattr(xnatbases, self.python_name)
 
     def get_super_class(self):
-        if hasattr(xnatcore, self.python_baseclass):
-            return getattr(xnatcore, self.python_baseclass)
+        if hasattr(core, self.python_baseclass):
+            return getattr(core, self.python_baseclass)
 
     def print_property(self, prop):
         if prop.name in self.SUBSTITUTIONS:
@@ -196,6 +231,7 @@ class SchemaParser(object):
         self.new_property_stack = [None]
         self.property_prefixes = []
         self.debug = debug
+        self.schemas = []
 
     def parse_schema_uri(self, requests_session, schema_uri):
         print('[INFO] Retrieving schema from {}'.format(schema_uri))
@@ -209,6 +245,9 @@ class SchemaParser(object):
         except ElementTree.ParseError as exception:
             print('[ERROR] Could not parse schema from {}'.format(schema_uri))
             return False
+
+        # Register schema as being loaded
+        self.schemas.append(schema_uri)
 
         # Parse xml schema
         self.parse(root, toplevel=True)
@@ -450,3 +489,7 @@ class SchemaParser(object):
             '{http://www.w3.org/2001/XMLSchema}appinfo': parse_ignore,
             }
 
+    def write(self, code_file):
+        schemas = '\n'.join('# - {}'.format(s) for s in self.schemas)
+        code_file.write(FILE_HEADER.format(schemas))
+        code_file.write('\n\n\n'.join(str(c).strip() for c in self if not c.baseclass.startswith('xs:') and c.name is not None))
