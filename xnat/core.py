@@ -21,7 +21,7 @@ import re
 import textwrap
 
 from . import exceptions
-from . import orm
+from . import search
 from .datatypes import convert_from, convert_to
 import six
 
@@ -120,7 +120,7 @@ class CustomVariableMap(VariableMap):
             self.clearcache()
 
 
-class XNATObject(six.with_metaclass(orm.ORMMeta, object)):
+class XNATObject(six.with_metaclass(search.XNATMeta, object)):
     _HAS_FIELDS = False
     _XSI_TYPE = 'xnat:baseObject'
 
@@ -303,7 +303,7 @@ class XNATObject(six.with_metaclass(orm.ORMMeta, object)):
 
     @classmethod
     def query(self, session):
-        return orm.Query(self._XSI_TYPE, session)
+        return search.Query(self._XSI_TYPE, session)
 
 
 class XNATSubObject(XNATObject):

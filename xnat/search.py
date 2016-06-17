@@ -8,16 +8,16 @@ xdat_ns = "http://nrg.wustl.edu/security"
 ElementTree.register_namespace("xdat", xdat_ns)
 
 
-class ORMMeta(ABCMeta):
+class XNATMeta(ABCMeta):
     def __init__(cls, name, bases, dct):
         for key, value in dct.items():
-            if isinstance(value, ORMproperty):
+            if isinstance(value, XNATproperty):
                 dct[key]._prop_class = cls
                 dct[key]._prop_name = key
-        super(ORMMeta, cls).__init__(name, bases, dct)
+        super(XNATMeta, cls).__init__(name, bases, dct)
 
 
-class ORMproperty(property):
+class XNATproperty(property):
     _prop_name = 'unknown'
     _prop_class = None
 
@@ -25,7 +25,7 @@ class ORMproperty(property):
         if doc is None:
             doc = fget.__doc__
 
-        super(ORMproperty, self).__init__(fget=fget, fset=fset, fdel=fdel, doc=doc)
+        super(XNATproperty, self).__init__(fget=fget, fset=fset, fdel=fdel, doc=doc)
 
     @property
     def identifier(self):

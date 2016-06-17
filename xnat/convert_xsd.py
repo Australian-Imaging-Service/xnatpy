@@ -49,7 +49,7 @@ import os
 import tempfile  # Needed by generated code
 from zipfile import ZipFile  # Needed by generated code
 
-from xnat import orm
+from xnat import search
 from xnat.core import XNATObject, XNATSubObject, XNATListing, caching
 
 
@@ -193,7 +193,7 @@ class PropertyRepresentation(object):
         docstring = '\n        """ {} """'.format(self.docstring) if self.docstring is not None else ''
         if not (self.type_ is None or self.type_.startswith('xnat:')):
             return \
-        """    @orm.ORMproperty
+        """    @search.XNATproperty
     def {clean_name}(self):{docstring}
         # Generate automatically, type: {type}
         return self.get("{name}", type_="{type}")
@@ -205,7 +205,7 @@ class PropertyRepresentation(object):
         elif self.type_ is None:
             xsi_type = "self._XSI_TYPE + '{}'".format(self.name.capitalize())
             return \
-        """    @orm.ORMproperty
+        """    @search.XNATproperty
     @caching
     def {clean_name}(self):{docstring}
         # Generated automatically, type: {type_}
@@ -216,7 +216,7 @@ class PropertyRepresentation(object):
                                                        xsi_type=xsi_type)
         else:
             return \
-        """    @orm.ORMproperty
+        """    @search.XNATproperty
     @caching
     def {clean_name}(self):{docstring}
         # Generated automatically, type: {type_}
