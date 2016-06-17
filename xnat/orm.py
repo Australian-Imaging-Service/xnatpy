@@ -26,7 +26,13 @@ class ORMproperty(property):
 
     @property
     def identifier(self):
-        return '{}/{}'.format(self._prop_class._XSI_TYPE, self._prop_name)
+        #return '{}/{}'.format(self._prop_class._XSI_TYPE, self._prop_name)
+
+        # This is the <NAMESPACE>_COL_<DATATYPE><FIELDNAME> format required to
+        # automatically generate the display field
+        ns, datatype = self._prop_class._XSI_TYPE.split(':', 1)
+
+        return '{}_COL_{}{}'.format(ns, datatype, self._prop_name)
 
     def __eq__(self, other):
         return Constraint(self.identifier, '=', other)

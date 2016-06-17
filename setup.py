@@ -68,7 +68,7 @@ if __name__ == '__main__':
         description='An XNAT client that exposes the XNAT REST interface as python objects. Part of the interface is automatically generated based on the servers data model as defined by the xnat schema.',
         long_description=open('README').read(),
         install_requires=_requires,
-        classifiers = [
+        classifiers=[
             "Development Status :: 4 - Beta",
             "Intended Audience :: Developers",
             "Intended Audience :: Healthcare Industry",

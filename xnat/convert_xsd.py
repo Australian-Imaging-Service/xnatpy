@@ -20,9 +20,67 @@ import contextlib
 import inspect
 import keyword
 import re
+from xml.etree import ElementTree
 
-import .xnatcore
-import .xnatbases
+import core
+import xnatbases
+
+
+FILE_HEADER = \
+"""
+# Copyright 2011-2015 Biomedical Imaging Group Rotterdam, Departments of
+# Medical Informatics and Radiology, Erasmus MC, Rotterdam, The Netherlands
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import os
+import tempfile  # Needed by generated code
+from zipfile import ZipFile  # Needed by generated code
+
+from xnat import orm
+from xnat.core import XNATObject, XNATSubObject, XNATListing, caching
+
+
+class FileData(XNATObject):
+    _XSI_TYPE = 'xnat:fileData'
+
+    def __init__(self, uri, xnat_session, id_=None, datafields=None, name=None):
+        super(FileData, self).__init__(uri, xnat_session, id_=id_, datafields=datafields)
+        self._name = name
+
+    @property
+    def name(self):
+        return self._name
+
+    def delete(self):
+        self.xnat_session.delete(self.uri)
+
+    def download(self, path):
+        self.xnat_session.download(self.uri, path)
+
+
+# Empty class lookup to place all new lookup values
+XNAT_CLASS_LOOKUP = {{
+    "xnat:fileData": FileData,
+}}
+
+
+# The following code represents the data structure of the XNAT server
+# It is automatically generated using
+{}
+
+
+"""
 
 
 class ClassRepresentation(object):
@@ -97,8 +155,8 @@ class ClassRepresentation(object):
             return getattr(xnatbases, self.python_name)
 
     def get_super_class(self):
-        if hasattr(xnatcore, self.python_baseclass):
-            return getattr(xnatcore, self.python_baseclass)
+        if hasattr(core, self.python_baseclass):
+            return getattr(core, self.python_baseclass)
 
     def print_property(self, prop):
         if prop.name in self.SUBSTITUTIONS:
@@ -130,7 +188,7 @@ class PropertyRepresentation(object):
         return '<PropertyRepresentation {}({})>'.format(self.name, self.type_)
 
     def __str__(self):
-        docstring = '\n        """{}"""'.format(self.docstring) if self.docstring is not None else ''
+        docstring = '\n        """ {} """'.format(self.docstring) if self.docstring is not None else ''
         if not (self.type_ is None or self.type_.startswith('xnat:')):
             return \
         """    @orm.ORMproperty
@@ -168,8 +226,9 @@ class PropertyRepresentation(object):
     @property
     def clean_name(self):
         name = re.sub('[^0-9a-zA-Z]+', '_', self.name)
+
         if keyword.iskeyword(name):
-            name = name + '_'
+            name += '_'
         return name.lower()
 
     def restrictions_code(self):
@@ -182,7 +241,7 @@ class PropertyRepresentation(object):
             if 'maxlength' in self.restrictions:
                 data += "\n        if len(value) > {maxlength}:\n            raise ValueError('length {name} has to be smaller than or equal to {maxlength}')\n".format(name=self.name, maxlength=self.restrictions['maxlength'])
             if 'enum' in self.restrictions:
-                data += "\n        if value not in [{enum}]:\n            raise ValueError('{name} has to be one of: {enum}')\n".format(name=self.name, enum=', '.join('"{}"'.format(x) for x in self.restrictions['enum']))
+                data += "\n        if value not in [{enum}]:\n            raise ValueError('{name} has to be one of: {enum}')\n".format(name=self.name, enum=', '.join('"{}"'.format(x.replace("'", "\\'")) for x in self.restrictions['enum']))
 
             return data
         else:
@@ -190,17 +249,58 @@ class PropertyRepresentation(object):
 
 
 class SchemaParser(object):
-    def __init__(self):
+    def __init__(self, debug=False):
         self.class_list = {}
         self.unknown_tags = set()
         self.new_class_stack = [None]
         self.new_property_stack = [None]
         self.property_prefixes = []
+        self.debug = debug
+        self.schemas = []
+
+    def parse_schema_uri(self, requests_session, schema_uri):
+        print('[INFO] Retrieving schema from {}'.format(schema_uri))
+
+        if self.debug:
+            print('[DEBUG] GET SCHEMA {}'.format(schema_uri))
+        resp = requests_session.get(schema_uri, headers={'Accept-Encoding': None})
+
+        try:
+            root = ElementTree.fromstring(resp.text)
+        except ElementTree.ParseError as exception:
+            print('[ERROR] Could not parse schema from {}'.format(schema_uri))
+            return False
+
+        # Register schema as being loaded
+        self.schemas.append(schema_uri)
+
+        # Parse xml schema
+        self.parse(root, toplevel=True)
+
+        if self.debug:
+            print('[DEBUG] Found {} unknown tags: {}'.format(len(self.unknown_tags),
+                                                             self.unknown_tags))
+
+        return True
+
+    @staticmethod
+    def find_schema_uris(text):
+        try:
+            root = ElementTree.fromstring(text)
+        except ElementTree.ParseError:
+            raise ValueError('Could not parse xml file')
+
+        schemas_string = root.attrib.get('{http://www.w3.org/2001/XMLSchema-instance}schemaLocation', '')
+        schemas = [x for x in schemas_string.split() if x.endswith('.xsd')]
+
+        return schemas
 
     def __iter__(self):
         visited = set(['XNATObject', 'XNATSubObject'])
         tries = 0
-        while len(visited) < len(self.class_list) and tries < 50:
+        yielded_anything = True
+        while len(visited) < len(self.class_list) and yielded_anything and tries < 250:
+            yielded_anything = False
             for key, value in self.class_list.items():
                 if key in visited:
                     continue
@@ -210,13 +310,15 @@ class SchemaParser(object):
                     continue
 
                 visited.add(key)
+                yielded_anything = True
                 yield value
 
             tries += 1
 
-        if len(visited) < len(self.class_list):
-            print('Visited: {}, expected: {}'.format(len(visited), len(self.class_list)))
-            print('Missed: {}'.format(set(self.class_list.keys()) - visited))
+        if self.debug and len(visited) < len(self.class_list):
+            print('[DEBUG] Visited: {}, expected: {}'.format(len(visited), len(self.class_list)))
+            print('[DEBUG] Missed: {}'.format(set(self.class_list.keys()) - visited))
+            print('[DEBUG] Spent {} iterations'.format(tries))
 
     @contextlib.contextmanager
     def descend(self, new_class=None, new_property=None, property_prefix=None):
@@ -244,11 +346,23 @@ class SchemaParser(object):
     def current_property(self):
         return self.new_property_stack[-1]
 
-    def parse(self, element):
-        if element.tag in self.PARSERS:
-            self.PARSERS[element.tag](self, element)
+    def parse(self, element, toplevel=False):
+        if toplevel:
+            if element.tag != '{http://www.w3.org/2001/XMLSchema}schema':
+                raise ValueError('File should contain a schema as root element!')
+
+            for child in element.getchildren():
+                if child.tag != '{http://www.w3.org/2001/XMLSchema}complexType':
+                    if self.debug:
+                        print('[DEBUG] skipping non-class top-level tag {}'.format(child.tag))
+                    continue
+
+                self.parse(child)
         else:
-            self.parse_unknown(element)
+            if element.tag in self.PARSERS:
+                self.PARSERS[element.tag](self, element)
+            else:
+                self.parse_unknown(element)
 
     def parse_complex_type(self, element):
         name = element.get('name')
@@ -304,6 +418,10 @@ class SchemaParser(object):
         type_ = element.get('type')
 
         if self.current_class is not None:
+            if name is None:
+                if self.debug:
+                    print('[DEBUG] Encountered attribute without name')
+                return
             new_property = PropertyRepresentation(self, name, type_)
             self.current_class.properties[name] = new_property
 
@@ -340,6 +458,9 @@ class SchemaParser(object):
     def parse_choice(self, element):
         self.parse_children(element)
 
+    def parse_all(self, element):
+        self.parse_children(element)
+
     def parse_enumeration(self, element):
         if 'enum' in self.current_property.restrictions:
             self.current_property.restrictions['enum'].append(element.get('value'))
@@ -351,11 +472,19 @@ class SchemaParser(object):
         type_ = element.get('type')
 
         if self.current_class is not None:
+            if name is None:
+                if self.debug:
+                    print('[DEBUG] Encountered attribute without name')
+                return
+
             new_property = PropertyRepresentation(self, name, type_)
             self.current_class.properties[name] = new_property
 
             with self.descend(new_property=new_property):
                 self.parse_children(element)
+
+    def parse_error(self, element):
+        raise NotImplementedError('The parser for {} has not yet been implemented'.format(element.tag))
 
     def parse_unknown(self, element):
         self.unknown_tags.add(element.tag)
@@ -364,7 +493,6 @@ class SchemaParser(object):
             '{http://www.w3.org/2001/XMLSchema}complexType': parse_complex_type,
             '{http://www.w3.org/2001/XMLSchema}complexContent': parse_complex_content,
             '{http://www.w3.org/2001/XMLSchema}extension': parse_extension,
-            '{http://www.w3.org/2001/XMLSchema}sequence': parse_sequence,
             '{http://www.w3.org/2001/XMLSchema}simpleType': parse_simple_type,
             '{http://www.w3.org/2001/XMLSchema}simpleContent': parse_simple_content,
             '{http://www.w3.org/2001/XMLSchema}attribute': parse_attribute,
@@ -372,12 +500,21 @@ class SchemaParser(object):
             '{http://www.w3.org/2001/XMLSchema}minInclusive': parse_min_inclusive,
             '{http://www.w3.org/2001/XMLSchema}maxInclusive': parse_max_inclusive,
             '{http://www.w3.org/2001/XMLSchema}maxLength': parse_maxlength,
+            '{http://www.w3.org/2001/XMLSchema}sequence': parse_sequence,
             '{http://www.w3.org/2001/XMLSchema}choice': parse_choice,
+            '{http://www.w3.org/2001/XMLSchema}all': parse_all,
             '{http://www.w3.org/2001/XMLSchema}enumeration': parse_enumeration,
             '{http://www.w3.org/2001/XMLSchema}element': parse_element,
             '{http://www.w3.org/2001/XMLSchema}annotation': parse_annotation,
             '{http://www.w3.org/2001/XMLSchema}documentation': parse_documentation,
             '{http://www.w3.org/2001/XMLSchema}schema': parse_schema,
             '{http://www.w3.org/2001/XMLSchema}import': parse_ignore,
+            '{http://www.w3.org/2001/XMLSchema}group': parse_error,
+            '{http://www.w3.org/2001/XMLSchema}attributeGroup': parse_error,
+            '{http://www.w3.org/2001/XMLSchema}appinfo': parse_ignore,
             }
 
+    def write(self, code_file):
+        schemas = '\n'.join('# - {}'.format(s) for s in self.schemas)
+        code_file.write(FILE_HEADER.format(schemas))
+        code_file.write('\n\n\n'.join(str(c).strip() for c in self if not c.baseclass.startswith('xs:') and c.name is not None))
