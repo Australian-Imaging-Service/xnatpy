@@ -13,12 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import absolute_import
+from __future__ import unicode_literals
 import datetime
 
 import isodate
 
-from xnat.core import XNATObject, caching
-from xnat.datatypes import to_date, to_time
+from .core import XNATObject, caching
+from .datatypes import to_date, to_time
 
 
 class PrearchiveSession(XNATObject):

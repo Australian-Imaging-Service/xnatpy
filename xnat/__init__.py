@@ -20,18 +20,20 @@ the https://central.xnat.org/schema/xnat/xnat.xsd schema and the xnatcore and
 xnatbase modules, using the convert_xsd.
 """
 
+from __future__ import absolute_import
+from __future__ import unicode_literals
 import getpass
 import hashlib
 import imp
 import os
 import netrc
 import tempfile
-import urlparse
 
 import requests
+from six.moves.urllib import parse
 
-from session import XNATSession
-from convert_xsd import SchemaParser
+from .session import XNATSession
+from .convert_xsd import SchemaParser
 
 GEN_MODULES = {}
 
@@ -80,7 +82,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     schema_uri = '{}/schemas/xnat/xnat.xsd'.format(server.rstrip('/'))
 
     # Get the login info
-    parsed_server = urlparse.urlparse(server)
+    parsed_server = parse.urlparse(server)
 
     if user is None and password is None:
         print('[INFO] Retrieving login info for {}'.format(parsed_server.netloc))
@@ -150,7 +152,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
 
         # Import temp file as a module
         hasher = hashlib.md5()
-        hasher.update(schema_uri)
+        hasher.update(schema_uri.encode('utf-8'))
 
         # The module is loaded in its private namespace based on the code_file name
         xnat_module = imp.load_source('xnat_gen_{}'.format(hasher.hexdigest()),

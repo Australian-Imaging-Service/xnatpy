@@ -13,14 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import absolute_import
+from __future__ import print_function
+from __future__ import unicode_literals
 import contextlib
 import inspect
 import keyword
 import re
 from xml.etree import ElementTree
 
-import core
-import xnatbases
+from xnat import core
+from xnat import xnatbases
 
 
 FILE_HEADER = \
@@ -40,6 +43,8 @@ FILE_HEADER = \
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import absolute_import
+from __future__ import unicode_literals
 import os
 import tempfile  # Needed by generated code
 from zipfile import ZipFile  # Needed by generated code

@@ -1,5 +1,8 @@
+from __future__ import absolute_import
+from __future__ import unicode_literals
 from abc import ABCMeta, abstractmethod
 from xml.etree import ElementTree
+import six
 
 xdat_ns = "http://nrg.wustl.edu/security"
 ElementTree.register_namespace("xdat", xdat_ns)
@@ -115,9 +118,7 @@ class Query(object):
         return result
 
 
-class BaseConstraint(object):
-    __metaclass__ = ABCMeta
-
+class BaseConstraint(six.with_metaclass(ABCMeta, object)):
     @abstractmethod
     def to_xml(self):
         pass
