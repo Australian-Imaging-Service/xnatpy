@@ -47,8 +47,30 @@ from zipfile import ZipFile  # Needed by generated code
 from xnat import orm
 from xnat.core import XNATObject, XNATSubObject, XNATListing, caching
 
+
+class FileData(XNATObject):
+    _XSI_TYPE = 'xnat:fileData'
+
+    def __init__(self, uri, xnat_session, id_=None, datafields=None, name=None):
+        super(FileData, self).__init__(uri, xnat_session, id_=id_, datafields=datafields)
+        self._name = name
+
+    @property
+    def name(self):
+        return self._name
+
+    def delete(self):
+        self.xnat_session.delete(self.uri)
+
+    def download(self, path):
+        self.xnat_session.download(self.uri, path)
+
+
 # Empty class lookup to place all new lookup values
-XNAT_CLASS_LOOKUP = {{}}
+XNAT_CLASS_LOOKUP = {{
+    "xnat:fileData": FileData,
+}}
+
 
 # The following code represents the data structure of the XNAT server
 # It is automatically generated using

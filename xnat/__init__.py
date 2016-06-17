@@ -30,10 +30,9 @@ import urlparse
 
 import requests
 
-from core import XNATSession
+from session import XNATSession
 from convert_xsd import SchemaParser
 
-FILENAME = __file__
 GEN_MODULES = {}
 
 __all__ = ['connect']
@@ -152,6 +151,8 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
         # Import temp file as a module
         hasher = hashlib.md5()
         hasher.update(schema_uri)
+
+        # The module is loaded in its private namespace based on the code_file name
         xnat_module = imp.load_source('xnat_gen_{}'.format(hasher.hexdigest()),
                                       code_file.name)
         xnat_module._SOURCE_CODE_FILE = code_file.name
@@ -170,10 +171,12 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
         print('[INFO] Using cache module for {}'.format(schema_uri))
         xnat_module = GEN_MODULES[schema_uri]
 
-    # Create the XNAT connection and return it
+    # Create the XNAT connection
     session = XNATSession(server=server, interface=requests_session, debug=debug)
+
+    # Add the required information from the module into the session object
     session.XNAT_CLASS_LOOKUP.update(xnat_module.XNAT_CLASS_LOOKUP)
     session.classes = xnat_module
     session._source_code_file = xnat_module._SOURCE_CODE_FILE
-    return session
 
+    return session
