@@ -207,11 +207,16 @@ class SchemaParser(object):
         try:
             root = ElementTree.fromstring(resp.text)
         except ElementTree.ParseError as exception:
-            print('Could not parse schema from {}'.format(schema_uri))
+            print('[ERROR] Could not parse schema from {}'.format(schema_uri))
             return False
 
         # Parse xml schema
         self.parse(root, toplevel=True)
+
+        if self.debug:
+            print('[DEBUG] Found {} unknown tags: {}'.format(len(self.unknown_tags),
+                                                             self.unknown_tags))
+
         return True
 
     @staticmethod
@@ -229,7 +234,9 @@ class SchemaParser(object):
     def __iter__(self):
         visited = set(['XNATObject', 'XNATSubObject'])
         tries = 0
-        while len(visited) < len(self.class_list) and tries < 50:
+        yielded_anything = True
+        while len(visited) < len(self.class_list) and yielded_anything and tries < 250:
+            yielded_anything = False
             for key, value in self.class_list.items():
                 if key in visited:
                     continue
@@ -239,13 +246,15 @@ class SchemaParser(object):
                     continue
 
                 visited.add(key)
+                yielded_anything = True
                 yield value
 
             tries += 1
 
-        if len(visited) < len(self.class_list):
-            print('Visited: {}, expected: {}'.format(len(visited), len(self.class_list)))
-            print('Missed: {}'.format(set(self.class_list.keys()) - visited))
+        if self.debug and len(visited) < len(self.class_list):
+            print('[DEBUG] Visited: {}, expected: {}'.format(len(visited), len(self.class_list)))
+            print('[DEBUG] Missed: {}'.format(set(self.class_list.keys()) - visited))
+            print('[DEBUG] Spent {} iterations'.format(tries))
 
     @contextlib.contextmanager
     def descend(self, new_class=None, new_property=None, property_prefix=None):
@@ -281,7 +290,7 @@ class SchemaParser(object):
             for child in element.getchildren():
                 if child.tag != '{http://www.w3.org/2001/XMLSchema}complexType':
                     if self.debug:
-                        print('[DEBUG] skipping non-class tag {}'.format(child.tag))
+                        print('[DEBUG] skipping non-class top-level tag {}'.format(child.tag))
                     continue
 
                 self.parse(child)
@@ -385,6 +394,9 @@ class SchemaParser(object):
     def parse_choice(self, element):
         self.parse_children(element)
 
+    def parse_all(self, element):
+        self.parse_children(element)
+
     def parse_enumeration(self, element):
         if 'enum' in self.current_property.restrictions:
             self.current_property.restrictions['enum'].append(element.get('value'))
@@ -407,6 +419,9 @@ class SchemaParser(object):
             with self.descend(new_property=new_property):
                 self.parse_children(element)
 
+    def parse_error(self, element):
+        raise NotImplementedError('The parser for {} has not yet been implemented'.format(element.tag))
+
     def parse_unknown(self, element):
         self.unknown_tags.add(element.tag)
 
@@ -414,7 +429,6 @@ class SchemaParser(object):
             '{http://www.w3.org/2001/XMLSchema}complexType': parse_complex_type,
             '{http://www.w3.org/2001/XMLSchema}complexContent': parse_complex_content,
             '{http://www.w3.org/2001/XMLSchema}extension': parse_extension,
-            '{http://www.w3.org/2001/XMLSchema}sequence': parse_sequence,
             '{http://www.w3.org/2001/XMLSchema}simpleType': parse_simple_type,
             '{http://www.w3.org/2001/XMLSchema}simpleContent': parse_simple_content,
             '{http://www.w3.org/2001/XMLSchema}attribute': parse_attribute,
@@ -422,12 +436,17 @@ class SchemaParser(object):
             '{http://www.w3.org/2001/XMLSchema}minInclusive': parse_min_inclusive,
             '{http://www.w3.org/2001/XMLSchema}maxInclusive': parse_max_inclusive,
             '{http://www.w3.org/2001/XMLSchema}maxLength': parse_maxlength,
+            '{http://www.w3.org/2001/XMLSchema}sequence': parse_sequence,
             '{http://www.w3.org/2001/XMLSchema}choice': parse_choice,
+            '{http://www.w3.org/2001/XMLSchema}all': parse_all,
             '{http://www.w3.org/2001/XMLSchema}enumeration': parse_enumeration,
             '{http://www.w3.org/2001/XMLSchema}element': parse_element,
             '{http://www.w3.org/2001/XMLSchema}annotation': parse_annotation,
             '{http://www.w3.org/2001/XMLSchema}documentation': parse_documentation,
             '{http://www.w3.org/2001/XMLSchema}schema': parse_schema,
             '{http://www.w3.org/2001/XMLSchema}import': parse_ignore,
+            '{http://www.w3.org/2001/XMLSchema}group': parse_error,
+            '{http://www.w3.org/2001/XMLSchema}attributeGroup': parse_error,
+            '{http://www.w3.org/2001/XMLSchema}appinfo': parse_ignore,
             }
 
