@@ -20,9 +20,9 @@ import fnmatch
 import re
 import textwrap
 
-from xnat import exceptions
-from xnat import orm
-from xnat.datatypes import convert_from, convert_to
+from . import exceptions
+from . import orm
+from .datatypes import convert_from, convert_to
 import six
 
 

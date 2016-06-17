@@ -23,11 +23,11 @@ import threading
 import requests
 from six.moves.urllib import parse
 
-from xnat import exceptions
-from xnat.core import XNATListing, caching
-from xnat.inspect_ import Inspect
-from xnat.prearchive import Prearchive
-from xnat.services import Services
+from . import exceptions
+from .core import XNATListing, caching
+from .inspect_ import Inspect
+from .prearchive import Prearchive
+from .services import Services
 
 
 class XNATSession(object):

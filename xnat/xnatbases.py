@@ -14,13 +14,12 @@
 # limitations under the License.
 
 from __future__ import absolute_import
-from __future__ import print_function
 from __future__ import unicode_literals
 import os
 import tempfile
 from zipfile import ZipFile
 
-from xnat.core import caching, XNATObject, XNATListing
+from .core import caching, XNATObject, XNATListing
 
 
 class ProjectData(XNATObject):
