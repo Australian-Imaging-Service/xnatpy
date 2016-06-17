@@ -20,7 +20,7 @@ import os
 import tempfile
 from zipfile import ZipFile
 
-from core import caching, XNATObject, XNATListing
+from xnat.core import caching, XNATObject, XNATListing
 
 
 class ProjectData(XNATObject):

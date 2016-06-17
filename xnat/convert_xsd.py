@@ -22,8 +22,8 @@ import keyword
 import re
 from xml.etree import ElementTree
 
-import core
-import xnatbases
+from xnat import core
+from xnat import xnatbases
 
 
 FILE_HEADER = \

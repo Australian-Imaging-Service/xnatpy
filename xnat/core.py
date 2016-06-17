@@ -13,17 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import absolute_import
+from __future__ import unicode_literals
 from collections import MutableMapping, Mapping, namedtuple
 import fnmatch
 import re
 import textwrap
-import threading
-from six.moves.urllib import parse
-from zipfile import ZipFile  # Needed by generated code
 
 from xnat import exceptions
 from xnat import orm
 from xnat.datatypes import convert_from, convert_to
+import six
 
 
 def caching(func):
@@ -32,7 +32,7 @@ def caching(func):
     retrieved multiple times. This works for properties or functions without
     arguments.
     """
-    name = func.func_name
+    name = func.__name__
 
     def wrapper(self):
         # We use self._cache here, in the decorator _cache will be a member of
@@ -120,8 +120,7 @@ class CustomVariableMap(VariableMap):
             self.clearcache()
 
 
-class XNATObject(object):
-    __metaclass__ = orm.ORMMeta
+class XNATObject(six.with_metaclass(orm.ORMMeta, object)):
     _HAS_FIELDS = False
     _XSI_TYPE = 'xnat:baseObject'
 
@@ -437,7 +436,7 @@ class XNATListing(Mapping):
 
         result = self.xnat_session.get_json(self.uri, query=query)
         if len(result['ResultSet']['Result']) > 0:
-            result_columns = result['ResultSet']['Result'][0].keys()
+            result_columns = list(result['ResultSet']['Result'][0].keys())
 
             # Retain requested order
             if columns != ('DEFAULT',):
@@ -445,7 +444,7 @@ class XNATListing(Mapping):
 
             # Replace all non-alphanumeric characters with an underscore
             result_columns = {s: re.sub('[^0-9a-zA-Z]+', '_', s) for s in result_columns}
-            rowtype = namedtuple('TableRow', result_columns.values())
+            rowtype = namedtuple('TableRow', list(result_columns.values()))
 
             # Replace all non-alphanumeric characters in each key of the keyword dictionary
             return tuple(rowtype(**{result_columns[k]: v for k, v in x.items()}) for x in result['ResultSet']['Result'])

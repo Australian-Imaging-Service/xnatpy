@@ -13,14 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import absolute_import
+from __future__ import unicode_literals
 import netrc
 import os
 import sys
 import threading
-import urllib
-import urlparse
 
 import requests
+from six.moves.urllib import parse
 
 from xnat import exceptions
 from xnat.core import XNATListing, caching
@@ -73,7 +74,7 @@ class XNATSession(object):
     def __init__(self, server, interface=None, user=None, password=None, keepalive=840, debug=False):
         self._interface = interface
         self._projects = None
-        self._server = urlparse.urlparse(server) if server else None
+        self._server = parse.urlparse(server) if server else None
         self._cache = {'__objects__': {}}
         self.caching = True
         self._source_code_file = None
@@ -115,7 +116,7 @@ class XNATSession(object):
             if self._interface is not None:
                 self.disconnect()
 
-            self._server = urlparse.urlparse(server)
+            self._server = parse.urlparse(server)
 
             if user is None and password is None:
                 print('[INFO] Retrieving login info for {}'.format(self._server.netloc))
@@ -302,7 +303,7 @@ class XNATSession(object):
 
         # Create the query string
         if len(query) > 0:
-            query_string = urllib.urlencode(query)
+            query_string = parse.urlencode(query)
         else:
             query_string = ''
 
@@ -313,7 +314,7 @@ class XNATSession(object):
                 query_string,
                 '')
 
-        return urlparse.urlunparse(data)
+        return parse.urlunparse(data)
 
     def get_json(self, uri, query=None):
         response = self.get(uri, format='json', query=query)

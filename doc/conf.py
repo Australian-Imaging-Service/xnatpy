@@ -11,6 +11,8 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
+from __future__ import absolute_import
+from __future__ import unicode_literals
 from collections import namedtuple
 import os
 import imp
@@ -58,8 +60,8 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'XNAT'
-copyright = u'2011 -- 2015, Hakim Achterberg'
+project = 'XNAT'
+copyright = '2011 -- 2015, Hakim Achterberg'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -205,8 +207,8 @@ latex_paper_size = 'a4'
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-    ('index', 'XNAT.tex', u'XNAT Python Client Documentation',
-     u'Hakim Achterberg', 'manual'),
+    ('index', 'XNAT.tex', 'XNAT Python Client Documentation',
+     'Hakim Achterberg', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -238,8 +240,8 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'bigr-xnat', u'XNAT Python Client Documentation',
-     [u'Hakim Achterberg'], 1)
+    ('index', 'bigr-xnat', 'XNAT Python Client Documentation',
+     ['Hakim Achterberg'], 1)
 ]
 
 # Some autogeneration of documentation (make autodoc index, generate plugin
@@ -260,7 +262,7 @@ options = {'destdir': './',
            'notoc': False,
            'suffix': 'rst'}
 
-opts = namedtuple('opts', options.keys())(*options.values())
+opts = namedtuple('opts', list(options.keys()))(*list(options.values()))
 rootpath = '../'
 excludes = []
 
