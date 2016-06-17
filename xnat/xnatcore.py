@@ -715,6 +715,7 @@ class XNAT(object):
         self._services = Services(xnat=self)
         self._prearchive = Prearchive(xnat=self)
         self._debug = debug
+        self.inspect = Inspect(self)
 
         # Set the keep alive settings and spawn the keepalive thread for sending heartbeats
         if isinstance(keepalive, int) and keepalive > 0:
@@ -1363,3 +1364,42 @@ class Prearchive(object):
         data = self.xnat.get_json(uri)
         # We need to prepend /data to our url (seems to be a bug?)
         return [PrearchiveSession('/data{}'.format(x['url']), self.xnat) for x in data['ResultSet']['Result']]
+
+
+class Inspect(object):
+    def __init__(self, xnat):
+        self._xnat = xnat
+
+    @property
+    def xnat(self):
+        return self._xnat
+
+    def datatypes(self, pattern='*', fields_pattern=None):
+        elements = self.xnat.get_json('/data/search/elements')
+
+        elements = [x['ELEMENT_NAME'] for x in elements['ResultSet']['Result']]
+
+        # Filter fields using pattern
+        if '*' in pattern or '?' in pattern:
+            elements = [field for field in elements if fnmatch.fnmatch(field, pattern)]
+
+        if fields_pattern is None:
+            return elements
+        else:
+            return [field for element in elements for field in self.datafields(datatype=element, pattern=fields_pattern)]
+
+    def datafields(self, datatype, pattern='*', prepend_type=True):
+        search_fields = self.xnat.get_json('/data/search/elements/{}'.format(datatype))
+
+        # Select data from JSON
+        search_fields = [x['FIELD_ID'] for x in search_fields['ResultSet']['Result']]
+
+        # Filter fields using pattern
+        if '*' in pattern or '?' in pattern:
+            search_fields = [field for field in search_fields if fnmatch.fnmatch(field, pattern)]
+
+        # Filter fields for unwanted fields
+        search_fields = [field for field in search_fields if '=' not in field and 'SHARINGSHAREPROJECT' not in field]
+
+        return ['{}/{}'.format(datatype, field) if prepend_type else field for field in search_fields]
+
