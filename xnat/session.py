@@ -25,7 +25,7 @@ from six.moves.urllib import parse
 
 from . import exceptions
 from .core import XNATListing, caching
-from .inspect_ import Inspect
+from .inspect import Inspect
 from .prearchive import Prearchive
 from .services import Services
 

@@ -35,7 +35,7 @@ class XNATproperty(property):
         # automatically generate the display field
         ns, datatype = self._prop_class._XSI_TYPE.split(':', 1)
 
-        return '{}_COL_{}{}'.format(ns, datatype, self._prop_name)
+        return '{}_COL_{}{}'.format(ns, datatype, self._prop_name).upper()
 
     def __eq__(self, other):
         return Constraint(self.identifier, '=', other)
