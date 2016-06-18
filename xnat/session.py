@@ -72,6 +72,7 @@ class XNATSession(object):
     XNAT_CLASS_LOOKUP = {}
 
     def __init__(self, server, interface=None, user=None, password=None, keepalive=840, debug=False):
+        self.classes = None
         self._interface = interface
         self._projects = None
         self._server = parse.urlparse(server) if server else None
@@ -162,6 +163,8 @@ class XNATSession(object):
                 self._source_code_file = None
             if os.path.isfile(source_pyc):
                 os.remove(source_pyc)
+
+        self.classes = None
 
     @property
     def keepalive(self):

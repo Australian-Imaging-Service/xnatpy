@@ -15,15 +15,26 @@
 
 from __future__ import absolute_import
 from __future__ import unicode_literals
+from abc import ABCMeta
 from collections import MutableMapping, Mapping, namedtuple
 import fnmatch
 import re
 import textwrap
 
 from . import exceptions
-from . import search
 from .datatypes import convert_from, convert_to
 import six
+
+
+TYPE_HINTS = {
+    'demographics': 'xnat:demographicData',
+    'investigator': 'xnat:investigatorData',
+    'metadata': 'xnat:subjectMetadata',
+    'pi': 'xnat:investigatorData',
+    'studyprotocol': 'xnat:studyProtocol',
+    'validation': 'xnat:validationData',
+    'baseimage': 'xnat:abstractResource',
+}
 
 
 def caching(func):
@@ -120,7 +131,7 @@ class CustomVariableMap(VariableMap):
             self.clearcache()
 
 
-class XNATObject(six.with_metaclass(search.XNATMeta, object)):
+class XNATObject(six.with_metaclass(ABCMeta, object)):
     _HAS_FIELDS = False
     _XSI_TYPE = 'xnat:baseObject'
 
@@ -176,21 +187,11 @@ class XNATObject(six.with_metaclass(search.XNATMeta, object)):
     def get(self, name, type_=None):
         value = self.data.get(name)
         if type_ is not None and value is not None:
-            if isinstance(type_, str):
+            if isinstance(type_, six.string_types):
                 value = convert_to(value, type_)
             else:
                 value = type_(value)
         return value
-    
-    _TYPE_HINTS = {
-            'demographics': 'xnat:demographicData',
-            'investigator': 'xnat:investigatorData',
-            'metadata': 'xnat:subjectMetadata',
-            'pi': 'xnat:investigatorData',
-            'studyprotocol': 'xnat:studyProtocol',
-            'validation': 'xnat:validationData',
-            'baseimage': 'xnat:abstractResource',
-            }
 
     def get_object(self, fieldname, type_=None):
         if type_ is None:
@@ -198,7 +199,7 @@ class XNATObject(six.with_metaclass(search.XNATMeta, object)):
                 data = next(x for x in self.fulldata['children'] if x['field'] == fieldname)['items'][0]
                 type_ = data['meta']['xsi:type']
             except StopIteration:
-                type_ = self._TYPE_HINTS.get(fieldname)
+                type_ = TYPE_HINTS.get(fieldname)
             if type_ is None:
                 raise exceptions.XNATValueError('Cannot determine type of field {}!'.format(fieldname))
         return self.xnat_session.create_object(self.uri, type_=type_, parent=self, fieldname=fieldname)
@@ -209,7 +210,7 @@ class XNATObject(six.with_metaclass(search.XNATMeta, object)):
 
     def set(self, name, value, type_=None):
         if type_ is not None:
-            if isinstance(type_, str):
+            if isinstance(type_, six.string_types):
                 # Make sure we have a valid string here that is properly casted
                 value = convert_from(value, type_)
             else:
@@ -301,12 +302,10 @@ class XNATObject(six.with_metaclass(search.XNATMeta, object)):
         # of this object, indicating that is has been in fact removed
         self.clearcache()
 
-    @classmethod
-    def query(self, session):
-        return search.Query(self._XSI_TYPE, session)
-
 
 class XNATSubObject(XNATObject):
+    _PARENT_CLASS = None
+
     @property
     def xsi_type(self):
         return self.parent.xsi_type
@@ -323,9 +322,6 @@ class XNATSubObject(XNATObject):
     def set(self, name, value, type_=None):
         name = '{}/{}'.format(self.fieldname, name)
         self.parent.set(name, value, type_)
-
-    #def get(self, name, type_=None):
-    #    return self.parent.get('{}/{}'.format(self.id, name))
 
 
 class XNATListing(Mapping):

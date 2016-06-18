@@ -26,8 +26,7 @@ from xnat import core
 from xnat import xnatbases
 
 
-FILE_HEADER = \
-"""
+FILE_HEADER = '''
 # Copyright 2011-2015 Biomedical Imaging Group Rotterdam, Departments of
 # Medical Informatics and Radiology, Erasmus MC, Rotterdam, The Netherlands
 #
@@ -51,9 +50,40 @@ from zipfile import ZipFile  # Needed by generated code
 
 from xnat import search
 from xnat.core import XNATObject, XNATSubObject, XNATListing, caching
+from xnat.utils import mixedproperty
 
 
-class FileData(XNATObject):
+SESSION = None
+
+
+def current_session():
+    return SESSION
+
+
+# These mixins are to set the xnat_session automatically in all created classes
+class XNATObjectMixin(XNATObject):
+    @mixedproperty
+    def xnat_session(self):
+        return current_session()
+
+    @classmethod
+    def query(cls, *constraints):
+        query = search.Query(cls._XSI_TYPE, cls.xnat_session)
+
+        # Add in constraints immediatly
+        if len(constraints) > 0:
+            query = query.filter(*constraints)
+
+        return query
+
+
+class XNATSubObjectMixin(XNATSubObject):
+    @mixedproperty
+    def xnat_session(self):
+        return current_session()
+
+
+class FileData(XNATObjectMixin):
     _XSI_TYPE = 'xnat:fileData'
 
     def __init__(self, uri, xnat_session, id_=None, datafields=None, name=None):
@@ -82,7 +112,7 @@ XNAT_CLASS_LOOKUP = {{
 {}
 
 
-"""
+'''
 
 
 class ClassRepresentation(object):
@@ -100,11 +130,14 @@ class ClassRepresentation(object):
             "abstractResource": "label"
             }
 
-    def __init__(self, parser, name, base_class = 'XNATObject'):
+    def __init__(self, parser, name, xsi_type, base_class='XNATObjectMixin', parent=None, field_name=None):
         self.parser = parser
         self.name = name
+        self.xsi_type = xsi_type
         self.baseclass = base_class
         self.properties = {}
+        self.parent = parent
+        self.field_name = field_name
 
     def __repr__(self):
         return '<ClassRepresentation {}({})>'.format(self.name, self.baseclass)
@@ -121,7 +154,12 @@ class ClassRepresentation(object):
 
         if 'fields' in self.properties:
             header += "    _HAS_FIELDS = True\n"
-        header += "    _XSI_TYPE = 'xnat:{}'\n\n".format(self.name)
+
+        if self.parent is not None:
+            header += "    _PARENT_CLASS = {}\n".format(self.python_parentclass)
+            header += "    _FIELD_NAME = '{}'\n".format(self.field_name)
+
+        header += "    _XSI_TYPE = '{}'\n\n".format(self.xsi_type)
 
         if self.name in self.SECONDARY_LOOKUP_FIELDS:
             header += self.init
@@ -151,6 +189,10 @@ class ClassRepresentation(object):
     @property
     def python_baseclass(self):
         return self.baseclass[0].upper() + self.baseclass[1:]
+
+    @property
+    def python_parentclass(self):
+        return self.parent[0].upper() + self.parent[1:]
 
     def get_base_template(self):
         if hasattr(xnatbases, self.python_name):
@@ -193,7 +235,11 @@ class PropertyRepresentation(object):
         docstring = '\n        """ {} """'.format(self.docstring) if self.docstring is not None else ''
         if not (self.type_ is None or self.type_.startswith('xnat:')):
             return \
-        """    @search.XNATproperty
+        """    @mixedproperty
+    def {clean_name}(cls):
+        return search.SearchField(cls, "{name}")
+
+    @{clean_name}.getter
     def {clean_name}(self):{docstring}
         # Generate automatically, type: {type}
         return self.get("{name}", type_="{type}")
@@ -203,27 +249,38 @@ class PropertyRepresentation(object):
         # Generate automatically, type: {type}
         self.set("{name}", value, type_="{type}")""".format(clean_name=self.clean_name, docstring=docstring, name=self.name, type=self.type_, restrictions=self.restrictions_code())
         elif self.type_ is None:
-            xsi_type = "self._XSI_TYPE + '{}'".format(self.name.capitalize())
+            xsi_type = "'{{}}/{{}}'.format(cls._XSI_TYPE, '{}')".format(self.name)
             return \
-        """    @search.XNATproperty
+        """    @mixedproperty
+    def {clean_name}(cls):
+        return XNAT_CLASS_LOOKUP["{xsi_type}"]
+
+    @{clean_name}.getter
     @caching
     def {clean_name}(self):{docstring}
         # Generated automatically, type: {type_}
         return self.get_object("{name}", {xsi_type})""".format(clean_name=self.clean_name,
-                                                       docstring=docstring,
-                                                       name = self.name,
-                                                       type_=self.type_,
-                                                       xsi_type=xsi_type)
+                                                               docstring=docstring,
+                                                               name=self.name,
+                                                               type_=self.type_,
+                                                               xsi_type=xsi_type)
         else:
+            xsi_type = core.TYPE_HINTS.get(self.name, self.type_)
+
             return \
-        """    @search.XNATproperty
+        """    @mixedproperty
+    def {clean_name}(cls):
+        return XNAT_CLASS_LOOKUP["{xsi_type}"]
+
+    @{clean_name}.getter
     @caching
     def {clean_name}(self):{docstring}
         # Generated automatically, type: {type_}
         return self.get_object("{name}")""".format(clean_name=self.clean_name,
-                                                               docstring=docstring,
-                                                               name = self.name,
-                                                               type_=self.type_)
+                                                   docstring=docstring,
+                                                   name=self.name,
+                                                   type_=self.type_,
+                                                   xsi_type=xsi_type)
 
     @property
     def clean_name(self):
@@ -298,7 +355,7 @@ class SchemaParser(object):
         return schemas
 
     def __iter__(self):
-        visited = set(['XNATObject', 'XNATSubObject'])
+        visited = set(['XNATObjectMixin', 'XNATSubObjectMixin'])
         tries = 0
         yielded_anything = True
         while len(visited) < len(self.class_list) and yielded_anything and tries < 250:
@@ -309,6 +366,9 @@ class SchemaParser(object):
 
                 base = value.baseclass
                 if not base.startswith('xs:') and base not in visited:
+                    continue
+
+                if value.parent is not None and value.parent not in visited:
                     continue
 
                 visited.add(key)
@@ -368,13 +428,24 @@ class SchemaParser(object):
 
     def parse_complex_type(self, element):
         name = element.get('name')
-        base_class = 'XNATObject'
+        xsi_type = 'xnat:{}'.format(name)
+        base_class = 'XNATObjectMixin'
+        parent = None
+        field_name = None
 
         if name is None:
             name = self.current_class.name + self.current_property.name.capitalize()
-            base_class = 'XNATSubObject'
+            xsi_type = '{}/{}'.format(self.current_class.xsi_type, self.current_property.name)
+            base_class = 'XNATSubObjectMixin'
+            parent = self.current_class.name
+            field_name = self.current_property.name
 
-        new_class = ClassRepresentation(self, name, base_class=base_class)
+        new_class = ClassRepresentation(self,
+                                        name=name,
+                                        xsi_type=xsi_type,
+                                        base_class=base_class,
+                                        parent=parent,
+                                        field_name=field_name)
         self.class_list[name] = new_class
 
         # Descend
@@ -399,7 +470,7 @@ class SchemaParser(object):
         new_base = element.get('base')
         if new_base.startswith('xnat:'):
             new_base = new_base[5:]
-        if old_base in ['XNATObject', 'XNATSubObject']:
+        if old_base in ['XNATObjectMixin', 'XNATSubObjectMixin']:
             self.current_class.baseclass = new_base
         else:
             raise ValueError('Trying to reset base class again from {} to {}'.format(old_base, new_base))

@@ -28,6 +28,7 @@ import imp
 import os
 import netrc
 import tempfile
+import time
 
 import requests
 from six.moves.urllib import parse
@@ -106,75 +107,73 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     if not verify:
         requests_session.verify = False
 
-    # Generate module if it is not cached
-    if schema_uri not in GEN_MODULES:
-        parser = SchemaParser(debug=debug)
-        success = parser.parse_schema_uri(requests_session=requests_session,
-                                          schema_uri=schema_uri)
+    # Generate module
+    parser = SchemaParser(debug=debug)
+    success = parser.parse_schema_uri(requests_session=requests_session,
+                                      schema_uri=schema_uri)
 
-        if not success:
-            raise RuntimeError('Could not parse the xnat.xsd! Cannot build data model!')
+    if not success:
+        raise RuntimeError('Could not parse the xnat.xsd! Cannot build data model!')
 
-        # Parse extension types
-        if extension_types:
-            projects_uri = '{}/data/projects?format=json'.format(server.rstrip('/'))
-            response = requests.get(projects_uri)
-            if response.status_code != 200:
-                raise ValueError('Could not requests projects from {}'.format(projects_uri))
-            try:
-                project_id = response.json()['ResultSet']['Result'][0]['ID']
-            except (KeyError, IndexError):
-                raise ValueError('Could not get an example for scanning extenion types!')
+    # Parse extension types
+    if extension_types:
+        projects_uri = '{}/data/projects?format=json'.format(server.rstrip('/'))
+        response = requests.get(projects_uri)
+        if response.status_code != 200:
+            raise ValueError('Could not requests projects from {}'.format(projects_uri))
+        try:
+            project_id = response.json()['ResultSet']['Result'][0]['ID']
+        except (KeyError, IndexError):
+            raise ValueError('Could not get an example for scanning extenion types!')
 
-            project_uri = '{}/data/projects/{}?format=xml'.format(server.rstrip('/'), project_id)
-            response = requests.get(project_uri)
+        project_uri = '{}/data/projects/{}?format=xml'.format(server.rstrip('/'), project_id)
+        response = requests.get(project_uri)
 
-            if response.status_code != 200:
-                raise ValueError('Could not request example project from {}'.format(project_uri))
+        if response.status_code != 200:
+            raise ValueError('Could not request example project from {}'.format(project_uri))
 
-            schemas = parser.find_schema_uris(response.text)
-            if schema_uri in schemas:
-                if debug:
-                    print('[DEBUG] Removing schema {} from list'.format(schema_uri))
-                schemas.remove(schema_uri)
-            print('[INFO] Found schemas: {}'.format(schemas))
+        schemas = parser.find_schema_uris(response.text)
+        if schema_uri in schemas:
+            if debug:
+                print('[DEBUG] Removing schema {} from list'.format(schema_uri))
+            schemas.remove(schema_uri)
+        print('[INFO] Found schemas: {}'.format(schemas))
 
-            for schema in schemas:
-                parser.parse_schema_uri(requests_session=requests_session,
-                                        schema_uri=schema)
+        for schema in schemas:
+            parser.parse_schema_uri(requests_session=requests_session,
+                                    schema_uri=schema)
 
-        # Write code to temp file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='_generated_xnat.py', delete=False) as code_file:
-            parser.write(code_file=code_file)
+    # Write code to temp file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='_generated_xnat.py', delete=False) as code_file:
+        parser.write(code_file=code_file)
 
-        if debug:
-            print('[DEBUG] Code file written to: {}'.format(code_file.name))
+    if debug:
+        print('[DEBUG] Code file written to: {}'.format(code_file.name))
 
-        # Import temp file as a module
-        hasher = hashlib.md5()
-        hasher.update(schema_uri.encode('utf-8'))
+    # Import temp file as a module
+    hasher = hashlib.md5()
+    hasher.update(schema_uri.encode('utf-8'))
+    hasher.update(str(time.time()))
 
-        # The module is loaded in its private namespace based on the code_file name
-        xnat_module = imp.load_source('xnat_gen_{}'.format(hasher.hexdigest()),
-                                      code_file.name)
-        xnat_module._SOURCE_CODE_FILE = code_file.name
+    # The module is loaded in its private namespace based on the code_file name
+    xnat_module = imp.load_source('xnat_gen_{}'.format(hasher.hexdigest()),
+                                  code_file.name)
+    xnat_module._SOURCE_CODE_FILE = code_file.name
 
-        if debug:
-            print('[DEBUG] Loaded generated module')
+    if debug:
+        print('[DEBUG] Loaded generated module')
 
-        # Register all types parsed
-        for cls in parser:
-            if not (cls.name is None or cls.baseclass.startswith('xs:')):
-                xnat_module.XNAT_CLASS_LOOKUP['xnat:{}'.format(cls.name)] = getattr(xnat_module, cls.python_name)
-
-        # Cache the module for re-use
-        GEN_MODULES[schema_uri] = xnat_module
-    else:
-        print('[INFO] Using cache module for {}'.format(schema_uri))
-        xnat_module = GEN_MODULES[schema_uri]
+    # Register all types parsed
+    for cls in parser:
+        if not (cls.name is None or cls.baseclass.startswith('xs:')):
+            xnat_module.XNAT_CLASS_LOOKUP[cls.xsi_type] = getattr(xnat_module, cls.python_name)
 
     # Create the XNAT connection
     session = XNATSession(server=server, interface=requests_session, debug=debug)
+
+    # FIXME: is this a good idea, it makes things simple, but I suppose we
+    # FIXME: can no longer re-use the modules between sessions?
+    xnat_module.SESSION = session
 
     # Add the required information from the module into the session object
     session.XNAT_CLASS_LOOKUP.update(xnat_module.XNAT_CLASS_LOOKUP)
