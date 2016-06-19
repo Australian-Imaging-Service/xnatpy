@@ -237,6 +237,7 @@ class PropertyRepresentation(object):
             return \
         """    @mixedproperty
     def {clean_name}(cls):
+        # Generate automatically, type: {type}
         return search.SearchField(cls, "{name}")
 
     @{clean_name}.getter
@@ -253,6 +254,7 @@ class PropertyRepresentation(object):
             return \
         """    @mixedproperty
     def {clean_name}(cls):
+        # Generate automatically, type: {type}
         return XNAT_CLASS_LOOKUP["{xsi_type}"]
 
     @{clean_name}.getter
@@ -270,6 +272,7 @@ class PropertyRepresentation(object):
             return \
         """    @mixedproperty
     def {clean_name}(cls):
+        # Generate automatically, type: {type}
         return XNAT_CLASS_LOOKUP["{xsi_type}"]
 
     @{clean_name}.getter
