@@ -22,10 +22,11 @@ import keyword
 import re
 from xml.etree import ElementTree
 
-from xnat import core
-from xnat import xnatbases
+from . import core
+from . import xnatbases
 
 
+# TODO: Add more fields to FileData from [Name, Size, URI, cat_ID, collection, file_content, file_format, tile_tags]?
 FILE_HEADER = '''
 # Copyright 2011-2015 Biomedical Imaging Group Rotterdam, Departments of
 # Medical Informatics and Radiology, Erasmus MC, Rotterdam, The Netherlands
@@ -84,11 +85,18 @@ class XNATSubObjectMixin(XNATSubObject):
 
 
 class FileData(XNATObjectMixin):
+    SECONDARY_LOOKUP_FIELD = 'name'
     _XSI_TYPE = 'xnat:fileData'
 
-    def __init__(self, uri, xnat_session, id_=None, datafields=None, name=None):
-        super(FileData, self).__init__(uri, xnat_session, id_=id_, datafields=datafields)
-        self._name = name
+    def __init__(self, uri, xnat_session, id_=None, datafields=None, name=None, parent=None, fieldname=None):
+        super(FileData, self).__init__(uri=uri,
+                                   xnat_session=xnat_session,
+                                   id_=id_,
+                                   datafields=datafields,
+                                   parent=parent,
+                                   fieldname=fieldname)
+        if name is not None:
+            self._name = name
 
     @property
     def name(self):
@@ -138,6 +146,7 @@ class ClassRepresentation(object):
         self.properties = {}
         self.parent = parent
         self.field_name = field_name
+        self.abstract = False
 
     def __repr__(self):
         return '<ClassRepresentation {}({})>'.format(self.name, self.baseclass)
@@ -159,6 +168,7 @@ class ClassRepresentation(object):
             header += "    _PARENT_CLASS = {}\n".format(self.python_parentclass)
             header += "    _FIELD_NAME = '{}'\n".format(self.field_name)
 
+        header += "    # Abstract: {}\n".format(self.abstract)
         header += "    _XSI_TYPE = '{}'\n\n".format(self.xsi_type)
 
         if self.name in self.SECONDARY_LOOKUP_FIELDS:
@@ -227,62 +237,83 @@ class PropertyRepresentation(object):
         self.restrictions = {}
         self.type_ = type_
         self.docstring = None
+        self.is_listing = False
 
     def __repr__(self):
         return '<PropertyRepresentation {}({})>'.format(self.name, self.type_)
 
     def __str__(self):
         docstring = '\n        """ {} """'.format(self.docstring) if self.docstring is not None else ''
-        if not (self.type_ is None or self.type_.startswith('xnat:')):
+        if self.is_listing:
+            return """    @property
+    @caching
+    def {clean_name}(self):
+        # Generate automatically, type: {type_} (listing {is_listing})
+        return XNATListing(self.fulluri + '/{name}',
+                           xnat_session=self.xnat_session,
+                           parent=self,
+                           field_name='{name}',
+                           xsi_type='{type_}')""".format(clean_name=self.clean_name,
+                                                         name=self.name,
+                                                         type_=self.type_,
+                                                         is_listing=self.is_listing)
+        elif not (self.type_ is None or self.type_.startswith('xnat:')):
             return \
         """    @mixedproperty
-    def {clean_name}(cls):
-        # Generate automatically, type: {type}
+    def {clean_name}(cls):{docstring}
+        # Generate automatically, type: {type_} (listing {is_listing})
         return search.SearchField(cls, "{name}")
 
     @{clean_name}.getter
-    def {clean_name}(self):{docstring}
-        # Generate automatically, type: {type}
-        return self.get("{name}", type_="{type}")
+    def {clean_name}(self):
+        # Generate automatically, type: {type_}
+        return self.get("{name}", type_="{type_}")
 
     @ {clean_name}.setter
     def {clean_name}(self, value):{docstring}{restrictions}
-        # Generate automatically, type: {type}
-        self.set("{name}", value, type_="{type}")""".format(clean_name=self.clean_name, docstring=docstring, name=self.name, type=self.type_, restrictions=self.restrictions_code())
+        # Generate automatically, type: {type_}
+        self.set("{name}", value, type_="{type_}")""".format(clean_name=self.clean_name,
+                                                             docstring=docstring,
+                                                             name=self.name,
+                                                             type_=self.type_,
+                                                             is_listing=self.is_listing,
+                                                             restrictions=self.restrictions_code())
         elif self.type_ is None:
             xsi_type = "'{{}}/{{}}'.format(cls._XSI_TYPE, '{}')".format(self.name)
             return \
         """    @mixedproperty
-    def {clean_name}(cls):
-        # Generate automatically, type: {type}
+    def {clean_name}(cls):{docstring}
+        # Generate automatically, type: {type_} (listing {is_listing})
         return XNAT_CLASS_LOOKUP["{xsi_type}"]
 
     @{clean_name}.getter
     @caching
-    def {clean_name}(self):{docstring}
+    def {clean_name}(self):
         # Generated automatically, type: {type_}
         return self.get_object("{name}", {xsi_type})""".format(clean_name=self.clean_name,
                                                                docstring=docstring,
                                                                name=self.name,
                                                                type_=self.type_,
+                                                               is_listing=self.is_listing,
                                                                xsi_type=xsi_type)
         else:
             xsi_type = core.TYPE_HINTS.get(self.name, self.type_)
 
             return \
         """    @mixedproperty
-    def {clean_name}(cls):
-        # Generate automatically, type: {type}
+    def {clean_name}(cls):{docstring}
+        # Generate automatically, type: {type_} (listing {is_listing})
         return XNAT_CLASS_LOOKUP["{xsi_type}"]
 
     @{clean_name}.getter
     @caching
-    def {clean_name}(self):{docstring}
+    def {clean_name}(self):
         # Generated automatically, type: {type_}
         return self.get_object("{name}")""".format(clean_name=self.clean_name,
                                                    docstring=docstring,
                                                    name=self.name,
                                                    type_=self.type_,
+                                                   is_listing=self.is_listing,
                                                    xsi_type=xsi_type)
 
     @property
@@ -302,6 +333,8 @@ class PropertyRepresentation(object):
                 data += "\n        if value > {max}:\n            raise ValueError('{name} has to be smaller than or equal to {max}')\n".format(name=self.name, max=self.restrictions['max'])
             if 'maxlength' in self.restrictions:
                 data += "\n        if len(value) > {maxlength}:\n            raise ValueError('length {name} has to be smaller than or equal to {maxlength}')\n".format(name=self.name, maxlength=self.restrictions['maxlength'])
+            if 'minlength' in self.restrictions:
+                data += "\n        if len(value) < {minlength}:\n            raise ValueError('length {name} has to be larger than or equal to {minlength}')\n".format(name=self.name, minlength=self.restrictions['minlength'])
             if 'enum' in self.restrictions:
                 data += "\n        if value not in [{enum}]:\n            raise ValueError('{name} has to be one of: {enum}')\n".format(name=self.name, enum=', '.join('"{}"'.format(x.replace("'", "\\'")) for x in self.restrictions['enum']))
 
@@ -429,6 +462,39 @@ class SchemaParser(object):
             else:
                 self.parse_unknown(element)
 
+    # TODO: We should check the following restrictions: http://www.w3schools.com/xml/schema_facets.asp
+
+    def parse_all(self, element):
+        self.parse_children(element)
+
+    def parse_annotation(self, element):
+        self.parse_children(element)
+
+    def parse_attribute(self, element):
+        name = element.get('name')
+        type_ = element.get('type')
+
+        if self.current_class is not None:
+            if name is None:
+                if self.debug:
+                    print('[DEBUG] Encountered attribute without name')
+                return
+            new_property = PropertyRepresentation(self, name, type_)
+            self.current_class.properties[name] = new_property
+
+            with self.descend(new_property=new_property):
+                self.parse_children(element)
+
+    def parse_children(self, element):
+        for child in element.getchildren():
+            self.parse(child)
+
+    def parse_choice(self, element):
+        self.parse_children(element)
+
+    def parse_complex_content(self, element):
+        self.parse_children(element)
+
     def parse_complex_type(self, element):
         name = element.get('name')
         xsi_type = 'xnat:{}'.format(name)
@@ -455,21 +521,52 @@ class SchemaParser(object):
         with self.descend(new_class=new_class):
             self.parse_children(element)
 
-    def parse_children(self, element):
-        for child in element.getchildren():
-            self.parse(child)
+    def parse_documentation(self, element):
+        if self.current_property is not None:
+            self.current_property.docstring = element.text
 
-    def parse_ignore(self, element):
-        pass
+    def parse_element(self, element):
+        name = element.get('name')
+        type_ = element.get('type')
 
-    def parse_schema(self, element):
-        self.parse_children(element)
+        if name is None:
+            abstract = element.get('abstract')
+            if abstract is not None:
+                self.current_class.abstract = abstract == "true"
+            else:
+                if self.debug:
+                    print('[DEBUG] Encountered attribute without name')
+            return
 
-    def parse_complex_content(self, element):
-        self.parse_children(element)
+        if element.get('maxOccurs') == 'unbounded':
+            if self.current_property is None:
+                print('[WARNING] Listing without parent property: {} ({})'.format(name, type_))
+            else:
+                self.current_property.is_listing = True
+                self.parse_children(element)
+                if type_ is not None:
+                    self.current_property.type_ = type_
+        elif self.current_class is not None:
+            new_property = PropertyRepresentation(self, name, type_)
+            self.current_class.properties[name] = new_property
+
+            with self.descend(new_property=new_property):
+                self.parse_children(element)
+
+        if self.debug:
+            print('[DEBUG] Encountered property without parent class!')
+
+    def parse_enumeration(self, element):
+        if 'enum' in self.current_property.restrictions:
+            self.current_property.restrictions['enum'].append(element.get('value'))
+        else:
+            self.current_property.restrictions['enum'] = [element.get('value')]
+
+    def parse_error(self, element):
+        raise NotImplementedError('The parser for {} has not yet been implemented'.format(element.tag))
 
     def parse_extension(self, element):
-        old_base = self.current_class.baseclass 
+        old_base = self.current_class.baseclass
         new_base = element.get('base')
         if new_base.startswith('xnat:'):
             new_base = new_base[5:]
@@ -480,29 +577,20 @@ class SchemaParser(object):
 
         self.parse_children(element)
 
-    def parse_sequence(self, element):
-        self.parse_children(element)
+    def parse_ignore(self, element):
+        pass
 
-    def parse_simple_type(self, element):
-        self.parse_children(element)
+    def parse_max_inclusive(self, element):
+        self.current_property.restrictions['max'] = element.get('value')
 
-    def parse_simple_content(self, element):
-        self.parse_children(element)
+    def parse_max_length(self, element):
+        self.current_property.restrictions['maxlength'] = element.get('value')
 
-    def parse_attribute(self, element):
-        name = element.get('name')
-        type_ = element.get('type')
+    def parse_min_inclusive(self, element):
+        self.current_property.restrictions['min'] = element.get('value')
 
-        if self.current_class is not None:
-            if name is None:
-                if self.debug:
-                    print('[DEBUG] Encountered attribute without name')
-                return
-            new_property = PropertyRepresentation(self, name, type_)
-            self.current_class.properties[name] = new_property
-
-            with self.descend(new_property=new_property):
-                self.parse_children(element)
+    def parse_min_length(self, element):
+        self.current_property.restrictions['minlength'] = element.get('value')
 
     def parse_restriction(self, element):
         old_type = self.current_property.type_
@@ -515,80 +603,52 @@ class SchemaParser(object):
 
         self.parse_children(element)
 
-    def parse_maxlength(self, element):
-        self.current_property.restrictions['maxlength'] = element.get('value')
-
-    def parse_min_inclusive(self, element):
-        self.current_property.restrictions['min'] = element.get('value')
-
-    def parse_max_inclusive(self, element):
-        self.current_property.restrictions['max'] = element.get('value')
-
-    def parse_annotation(self, element):
+    def parse_schema(self, element):
         self.parse_children(element)
 
-    def parse_documentation(self, element):
-        if self.current_property is not None:
-            self.current_property.docstring = element.text
-
-    def parse_choice(self, element):
+    def parse_sequence(self, element):
         self.parse_children(element)
 
-    def parse_all(self, element):
+    def parse_simple_content(self, element):
         self.parse_children(element)
 
-    def parse_enumeration(self, element):
-        if 'enum' in self.current_property.restrictions:
-            self.current_property.restrictions['enum'].append(element.get('value'))
-        else:
-            self.current_property.restrictions['enum'] = [element.get('value')]
-
-    def parse_element(self, element):
-        name = element.get('name')
-        type_ = element.get('type')
-
-        if self.current_class is not None:
-            if name is None:
-                if self.debug:
-                    print('[DEBUG] Encountered attribute without name')
-                return
-
-            new_property = PropertyRepresentation(self, name, type_)
-            self.current_class.properties[name] = new_property
-
-            with self.descend(new_property=new_property):
-                self.parse_children(element)
-
-    def parse_error(self, element):
-        raise NotImplementedError('The parser for {} has not yet been implemented'.format(element.tag))
+    def parse_simple_type(self, element):
+        self.parse_children(element)
 
     def parse_unknown(self, element):
         self.unknown_tags.add(element.tag)
 
+    def parse_xdat_element(self, element):
+        abstract = element.get("abstract")
+        if abstract is not None:
+            self.current_class.abstract = abstract == "true"
+
     PARSERS = {
-            '{http://www.w3.org/2001/XMLSchema}complexType': parse_complex_type,
-            '{http://www.w3.org/2001/XMLSchema}complexContent': parse_complex_content,
-            '{http://www.w3.org/2001/XMLSchema}extension': parse_extension,
-            '{http://www.w3.org/2001/XMLSchema}simpleType': parse_simple_type,
-            '{http://www.w3.org/2001/XMLSchema}simpleContent': parse_simple_content,
-            '{http://www.w3.org/2001/XMLSchema}attribute': parse_attribute,
-            '{http://www.w3.org/2001/XMLSchema}restriction': parse_restriction,
-            '{http://www.w3.org/2001/XMLSchema}minInclusive': parse_min_inclusive,
-            '{http://www.w3.org/2001/XMLSchema}maxInclusive': parse_max_inclusive,
-            '{http://www.w3.org/2001/XMLSchema}maxLength': parse_maxlength,
-            '{http://www.w3.org/2001/XMLSchema}sequence': parse_sequence,
-            '{http://www.w3.org/2001/XMLSchema}choice': parse_choice,
-            '{http://www.w3.org/2001/XMLSchema}all': parse_all,
-            '{http://www.w3.org/2001/XMLSchema}enumeration': parse_enumeration,
-            '{http://www.w3.org/2001/XMLSchema}element': parse_element,
-            '{http://www.w3.org/2001/XMLSchema}annotation': parse_annotation,
-            '{http://www.w3.org/2001/XMLSchema}documentation': parse_documentation,
-            '{http://www.w3.org/2001/XMLSchema}schema': parse_schema,
-            '{http://www.w3.org/2001/XMLSchema}import': parse_ignore,
-            '{http://www.w3.org/2001/XMLSchema}group': parse_error,
-            '{http://www.w3.org/2001/XMLSchema}attributeGroup': parse_error,
-            '{http://www.w3.org/2001/XMLSchema}appinfo': parse_ignore,
-            }
+        '{http://www.w3.org/2001/XMLSchema}all': parse_all,
+        '{http://www.w3.org/2001/XMLSchema}annotation': parse_annotation,
+        '{http://www.w3.org/2001/XMLSchema}appinfo': parse_children,
+        '{http://www.w3.org/2001/XMLSchema}attribute': parse_attribute,
+        '{http://www.w3.org/2001/XMLSchema}attributeGroup': parse_error,
+        '{http://www.w3.org/2001/XMLSchema}choice': parse_choice,
+        '{http://www.w3.org/2001/XMLSchema}complexContent': parse_complex_content,
+        '{http://www.w3.org/2001/XMLSchema}complexType': parse_complex_type,
+        '{http://www.w3.org/2001/XMLSchema}documentation': parse_documentation,
+        '{http://www.w3.org/2001/XMLSchema}element': parse_element,
+        '{http://www.w3.org/2001/XMLSchema}enumeration': parse_enumeration,
+        '{http://www.w3.org/2001/XMLSchema}extension': parse_extension,
+        '{http://www.w3.org/2001/XMLSchema}import': parse_ignore,
+        '{http://www.w3.org/2001/XMLSchema}group': parse_error,
+        '{http://www.w3.org/2001/XMLSchema}maxInclusive': parse_max_inclusive,
+        '{http://www.w3.org/2001/XMLSchema}maxLength': parse_max_length,
+        '{http://www.w3.org/2001/XMLSchema}minInclusive': parse_min_inclusive,
+        '{http://www.w3.org/2001/XMLSchema}minLength': parse_min_length,
+        '{http://www.w3.org/2001/XMLSchema}restriction': parse_restriction,
+        '{http://www.w3.org/2001/XMLSchema}schema': parse_schema,
+        '{http://www.w3.org/2001/XMLSchema}sequence': parse_sequence,
+        '{http://www.w3.org/2001/XMLSchema}simpleContent': parse_simple_content,
+        '{http://www.w3.org/2001/XMLSchema}simpleType': parse_simple_type,
+        '{http://nrg.wustl.edu/xdat}element': parse_xdat_element,
+    }
 
     def write(self, code_file):
         schemas = '\n'.join('# - {}'.format(s) for s in self.schemas)

@@ -153,7 +153,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     # Import temp file as a module
     hasher = hashlib.md5()
     hasher.update(schema_uri.encode('utf-8'))
-    hasher.update(str(time.time()))
+    hasher.update(str(time.time()).encode('utf-8'))
 
     # The module is loaded in its private namespace based on the code_file name
     xnat_module = imp.load_source('xnat_gen_{}'.format(hasher.hexdigest()),

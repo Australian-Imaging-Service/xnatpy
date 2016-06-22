@@ -23,6 +23,8 @@ from .core import caching, XNATObject, XNATListing
 
 
 class ProjectData(XNATObject):
+    SECONDARY_LOOKUP_FIELD = 'name'
+
     @property
     def fulluri(self):
         return '{}/projects/{}'.format(self.xnat_session.fulluri, self.id)
@@ -30,22 +32,41 @@ class ProjectData(XNATObject):
     @property
     @caching
     def subjects(self):
-        return XNATListing(self.uri + '/subjects', xnat_session=self.xnat_session, secondary_lookup_field='label', xsiType='xnat:subjectData')
+        return XNATListing(self.uri + '/subjects',
+                           xnat_session=self.xnat_session,
+                           parent=self,
+                           field_name='subjects',
+                           secondary_lookup_field='label',
+                           xsi_type='xnat:subjectData')
 
     @property
     @caching
     def experiments(self):
-        return XNATListing(self.uri + '/experiments', xnat_session=self.xnat_session, secondary_lookup_field='label')
+        return XNATListing(self.uri + '/experiments',
+                           xnat_session=self.xnat_session,
+                           parent=self,
+                           field_name='experiments',
+                           secondary_lookup_field='label')
 
     @property
     @caching
     def files(self):
-        return XNATListing(self.uri + '/files', xnat_session=self.xnat_session, secondary_lookup_field='name', xsiType='xnat:fileData')
+        return XNATListing(self.uri + '/files',
+                           xnat_session=self.xnat_session,
+                           parent=self,
+                           field_name='files',
+                           secondary_lookup_field='name',
+                           xsi_type='xnat:fileData')
 
     @property
     @caching
     def resources(self):
-        return XNATListing(self.uri + '/resources', xnat_session=self.xnat_session, secondary_lookup_field='label', xsiType='xnat:resourceCatalog')
+        return XNATListing(self.uri + '/resources',
+                           xnat_session=self.xnat_session,
+                           parent=self,
+                           field_name='resources',
+                           secondary_lookup_field='label',
+                           xsi_type='xnat:resourceCatalog')
 
     def download_dir(self, target_dir, verbose=True):
         project_dir = os.path.join(target_dir, self.name)
@@ -60,26 +81,21 @@ class ProjectData(XNATObject):
 
 
 class SubjectData(XNATObject):
+    SECONDARY_LOOKUP_FIELD = 'label'
+
     @property
     def fulluri(self):
         return '{}/projects/{}/subjects/{}'.format(self.xnat_session.fulluri, self.project, self.id)
 
     @property
     @caching
-    def experiments(self):
-        # HACK because self.uri + '/experiments' does not work
-        uri = '{}/experiments'.format(self.fulluri, self.id)
-        return XNATListing(uri, xnat_session=self.xnat_session, secondary_lookup_field='label')
-
-    @property
-    @caching
     def files(self):
-        return XNATListing(self.uri + '/files', xnat_session=self.xnat_session, secondary_lookup_field='name', xsiType='xnat:fileData')
-
-    @property
-    @caching
-    def resources(self):
-        return XNATListing(self.uri + '/resources', xnat_session=self.xnat_session, secondary_lookup_field='label', xsiType='xnat:resourceCatalog')
+        return XNATListing(self.uri + '/files',
+                           xnat_session=self.xnat_session,
+                           parent=self,
+                           field_name='files',
+                           secondary_lookup_field='name',
+                           xsi_type='xnat:fileData')
 
     def download_dir(self, target_dir, verbose=True):
         subject_dir = os.path.join(target_dir, self.label)
@@ -93,6 +109,10 @@ class SubjectData(XNATObject):
             print('Downloaded subject to {}'.format(subject_dir))
 
 
+class ExperimentData(XNATObject):
+    SECONDARY_LOOKUP_FIELD = 'label'
+
+
 class ImageSessionData(XNATObject):
     @property
     def fulluri(self):
@@ -100,28 +120,13 @@ class ImageSessionData(XNATObject):
 
     @property
     @caching
-    def scans(self):
-        return XNATListing(self.uri + '/scans', xnat_session=self.xnat_session, secondary_lookup_field='type')
-
-    @property
-    @caching
-    def assessors(self):
-        return XNATListing(self.uri + '/assessors', xnat_session=self.xnat_session, secondary_lookup_field='label')
-
-    @property
-    @caching
-    def reconstructions(self):
-        return XNATListing(self.uri + '/reconstructions', xnat_session=self.xnat_session, secondary_lookup_field='label')
-
-    @property
-    @caching
     def files(self):
-        return XNATListing(self.uri + '/files', xnat_session=self.xnat_session, secondary_lookup_field='name', xsiType='xnat:fileData')
-
-    @property
-    @caching
-    def resources(self):
-        return XNATListing(self.uri + '/resources', xnat_session=self.xnat_session, secondary_lookup_field='label', xsiType='xnat:resourceCatalog')
+        return XNATListing(self.uri + '/files',
+                           xnat_session=self.xnat_session,
+                           parent=self,
+                           field_name='files',
+                           secondary_lookup_field='name',
+                           xsi_type='xnat:fileData')
 
     def create_assessor(self, label, type_='xnat:mrAssessorData'):
         uri = '{}/assessors/{label}?xsiType={type}&label={label}&req_format=qs'.format(self.fulluri,
@@ -153,12 +158,22 @@ class DerivedData(XNATObject):
     @property
     @caching
     def files(self):
-        return XNATListing(self.fulluri + '/files', xnat_session=self.xnat_session, secondary_lookup_field='name', xsiType='xnat:fileData')
+        return XNATListing(self.fulluri + '/files',
+                           xnat_session=self.xnat_session,
+                           parent=self,
+                           field_name='files',
+                           secondary_lookup_field='name',
+                           xsi_type='xnat:fileData')
 
     @property
     @caching
     def resources(self):
-        return XNATListing(self.fulluri + '/resources', xnat_session=self.xnat_session, secondary_lookup_field='label', xsiType='xnat:resourceCatalog')
+        return XNATListing(self.fulluri + '/resources',
+                           xnat_session=self.xnat_session,
+                           parent=self,
+                           field_name='resources',
+                           secondary_lookup_field='label',
+                           xsi_type='xnat:resourceCatalog')
 
     def create_resource(self, label, format=None):
         uri = '{}/resources/{}'.format(self.fulluri, label)
@@ -171,15 +186,27 @@ class DerivedData(XNATObject):
 
 
 class ImageScanData(XNATObject):
+    SECONDARY_LOOKUP_FIELD = 'type'
+
     @property
     @caching
     def files(self):
-        return XNATListing(self.uri + '/files', xnat_session=self.xnat_session, secondary_lookup_field='name', xsiType='xnat:fileData')
+        return XNATListing(self.uri + '/files',
+                           xnat_session=self.xnat_session,
+                           parent=self,
+                           field_name='files',
+                           secondary_lookup_field='name',
+                           xsi_type='xnat:fileData')
 
     @property
     @caching
     def resources(self):
-        return XNATListing(self.uri + '/resources', xnat_session=self.xnat_session, secondary_lookup_field='label', xsiType='xnat:resourceCatalog')
+        return XNATListing(self.uri + '/resources',
+                           xnat_session=self.xnat_session,
+                           parent=self,
+                           field_name='resources',
+                           secondary_lookup_field='label',
+                           xsi_type='xnat:resourceCatalog')
 
     def create_resource(self, label, format=None):
         uri = '{}/resources/{}'.format(self.uri, label)
@@ -192,6 +219,8 @@ class ImageScanData(XNATObject):
 
 
 class AbstractResource(XNATObject):
+    SECONDARY_LOOKUP_FIELD = 'label'
+
     @property
     @caching
     def fulldata(self):
@@ -210,7 +239,12 @@ class AbstractResource(XNATObject):
     @property
     @caching
     def files(self):
-        return XNATListing(self.uri + '/files', xnat_session=self.xnat_session, secondary_lookup_field='name', xsiType='xnat:fileData')
+        return XNATListing(self.uri + '/files',
+                           xnat_session=self.xnat_session,
+                           parent=self,
+                           field_name='files',
+                           secondary_lookup_field='name',
+                           xsi_type='xnat:fileData')
 
     def download(self, path):
         self.xnat_session.download_zip(self.uri + '/files', path)
@@ -221,8 +255,15 @@ class AbstractResource(XNATObject):
 
 
 class File(XNATObject):
-    def __init__(self, uri, xnat_session, id_=None, datafields=None, name=None):
-        super(File, self).__init__(uri=uri, xnat_session=xnat_session, id_=id_, datafields=datafields)
+    SECONDARY_LOOKUP_FIELD = 'name'
+
+    def __init__(self, uri, xnat_session, id_=None, datafields=None, name=None, parent=None, fieldname=None):
+        super(File, self).__init__(uri=uri,
+                                   xnat_session=xnat_session,
+                                   id_=id_,
+                                   datafields=datafields,
+                                   parent=parent,
+                                   fieldname=fieldname)
         if name is not None:
             self._cache['name'] = name
 

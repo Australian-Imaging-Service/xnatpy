@@ -452,17 +452,31 @@ class XNATSession(object):
     @property
     @caching
     def projects(self):
-        return XNATListing(self.uri + '/projects', xnat_session=self.xnat_session, secondary_lookup_field='name', xsiType='xnat:projectData')
+        return XNATListing(self.uri + '/projects',
+                           xnat_session=self.xnat_session,
+                           parent=self,
+                           field_name='projects',
+                           xsi_type='xnat:projectData',
+                           secondary_lookup_field='name')
 
     @property
     @caching
     def subjects(self):
-        return XNATListing(self.uri + '/subjects', xnat_session=self.xnat_session, secondary_lookup_field='label', xsiType='xnat:subjectData')
+        return XNATListing(self.uri + '/subjects',
+                           xnat_session=self.xnat_session,
+                           parent=self,
+                           field_name='subjects',
+                           xsi_type='xnat:subjectData',
+                           secondary_lookup_field='label')
 
     @property
     @caching
     def experiments(self):
-        return XNATListing(self.uri + '/experiments', xnat_session=self.xnat_session, secondary_lookup_field='label')
+        return XNATListing(self.uri + '/experiments',
+                           xnat_session=self.xnat_session,
+                           parent=self,
+                           field_name='experiments',
+                           secondary_lookup_field='label')
 
     @property
     def prearchive(self):

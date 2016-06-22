@@ -23,18 +23,8 @@ import textwrap
 
 from . import exceptions
 from .datatypes import convert_from, convert_to
+from .constants import TYPE_HINTS
 import six
-
-
-TYPE_HINTS = {
-    'demographics': 'xnat:demographicData',
-    'investigator': 'xnat:investigatorData',
-    'metadata': 'xnat:subjectMetadata',
-    'pi': 'xnat:investigatorData',
-    'studyprotocol': 'xnat:studyProtocol',
-    'validation': 'xnat:validationData',
-    'baseimage': 'xnat:abstractResource',
-}
 
 
 def caching(func):
@@ -132,6 +122,7 @@ class CustomVariableMap(VariableMap):
 
 
 class XNATObject(six.with_metaclass(ABCMeta, object)):
+    SECONDARY_LOOKUP_FIELD = None
     _HAS_FIELDS = False
     _XSI_TYPE = 'xnat:baseObject'
 
@@ -174,7 +165,12 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
             self._cache['data'] = datafields
 
     def __repr__(self):
-        return '<{} {}>'.format(self.__class__.__name__, self.id)
+        if self.SECONDARY_LOOKUP_FIELD is None:
+            return '<{} {}>'.format(self.__class__.__name__, self.id)
+        else:
+            return '<{} {} ({})>'.format(self.__class__.__name__,
+                                         getattr(self, self.SECONDARY_LOOKUP_FIELD),
+                                         self.id)
 
     @property
     def parent(self):
@@ -325,24 +321,41 @@ class XNATSubObject(XNATObject):
 
 
 class XNATListing(Mapping):
-    def __init__(self, uri, xnat_session, secondary_lookup_field, xsiType=None, filter=None):
+    def __init__(self, uri, xnat_session, parent, field_name, secondary_lookup_field=None, xsi_type=None, filter=None):
         # Cache fields
         self._cache = {}
         self.caching = True
 
+        # Save the parent and field name
+        self.parent = parent
+        self.field_name = field_name
+
         # Important for communication
         self._xnat_session = xnat_session
         self._uri = uri
-        self._xsiType = xsiType
 
-        # List specific things
+        # Get the lookup field before type hints, they can ruin it for abstract types
+        if secondary_lookup_field is None:
+            if xsi_type is not None:
+                secondary_lookup_field = xnat_session.XNAT_CLASS_LOOKUP.get(xsi_type).SECONDARY_LOOKUP_FIELD
+
+        # Make it possible to override the xsi_type for the contents
+        if self.field_name not in TYPE_HINTS:
+            self._xsi_type = xsi_type
+        else:
+            self._xsi_type = TYPE_HINTS[field_name]
+
+        # If Needed, try again
+        if secondary_lookup_field is None:
+            secondary_lookup_field = xnat_session.XNAT_CLASS_LOOKUP.get(self._xsi_type).SECONDARY_LOOKUP_FIELD
+
         self.secondary_lookup_field = secondary_lookup_field
         self._used_filters = filter or {}
 
     @property
     @caching
     def data_maps(self):
-        xsi_type = ',xsiType' if self._xsiType is None else ''
+        xsi_type = ',xsiType' if self._xsi_type is None else ''
         columns = 'ID,URI,{}{}'.format(self.secondary_lookup_field, xsi_type)
         query = dict(self.used_filters)
         query['columns'] = columns
@@ -370,8 +383,9 @@ class XNATListing(Mapping):
         id_map = {}
         key_map = {}
         for x in result:
+            # HACK: xsi_type of resources is called element_name... yay!
             new_object = self.xnat_session.create_object(x['URI'],
-                                                         type_=x.get('xsiType', self._xsiType),
+                                                         type_=x.get('xsiType', x.get('element_name', self._xsi_type)),
                                                          id_=x['ID'],
                                                          **{self.secondary_lookup_field: x.get(self.secondary_lookup_field)})
             id_map[x['ID']] = new_object
@@ -486,7 +500,13 @@ class XNATListing(Mapping):
             filters = kwargs
 
         new_filters = self.merge_filters(self.used_filters, filters)
-        return XNATListing(self.uri, self.xnat_session, self.secondary_lookup_field, self._xsiType, new_filters)
+        return XNATListing(uri=self.uri,
+                           xnat_session=self.xnat_session,
+                           parent=self.parent,
+                           field_name=self.field_name,
+                           secondary_lookup_field=self.secondary_lookup_field,
+                           xsi_type=self._xsi_type,
+                           filter=new_filters)
 
     @property
     def uri(self):
