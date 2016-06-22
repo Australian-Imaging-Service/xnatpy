@@ -78,7 +78,7 @@ class VariableMap(MutableMapping):
         query = {'xsiType': self.parent.xsi_type,
                  '{parent_type_}/{field}[@xsi_type={type}]/{key}'.format(parent_type_=self.parent.xsi_type,
                                                                          field=self.field,
-                                                                         type=self.xsi_type,
+                                                                         type=self.parent.xsi_type,
                                                                          key=key): value}
         self.xnat.put(self.parent.fulluri, query=query)
 
@@ -135,6 +135,7 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
         self._caching = None
 
         if uri is None and parent is not None:
+            # This is the creation of a new object in the XNAT server
             self._xnat_session = parent.xnat_session
             if isinstance(parent, XNATListing):
                 put_uri = parent.uri
@@ -147,6 +148,7 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
             self._uri = parent.uri + id_
             self._parent = None
         else:
+            # This is the creation of a Python proxy for an existing XNAT object
             self._xnat_session = xnat_session
             self._uri = uri
             self._parent = parent
@@ -358,7 +360,7 @@ class XNATListing(Mapping):
         columns = 'ID,URI'
         if self.secondary_lookup_field is not None:
             columns = '{},{}'.format(columns, self.secondary_lookup_field)
-        if self._xsi_type is not None:
+        if self._xsi_type is None:
             columns += ',xsiType'
 
         query = dict(self.used_filters)
