@@ -430,11 +430,13 @@ class XNATSession(object):
                 if self.xnat_session.debug:
                     print('[DEBUG] Type unknown, fetching data to get type')
                 data = self.xnat_session.get_json(uri)
-                type_ = data['items'][0]['meta']
+                type_ = data['items'][0]['meta']['xsi:type']
                 datafields = data['items'][0]['data_fields']
             else:
                 datafields = None
 
+            if self.xnat_session.debug:
+                print('[DEBUG] Looking up type {} [{}]'.format(type_, type(type_).__name__))
             if type_ not in self.XNAT_CLASS_LOOKUP:
                 raise KeyError('Type {} unknow to this XNATSession REST client (see XNAT_CLASS_LOOKUP class variable)'.format(type_))
 
