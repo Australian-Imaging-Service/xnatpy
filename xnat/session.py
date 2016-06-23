@@ -339,7 +339,7 @@ class XNATSession(object):
         if verbose:
             print('Downloading {}:'.format(uri))
         for chunk in response.iter_content(chunk_size):
-            if bytes_read == 0 and chunk.startswith(('<!DOCTYPE', '<html>')):
+            if bytes_read == 0 and chunk[0] == '<' and chunk.startswith(('<!DOCTYPE', '<html>')):
                 raise ValueError('Invalid response from XNATSession (status {}):\n{}'.format(response.status_code, chunk))
 
             bytes_read += len(chunk)

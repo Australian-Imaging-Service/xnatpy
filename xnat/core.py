@@ -294,6 +294,7 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
             query['removeFiles'] = 'true'
 
         self.xnat_session.delete(self.fulluri, query=query)
+
         # Make sure there is no cache, this will cause 404 erros on subsequent use
         # of this object, indicating that is has been in fact removed
         self.clearcache()

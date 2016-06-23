@@ -26,5 +26,29 @@ TYPE_HINTS = {
     'experiments': None,  # Can be many types, need to check each time
     'scans': None,  # Can be many types, need to check each time
     'resources': None,  # Can be many types, need to check each time
+    'assessors': None,   # Can be many types, need to check each time
+    'reconstructions': None,  # Can be many types, need to check each time
     'files': 'xnat:fileData',
+}
+
+# The following xsi_types have a listing of objects with own REST paths the
+# other are nested in the xml of their parent.
+OBJECT_LISTINGS = {
+    'xnat:projectData',
+    'xnat:subjectData',
+    'xnat:subjectAssessorData',
+    'xnat:reconstructedImageData',
+    'xnat:imageAssessorData',
+    'xnat:imageScanData',
+    'xnat:abstractResource',
+    'xnat:fileData',
+}
+
+SECONDARY_LOOKUP_FIELDS = {
+    'xnat:projectData': 'name',
+    'xnat:subjectData': 'label',
+    'xnat:experimentData': 'label',
+    'xnat:imageScanData': 'type',
+    'xnat:abstractResource': 'label',
+    'xnat:fileData': 'name'
 }
