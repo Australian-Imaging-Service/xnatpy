@@ -24,7 +24,7 @@ from xml.etree import ElementTree
 
 from . import core
 from . import xnatbases
-from .constants import SECONDARY_LOOKUP_FIELDS
+from .constants import SECONDARY_LOOKUP_FIELDS, FIELD_HINTS
 
 
 # TODO: Add more fields to FileData from [Name, Size, URI, cat_ID, collection, file_content, file_format, tile_tags]?
@@ -163,6 +163,9 @@ class ClassRepresentation(object):
         if self.parent is not None:
             header += "    _PARENT_CLASS = {}\n".format(self.python_parentclass)
             header += "    _FIELD_NAME = '{}'\n".format(self.field_name)
+        elif self.xsi_type in FIELD_HINTS:
+            header += "    _CONTAINED_IN = '{}'\n".format(FIELD_HINTS[self.xsi_type])
+
 
         header += "    _XSI_TYPE = '{}'\n\n".format(self.xsi_type)
 
@@ -221,7 +224,13 @@ class ClassRepresentation(object):
 
     @property
     def init(self):
-        return "    def __init__(self, uri, xnat, id_=None, datafields=None, {lookup}=None, **kwargs):\n        super({name}, self).__init__(uri, xnat, id_=id_, datafields=datafields, **kwargs)\n        if {lookup} is not None:\n            self._cache['{lookup}'] = {lookup}\n\n".format(name=self.python_name, lookup=SECONDARY_LOOKUP_FIELDS[self.xsi_type])
+        return \
+"""    def __init__(self, uri=None, xnat_session=None, id_=None, datafields=None, parent=None, {lookup}=None, **kwargs):
+        super({name}, self).__init__(uri=uri, xnat_session=xnat_session, id_=id_, datafields=datafields, parent=parent, {lookup}={lookup}, **kwargs)
+        if {lookup} is not None:
+            self._cache['{lookup}'] = {lookup}
+
+""".format(name=self.python_name, lookup=SECONDARY_LOOKUP_FIELDS[self.xsi_type])
 
 
 class PropertyRepresentation(object):

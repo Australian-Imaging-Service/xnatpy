@@ -31,6 +31,17 @@ TYPE_HINTS = {
     'files': 'xnat:fileData',
 }
 
+FIELD_HINTS = {
+    'xnat:projectData': 'projects',
+    'xnat:subjectData': 'subjects',
+    'xnat:experimentData': 'experiments',
+    'xnat:imageScanData': 'scans',
+    'xnat:reconstructedImageData': 'reconstructions',
+    'xnat:imageAssessorData': 'assessors',
+    'xnat:abstractResource': 'resources',
+    'xnat:fileData': 'files',
+}
+
 # The following xsi_types have a listing of objects with own REST paths the
 # other are nested in the xml of their parent.
 OBJECT_LISTINGS = {
