@@ -168,8 +168,6 @@ class ClassRepresentation(object):
 
 
         header += "    _XSI_TYPE = '{}'\n\n".format(self.xsi_type)
-
-        print('[TEMP] SECOND {} / {} not in {}'.format(self.name, self.xsi_type, SECONDARY_LOOKUP_FIELDS))
         if self.xsi_type in SECONDARY_LOOKUP_FIELDS:
             print('[FOUND] {}'.format(self.xsi_type))
             header += self.init
