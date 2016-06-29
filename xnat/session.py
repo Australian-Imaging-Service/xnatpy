@@ -430,7 +430,7 @@ class XNATSession(object):
                 if self.xnat_session.debug:
                     print('[DEBUG] Type unknown, fetching data to get type')
                 data = self.xnat_session.get_json(uri)
-                type_ = data['items'][0]['meta']
+                type_ = data['items'][0]['meta']['xsi:type']
                 datafields = data['items'][0]['data_fields']
             else:
                 datafields = None
