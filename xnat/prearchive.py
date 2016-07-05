@@ -163,8 +163,8 @@ class PrearchiveSession(XNATObject):
         response = self.xnat_session.post('/data/services/archive', query=query)
         object_uri = response.text.strip()
 
+        self.clearcache()  # Make object unavailable
         return self.xnat_session.create_object(object_uri)
-
 
     def delete(self, async=None):
         query = {'src': self.uri}
@@ -178,7 +178,9 @@ class PrearchiveSession(XNATObject):
             else:
                 raise TypeError('async should be a boolean')
 
-        return self.xnat_session.post('/data/services/prearchive/delete', query=query)
+        response = self.xnat_session.post('/data/services/prearchive/delete', query=query)
+        self.clearcache()
+        return response
 
     def rebuild(self, async=None):
         query = {'src': self.uri}
@@ -192,7 +194,9 @@ class PrearchiveSession(XNATObject):
             else:
                 raise TypeError('async should be a boolean')
 
-        return self.xnat_session.post('/data/services/prearchive/rebuild', query=query)
+        response = self.xnat_session.post('/data/services/prearchive/rebuild', query=query)
+        self.clearcache()
+        return response
 
     def move(self, new_project, async=None):
         query = {'src': self.uri,
@@ -207,7 +211,9 @@ class PrearchiveSession(XNATObject):
             else:
                 raise TypeError('async should be a boolean')
 
-        return self.xnat_session.post('/data/services/prearchive/move', query=query)
+        response = self.xnat_session.post('/data/services/prearchive/move', query=query)
+        self.clearcache()
+        return response
 
 
 class PrearchiveScan(XNATObject):

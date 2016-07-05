@@ -248,8 +248,8 @@ class XNATSession(object):
         self._check_response(response, accepted_status=accepted_status, uri=uri)  # Allow OK, as we want to get data
         return response
 
-    def post(self, path, data=None, format=None, query=None, accepted_status=None):
-        accepted_status = accepted_status or [200]
+    def post(self, path, data=None, json=None, format=None, query=None, accepted_status=None):
+        accepted_status = accepted_status or [200, 201]
         uri = self._format_uri(path, format, query=query)
 
         if self.debug:
@@ -257,13 +257,13 @@ class XNATSession(object):
             print('[DEBUG] POST DATA {}'.format(data))
 
         try:
-            response = self._interface.post(uri, data=data)
+            response = self._interface.post(uri, data=data, json=json)
         except requests.exceptions.SSLError:
             raise exceptions.XNATSSLError('Encountered a problem with the SSL connection, are you sure the server is offering https?')
         self._check_response(response, accepted_status=accepted_status, uri=uri)
         return response
 
-    def put(self, path, data=None, files=None, format=None, query=None, accepted_status=None):
+    def put(self, path, data=None, files=None, json=None, format=None, query=None, accepted_status=None):
         accepted_status = accepted_status or [200, 201]
         uri = self._format_uri(path, format, query=query)
 
@@ -273,7 +273,7 @@ class XNATSession(object):
             print('[DEBUG] PUT FILES {}'.format(data))
 
         try:
-            response = self._interface.put(uri, data=data, files=files)
+            response = self._interface.put(uri, data=data, files=files, json=json)
         except requests.exceptions.SSLError:
             raise exceptions.XNATSSLError('Encountered a problem with the SSL connection, are you sure the server is offering https?')
         self._check_response(response, accepted_status=accepted_status, uri=uri)  # Allow created OK or Create status (OK if already exists)
