@@ -102,7 +102,6 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     requests_session = requests.Session()
 
     if user is not None:
-        print("Setting user and password to: '{}' / '{}'".format(user, password))
         requests_session.auth = (user, password)
 
     if not verify:
