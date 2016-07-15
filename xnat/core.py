@@ -124,9 +124,10 @@ class CustomVariableMap(VariableMap):
 class XNATObject(six.with_metaclass(ABCMeta, object)):
     SECONDARY_LOOKUP_FIELD = None
     _HAS_FIELDS = False
+    _CONTAINED_IN = None
     _XSI_TYPE = 'xnat:baseObject'
 
-    def __init__(self, uri=None, xnat_session=None, id_=None, datafields=None, parent=None, fieldname=None):
+    def __init__(self, uri=None, xnat_session=None, id_=None, datafields=None, parent=None, fieldname=None, **kwargs):
         if (uri is None or xnat_session is None) and parent is None:
             raise exceptions.XNATValueError('Either the uri and xnat session have to be given, or the parent object')
 
@@ -134,25 +135,48 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
         self._cache = {}
         self._caching = None
 
+        # This is the object creation branch
         if uri is None and parent is not None:
             # This is the creation of a new object in the XNAT server
             self._xnat_session = parent.xnat_session
             if isinstance(parent, XNATListing):
-                put_uri = parent.uri
+                pass
+            elif self._CONTAINED_IN is not None:
+                parent = getattr(parent, self._CONTAINED_IN)
             else:
-                listing_field = {'xsi:projectData': 'projects',
-                                 'xsi:subjectData': 'subjects',
-                                 }
-                put_uri = '{}/{}'.format(parent.uri, listing_field)
-            put_uri = parent.uri
-            self._uri = parent.uri + id_
+                print('[TEMP] parent {}, self._CONTAINED_IN: {}'.format(parent, self._CONTAINED_IN))
+                raise exceptions.XNATValueError('Cannot determine PUT url!')
+
+            if self.SECONDARY_LOOKUP_FIELD is not None:
+                if kwargs[self.SECONDARY_LOOKUP_FIELD] is not None:
+                    uri = '{}/{}'.format(parent.uri, kwargs[self.SECONDARY_LOOKUP_FIELD])
+                    print('[TEMP] PUT URI: {}'.format(uri))
+                    query = {
+                        'xsiType': self.xsi_type,
+                        self.SECONDARY_LOOKUP_FIELD: kwargs[self.SECONDARY_LOOKUP_FIELD],
+                        'req_format': 'qa',
+                    }
+                    print('[TEMP] query: {}'.format(query))
+                    response = self.xnat_session.put(uri, query=query)
+                else:
+                    raise exceptions.XNATValueError('The {} for a {} need to be specified on creation'.format(self.SECONDARY_LOOKUP_FIELD,
+                                                                                                              self.xsi_type))
+            else:
+                raise exceptions.XNATValueError('The secondary look up is None, creation currently not supported!')
+            print('[TEMP] RESPONE: ({}) {}'.format(response.status_code, response.text))
+
+            # Clear parent cache
+            parent.clearcache()
+
+            # Parent is no longer needed after creation
+            self._uri = uri
             self._parent = None
         else:
             # This is the creation of a Python proxy for an existing XNAT object
-            self._xnat_session = xnat_session
             self._uri = uri
             self._parent = parent
 
+        self._xnat_session = xnat_session
         self._fieldname = fieldname
 
         if self._HAS_FIELDS:
@@ -296,6 +320,7 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
             query['removeFiles'] = 'true'
 
         self.xnat_session.delete(self.fulluri, query=query)
+
         # Make sure there is no cache, this will cause 404 erros on subsequent use
         # of this object, indicating that is has been in fact removed
         self.clearcache()
@@ -365,7 +390,11 @@ class XNATListing(Mapping):
 
         query = dict(self.used_filters)
         query['columns'] = columns
-        result = self.xnat_session.get_json(self.uri, query=query)['ResultSet']['Result']
+        result = self.xnat_session.get_json(self.uri, query=query)
+        try:
+            result = result['ResultSet']['Result']
+        except KeyError:
+            raise exceptions.XNATValueError('Query GET from {} returned invalid data: {}'.format(self.uri, result))
 
         if not all('URI' in x for x in result):
             # HACK: This is a Resource, that misses the URI and ID field (let's fix that)
@@ -538,3 +567,6 @@ class XNATListing(Mapping):
     @property
     def xnat_session(self):
         return self._xnat_session
+
+    def clearcache(self):
+        self._cache.clear()

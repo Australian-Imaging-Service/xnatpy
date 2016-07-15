@@ -93,7 +93,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
                 netrc_file = os.path.expanduser(netrc_file)
             user, _, password = netrc.netrc(netrc_file).authenticators(parsed_server.netloc)
         except (TypeError, IOError):
-            print('[INFO] Could not found login, continuing without login')
+            print('[INFO] Could not find login for {}, continuing without login'.format(parsed_server.netloc))
 
     if user is not None and password is None:
         password = getpass.getpass(prompt="Please enter the password for user '{}':".format(user))
@@ -102,6 +102,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     requests_session = requests.Session()
 
     if user is not None:
+        print("Setting user and password to: '{}' / '{}'".format(user, password))
         requests_session.auth = (user, password)
 
     if not verify:
@@ -118,19 +119,21 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     # Parse extension types
     if extension_types:
         projects_uri = '{}/data/projects?format=json'.format(server.rstrip('/'))
-        response = requests.get(projects_uri)
+        response = requests_session.get(projects_uri)
         if response.status_code != 200:
-            raise ValueError('Could not requests projects from {}'.format(projects_uri))
+            raise ValueError('Could not get project list from {} (status {})'.format(projects_uri,
+                                                                                     response.status_code))
         try:
             project_id = response.json()['ResultSet']['Result'][0]['ID']
         except (KeyError, IndexError):
-            raise ValueError('Could not get an example for scanning extenion types!')
+            raise ValueError('Could not find an example project for scanning extension types!')
 
         project_uri = '{}/data/projects/{}?format=xml'.format(server.rstrip('/'), project_id)
-        response = requests.get(project_uri)
+        response = requests_session.get(project_uri)
 
         if response.status_code != 200:
-            raise ValueError('Could not request example project from {}'.format(project_uri))
+            raise ValueError('Could not get example project from {} (status {})'.format(project_uri,
+                                                                                        response.status_code))
 
         schemas = parser.find_schema_uris(response.text)
         if schema_uri in schemas:

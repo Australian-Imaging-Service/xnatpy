@@ -217,6 +217,16 @@ class ImageScanData(XNATObject):
     def download(self, path):
         self.xnat_session.download_zip(self.uri + '/files', path)
 
+    def download_dir(self, target_dir, verbose=True):
+        with tempfile.TemporaryFile() as temp_path:
+            self.xnat_session.download_stream(self.uri + '/files', temp_path, format='zip', verbose=verbose)
+
+            with ZipFile(temp_path) as zip_file:
+                zip_file.extractall(target_dir)
+
+        if verbose:
+            print('Downloaded image scan data to {}'.format(target_dir))
+
 
 class AbstractResource(XNATObject):
     SECONDARY_LOOKUP_FIELD = 'label'
@@ -248,6 +258,16 @@ class AbstractResource(XNATObject):
 
     def download(self, path):
         self.xnat_session.download_zip(self.uri + '/files', path)
+
+    def download_dir(self, target_dir, verbose=True):
+        with tempfile.TemporaryFile() as temp_path:
+            self.xnat_session.download_stream(self.uri + '/files', temp_path, format='zip', verbose=verbose)
+
+            with ZipFile(temp_path) as zip_file:
+                zip_file.extractall(target_dir)
+
+        if verbose:
+            print('Downloaded resource data to {}'.format(target_dir))
 
     def upload(self, data, remotepath):
         uri = '{}/files/{}'.format(self.uri, remotepath)

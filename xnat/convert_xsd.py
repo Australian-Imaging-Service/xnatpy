@@ -24,6 +24,7 @@ from xml.etree import ElementTree
 
 from . import core
 from . import xnatbases
+from .constants import SECONDARY_LOOKUP_FIELDS, FIELD_HINTS
 
 
 # TODO: Add more fields to FileData from [Name, Size, URI, cat_ID, collection, file_content, file_format, tile_tags]?
@@ -85,7 +86,7 @@ class XNATSubObjectMixin(XNATSubObject):
 
 
 class FileData(XNATObjectMixin):
-    SECONDARY_LOOKUP_FIELD = 'name'
+    SECONDARY_LOOKUP_FIELD = "{file_secondary_lookup}"
     _XSI_TYPE = 'xnat:fileData'
 
     def __init__(self, uri, xnat_session, id_=None, datafields=None, name=None, parent=None, fieldname=None):
@@ -117,7 +118,7 @@ XNAT_CLASS_LOOKUP = {{
 
 # The following code represents the data structure of the XNAT server
 # It is automatically generated using
-{}
+{schemas}
 
 
 '''
@@ -130,13 +131,6 @@ class ClassRepresentation(object):
             }
 
     # Fields for lookup besides the id
-    SECONDARY_LOOKUP_FIELDS = {
-            "projectData": "name",
-            "subjectData": "label",
-            "experimentData": "label",
-            "imageScanData": "type",
-            "abstractResource": "label"
-            }
 
     def __init__(self, parser, name, xsi_type, base_class='XNATObjectMixin', parent=None, field_name=None):
         self.parser = parser
@@ -156,10 +150,12 @@ class ClassRepresentation(object):
         if base is not None:
             base_source = inspect.getsource(base)
             base_source = re.sub(r'class {}\(XNATObject\):'.format(self.python_name), 'class {}({}):'.format(self.python_name, self.python_baseclass), base_source)
-            header = base_source.strip() + '\n\n'
+            header = base_source.strip() + '\n\n    # END HEADER\n'
         else:
             header = '# No base template found for {}\n'.format(self.python_name)
             header += "class {name}({base}):\n".format(name=self.python_name, base=self.python_baseclass)
+
+        header += "    # Abstract: {}\n".format(self.abstract)
 
         if 'fields' in self.properties:
             header += "    _HAS_FIELDS = True\n"
@@ -167,11 +163,13 @@ class ClassRepresentation(object):
         if self.parent is not None:
             header += "    _PARENT_CLASS = {}\n".format(self.python_parentclass)
             header += "    _FIELD_NAME = '{}'\n".format(self.field_name)
+        elif self.xsi_type in FIELD_HINTS:
+            header += "    _CONTAINED_IN = '{}'\n".format(FIELD_HINTS[self.xsi_type])
 
-        header += "    # Abstract: {}\n".format(self.abstract)
+
         header += "    _XSI_TYPE = '{}'\n\n".format(self.xsi_type)
-
-        if self.name in self.SECONDARY_LOOKUP_FIELDS:
+        if self.xsi_type in SECONDARY_LOOKUP_FIELDS:
+            print('[FOUND] {}'.format(self.xsi_type))
             header += self.init
 
         properties = [self.properties[k] for k in sorted(self.properties.keys())]
@@ -217,17 +215,20 @@ class ClassRepresentation(object):
             return self.SUBSTITUTIONS[prop.name]
         else:
             data = str(prop)
-            if prop.name == self.SECONDARY_LOOKUP_FIELDS.get(self.name, '!None'):
+            if prop.name == SECONDARY_LOOKUP_FIELDS.get(self.name, '!None'):
                 head, tail = data.split('\n', 1)
                 data = '{}\n    @caching\n{}'.format(head, tail)
             return data
 
     @property
     def init(self):
-        if self.name in self.SECONDARY_LOOKUP_FIELDS:
-            return "    def __init__(self, uri, xnat, id_=None, datafields=None, {lookup}=None, **kwargs):\n        super({name}, self).__init__(uri, xnat, id_=id_, datafields=datafields, **kwargs)\n        if {lookup} is not None:\n            self._cache['{lookup}'] = {lookup}\n\n".format(name=self.python_name, lookup=self.SECONDARY_LOOKUP_FIELDS[self.name])
-        else:
-            return ""
+        return \
+"""    def __init__(self, uri=None, xnat_session=None, id_=None, datafields=None, parent=None, {lookup}=None, **kwargs):
+        super({name}, self).__init__(uri=uri, xnat_session=xnat_session, id_=id_, datafields=datafields, parent=parent, {lookup}={lookup}, **kwargs)
+        if {lookup} is not None:
+            self._cache['{lookup}'] = {lookup}
+
+""".format(name=self.python_name, lookup=SECONDARY_LOOKUP_FIELDS[self.xsi_type])
 
 
 class PropertyRepresentation(object):
@@ -652,5 +653,6 @@ class SchemaParser(object):
 
     def write(self, code_file):
         schemas = '\n'.join('# - {}'.format(s) for s in self.schemas)
-        code_file.write(FILE_HEADER.format(schemas))
+        code_file.write(FILE_HEADER.format(schemas=schemas,
+                                           file_secondary_lookup=SECONDARY_LOOKUP_FIELDS['xnat:fileData']))
         code_file.write('\n\n\n'.join(str(c).strip() for c in self if not c.baseclass.startswith('xs:') and c.name is not None))

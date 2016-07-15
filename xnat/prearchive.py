@@ -122,7 +122,7 @@ class PrearchiveSession(XNATObject):
         self.xnat_session.download_zip(self.uri, path)
         return path
 
-    def archive(self, overwrite=None, quarantine=None, trigger_pipelines=None, destination=None):
+    def archive(self, overwrite=None, quarantine=None, trigger_pipelines=None, project=None, subject=None, experiment=None):
         query = {'src': self.uri}
 
         if overwrite is not None:
@@ -148,10 +148,23 @@ class PrearchiveSession(XNATObject):
             else:
                 raise TypeError('trigger_pipelines should be a boolean')
 
-        if destination is not None:
-            query['dest'] = destination
+        # Change the destination of the session
+        # BEWARE the dest argument is completely ignored, but there is a work around:
+        # HACK: See https://groups.google.com/forum/#!searchin/xnat_discussion/prearchive$20archive$20service/xnat_discussion/hwx3NOdfzCk/rQ6r2lRpZjwJ
+        if project is not None:
+            query['project'] = project
 
-        return self.xnat_session.post('/data/services/archive', query=query)
+        if subject is not None:
+            query['subject'] = subject
+
+        if experiment is not None:
+            query['session'] = experiment
+
+        response = self.xnat_session.post('/data/services/archive', query=query)
+        object_uri = response.text.strip()
+
+        self.clearcache()  # Make object unavailable
+        return self.xnat_session.create_object(object_uri)
 
     def delete(self, async=None):
         query = {'src': self.uri}
@@ -165,7 +178,9 @@ class PrearchiveSession(XNATObject):
             else:
                 raise TypeError('async should be a boolean')
 
-        return self.xnat_session.post('/data/services/prearchive/delete', query=query)
+        response = self.xnat_session.post('/data/services/prearchive/delete', query=query)
+        self.clearcache()
+        return response
 
     def rebuild(self, async=None):
         query = {'src': self.uri}
@@ -179,7 +194,9 @@ class PrearchiveSession(XNATObject):
             else:
                 raise TypeError('async should be a boolean')
 
-        return self.xnat_session.post('/data/services/prearchive/rebuild', query=query)
+        response = self.xnat_session.post('/data/services/prearchive/rebuild', query=query)
+        self.clearcache()
+        return response
 
     def move(self, new_project, async=None):
         query = {'src': self.uri,
@@ -194,7 +211,9 @@ class PrearchiveSession(XNATObject):
             else:
                 raise TypeError('async should be a boolean')
 
-        return self.xnat_session.post('/data/services/prearchive/move', query=query)
+        response = self.xnat_session.post('/data/services/prearchive/move', query=query)
+        self.clearcache()
+        return response
 
 
 class PrearchiveScan(XNATObject):
