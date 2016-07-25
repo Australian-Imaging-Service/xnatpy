@@ -328,6 +328,8 @@ class XNATSession(object):
 
     def download_stream(self, uri, target_stream, format=None, verbose=True, chunk_size=524288):
         uri = self._format_uri(uri, format=format)
+        if self.debug:
+            print('[DEBUG] DOWNLOAD URI {}'.format(uri))
 
         # Stream the get and write to file
         response = self.interface.get(uri, stream=True)
@@ -362,6 +364,8 @@ class XNATSession(object):
 
     def upload(self, uri, file_, retries=1, query=None, content_type=None, method='put'):
         uri = self._format_uri(uri, query=query)
+        if self.debug:
+            print('[DEBUG] UPLOAD URI {}'.format(uri))
         attempt = 0
         file_handle = None
         opened_file = False
