@@ -29,7 +29,6 @@ class PrearchiveSession(XNATObject):
         return '{}/{}/{}'.format(self.data['project'], self.data['timestamp'], self.data['name'])
 
     @property
-    @caching
     def fulldata(self):
         return self.xnat_session.get_json(self.uri)['ResultSet']['Result'][0]
 
