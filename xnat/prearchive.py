@@ -108,7 +108,6 @@ class PrearchiveSession(XNATObject):
             return None
 
     @property
-    @caching
     def scans(self):
         data = self.xnat_session.get_json(self.uri + '/scans')
         # We need to prepend /data to our url (seems to be a bug?)
