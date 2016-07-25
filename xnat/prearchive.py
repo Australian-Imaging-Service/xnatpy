@@ -19,7 +19,7 @@ import datetime
 
 import isodate
 
-from .core import XNATObject, caching
+from .core import XNATObject
 from .datatypes import to_date, to_time
 
 
