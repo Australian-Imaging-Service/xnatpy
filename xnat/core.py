@@ -24,6 +24,7 @@ import textwrap
 from . import exceptions
 from .datatypes import convert_from, convert_to
 from .constants import TYPE_HINTS
+from .utils import mixedproperty
 import six
 
 
@@ -250,7 +251,7 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
             self.xnat_session.put(self.parent.fulluri, query=query)
             self.parent.clearcache()
 
-    @property
+    @mixedproperty
     def xsi_type(self):
         return self._XSI_TYPE
 

@@ -28,7 +28,7 @@ class SearchField(object):
     def identifier(self):
         # For the search criteria (where this is used) any xsitype/field
         # can be used (no need for display fields)
-        return '{}/{}'.format(self.search_class._XSI_TYPE, self.field_name)
+        return '{}/{}'.format(self.search_class.xsi_type, self.field_name)
 
     def __eq__(self, other):
         return Constraint(self.identifier, '=', other)
@@ -88,7 +88,7 @@ class Query(object):
         header = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "header"))
         header.text = 'url'
 
-        # Add criterea
+        # Add criteria
         search_where = ElementTree.SubElement(bundle, ElementTree.QName(xdat_ns, "search_where"))
         search_where.set("method", "AND")
         if self.constraints is not None:
@@ -155,5 +155,3 @@ class Constraint(BaseConstraint):
         value.text = str(self.right_hand)
 
         return elem
-
-
