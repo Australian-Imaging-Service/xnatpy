@@ -20,27 +20,28 @@ the https://central.xnat.org/schema/xnat/xnat.xsd schema and the xnatcore and
 xnatbase modules, using the convert_xsd.
 """
 
+from __future__ import absolute_import
+from __future__ import unicode_literals
 import getpass
 import hashlib
 import imp
 import os
 import netrc
 import tempfile
-from xml.etree import ElementTree
-import urlparse
+import time
 
 import requests
+from six.moves.urllib import parse
 
-from xnatcore import XNAT
-from convert_xsd import SchemaParser
+from .session import XNATSession
+from .convert_xsd import SchemaParser
 
-FILENAME = __file__
 GEN_MODULES = {}
 
 __all__ = ['connect']
 
 
-def connect(server, user=None, password=None, verify=True, netrc_file=None, debug=False):
+def connect(server, user=None, password=None, verify=True, netrc_file=None, debug=False, extension_types=True):
     """
     Connect to a server and generate the correct classed based on the servers xnat.xsd
     This function returns an object that can be used as a context operator. It will call
@@ -59,6 +60,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
                            a file following the netrc syntax)
     :param debug bool: Set debug information printing on
     :return: XNAT session object
+    :rtype: XNATSession
 
     Preferred use::
 
@@ -81,7 +83,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     schema_uri = '{}/schemas/xnat/xnat.xsd'.format(server.rstrip('/'))
 
     # Get the login info
-    parsed_server = urlparse.urlparse(server)
+    parsed_server = parse.urlparse(server)
 
     if user is None and password is None:
         print('[INFO] Retrieving login info for {}'.format(parsed_server.netloc))
@@ -91,7 +93,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
                 netrc_file = os.path.expanduser(netrc_file)
             user, _, password = netrc.netrc(netrc_file).authenticators(parsed_server.netloc)
         except (TypeError, IOError):
-            print('[INFO] Could not found login, continuing without login')
+            print('[INFO] Could not find login for {}, continuing without login'.format(parsed_server.netloc))
 
     if user is not None and password is None:
         password = getpass.getpass(prompt="Please enter the password for user '{}':".format(user))
@@ -105,65 +107,79 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     if not verify:
         requests_session.verify = False
 
-    # Generate module if it is not cached
-    if schema_uri not in GEN_MODULES:
-        print('[INFO] Retrieving schema from {}'.format(schema_uri))
+    # Generate module
+    parser = SchemaParser(debug=debug)
+    success = parser.parse_schema_uri(requests_session=requests_session,
+                                      schema_uri=schema_uri)
 
-        if debug:
-            print('[DEBUG] GET SCHEMA {}'.format(schema_uri))
-        resp = requests_session.get(schema_uri, headers={'Accept-Encoding': None})
+    if not success:
+        raise RuntimeError('Could not parse the xnat.xsd! Cannot build data model!')
 
+    # Parse extension types
+    if extension_types:
+        projects_uri = '{}/data/projects?format=json'.format(server.rstrip('/'))
+        response = requests_session.get(projects_uri)
+        if response.status_code != 200:
+            raise ValueError('Could not get project list from {} (status {})'.format(projects_uri,
+                                                                                     response.status_code))
         try:
-            root = ElementTree.fromstring(resp.text)
-        except ElementTree.ParseError as exception:
-            if len(resp.text) > 2000:
-                excerpt = resp.text[:1000] + '\n ... [CUT] ... \n' + resp.text[-1000:]
-            else:
-                excerpt = resp.text
-            raise ValueError('Could not parse xnat.xsd, server response was ({}):\n"{}"\nOriginal exception: {}'.format(resp.status_code, excerpt, exception))
+            project_id = response.json()['ResultSet']['Result'][0]['ID']
+        except (KeyError, IndexError):
+            raise ValueError('Could not find an example project for scanning extension types!')
 
-        # Parse xml schema
-        parser = SchemaParser()
-        parser.parse(root)
+        project_uri = '{}/data/projects/{}?format=xml'.format(server.rstrip('/'), project_id)
+        response = requests_session.get(project_uri)
 
-        # Write code to temp file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='_generated_xnat.py', delete=False) as code_file:
+        if response.status_code != 200:
+            raise ValueError('Could not get example project from {} (status {})'.format(project_uri,
+                                                                                        response.status_code))
 
-            header = os.path.join(os.path.dirname(FILENAME), 'xnatcore.py')
-            with open(header) as fin:
-                for line in fin:
-                    code_file.write(line)
+        schemas = parser.find_schema_uris(response.text)
+        if schema_uri in schemas:
+            if debug:
+                print('[DEBUG] Removing schema {} from list'.format(schema_uri))
+            schemas.remove(schema_uri)
+        print('[INFO] Found schemas: {}'.format(schemas))
 
-            code_file.write('# The following code represents the data struction of {}\n# It is automatically generated using {} as input\n'.format(server, schema_uri))
-            code_file.write('\n\n\n'.join(str(c).strip() for c in parser if not c.baseclass.startswith('xs:') and c.name is not None))
+        for schema in schemas:
+            parser.parse_schema_uri(requests_session=requests_session,
+                                    schema_uri=schema)
 
-        if debug:
-            print('[DEBUG] Code file written to: {}'.format(code_file.name))
+    # Write code to temp file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='_generated_xnat.py', delete=False) as code_file:
+        parser.write(code_file=code_file)
 
-        # Import temp file as a module
-        hasher = hashlib.md5()
-        hasher.update(schema_uri)
-        xnat_module = imp.load_source('xnat_gen_{}'.format(hasher.hexdigest()),
-                                      code_file.name)
-        xnat_module._SOURCE_CODE_FILE = code_file.name
+    if debug:
+        print('[DEBUG] Code file written to: {}'.format(code_file.name))
 
-        if debug:
-            print('[DEBUG] Loaded generated module')
+    # Import temp file as a module
+    hasher = hashlib.md5()
+    hasher.update(schema_uri.encode('utf-8'))
+    hasher.update(str(time.time()).encode('utf-8'))
 
-        # Register all types parsed
-        for cls in parser:
-            if not (cls.name is None or cls.baseclass.startswith('xs:')):
-                xnat_module.XNAT.XNAT_CLASS_LOOKUP['xnat:{}'.format(cls.name)] = getattr(xnat_module, cls.python_name)
+    # The module is loaded in its private namespace based on the code_file name
+    xnat_module = imp.load_source('xnat_gen_{}'.format(hasher.hexdigest()),
+                                  code_file.name)
+    xnat_module._SOURCE_CODE_FILE = code_file.name
 
-        # Cache the module for re-use
-        GEN_MODULES[schema_uri] = xnat_module
-    else:
-        print('[INFO] Using cache module for {}'.format(schema_uri))
-        xnat_module = GEN_MODULES[schema_uri]
+    if debug:
+        print('[DEBUG] Loaded generated module')
 
-    # Create the XNAT connection and return it
-    session = xnat_module.XNAT(server=server, interface=requests_session, debug=debug)
+    # Register all types parsed
+    for cls in parser:
+        if not (cls.name is None or cls.baseclass.startswith('xs:')):
+            xnat_module.XNAT_CLASS_LOOKUP[cls.xsi_type] = getattr(xnat_module, cls.python_name)
+
+    # Create the XNAT connection
+    session = XNATSession(server=server, interface=requests_session, debug=debug)
+
+    # FIXME: is this a good idea, it makes things simple, but I suppose we
+    # FIXME: can no longer re-use the modules between sessions?
+    xnat_module.SESSION = session
+
+    # Add the required information from the module into the session object
+    session.XNAT_CLASS_LOOKUP.update(xnat_module.XNAT_CLASS_LOOKUP)
     session.classes = xnat_module
     session._source_code_file = xnat_module._SOURCE_CODE_FILE
-    return session
 
+    return session

@@ -1,32 +1,34 @@
+from __future__ import absolute_import
+from __future__ import unicode_literals
 from abc import ABCMeta, abstractmethod
 from xml.etree import ElementTree
+import six
 
 xdat_ns = "http://nrg.wustl.edu/security"
 ElementTree.register_namespace("xdat", xdat_ns)
 
 
-class ORMMeta(ABCMeta):
-    def __init__(cls, name, bases, dct):
-        for key, value in dct.items():
-            if isinstance(value, ORMproperty):
-                dct[key]._prop_class = cls
-                dct[key]._prop_name = key
-        super(ORMMeta, cls).__init__(name, bases, dct)
+def and_(*args):
+    return CompoundConstraint(tuple(args), 'AND')
 
 
-class ORMproperty(property):
-    _prop_name = 'unknown'
-    _prop_class = None
+def or_(*args):
+    return CompoundConstraint(tuple(args), 'OR')
 
-    def __init__(self, fget, fset=None, fdel=None, doc=None):
-        if doc is None:
-            doc = fget.__doc__
 
-        super(ORMproperty, self).__init__(fget=fget, fset=fset, fdel=fdel, doc=doc)
+class SearchField(object):
+    def __init__(self, search_class, field_name):
+        self.search_class = search_class
+        self.field_name = field_name
+
+    def __repr__(self):
+        return '<SearchField {}>'.format(self.identifier)
 
     @property
     def identifier(self):
-        return '{}/{}'.format(self._prop_class._XSI_TYPE, self._prop_name)
+        # For the search criteria (where this is used) any xsitype/field
+        # can be used (no need for display fields)
+        return '{}/{}'.format(self.search_class.xsi_type, self.field_name)
 
     def __eq__(self, other):
         return Constraint(self.identifier, '=', other)
@@ -47,18 +49,10 @@ class ORMproperty(property):
         return Constraint(self.identifier, ' LIKE ', other)
 
 
-def and_(*args):
-    return CompoundConstraint(tuple(args), 'AND')
-
-
-def or_(*args):
-    return CompoundConstraint(tuple(args), 'OR')
-
-
 class Query(object):
-    def __init__(self, xsi_type, xnat, constraints=None):
+    def __init__(self, xsi_type, xnat_session, constraints=None):
         self.xsi_type = xsi_type
-        self.xnat = xnat
+        self.xnat_session = xnat_session
         self.constraints = constraints
 
     def filter(self, *constraints):
@@ -72,7 +66,7 @@ class Query(object):
         if self.constraints is not None:
             constraints = CompoundConstraint((self.constraints, constraints), 'AND')
 
-        return Query(self.xsi_type, self.xnat, constraints)
+        return Query(self.xsi_type, self.xnat_session, constraints)
 
     def to_xml(self):
         # Create main elements
@@ -85,7 +79,8 @@ class Query(object):
         element_name = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "element_name"))
         element_name.text = self.xsi_type
         field_id = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "field_ID"))
-        field_id.text = 'URL'
+        # TODO: This has to come from the querying class somehow
+        field_id.text = 'SESSION_ID'
         sequence = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "sequence"))
         sequence.text = '0'
         type_ = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "type"))
@@ -93,7 +88,7 @@ class Query(object):
         header = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "header"))
         header.text = 'url'
 
-        # Add criterea
+        # Add criteria
         search_where = ElementTree.SubElement(bundle, ElementTree.QName(xdat_ns, "search_where"))
         search_where.set("method", "AND")
         if self.constraints is not None:
@@ -105,13 +100,11 @@ class Query(object):
         return ElementTree.tostring(self.to_xml())
 
     def all(self):
-        result = self.xnat.post('/data/search', format='csv', data=self.to_string())
+        result = self.xnat_session.post('/data/search', format='csv', data=self.to_string())
         return result
 
 
-class BaseConstraint(object):
-    __metaclass__ = ABCMeta
-
+class BaseConstraint(six.with_metaclass(ABCMeta, object)):
     @abstractmethod
     def to_xml(self):
         pass
@@ -140,13 +133,13 @@ class CompoundConstraint(BaseConstraint):
 
 
 class Constraint(BaseConstraint):
-    def __init__(self, indentifier, operator, right_hand):
-        self.indentifier = indentifier
+    def __init__(self, identifier, operator, right_hand):
+        self.identifier = identifier
         self.operator = operator
         self.right_hand = right_hand
 
     def __repr__(self):
-        return '<Constrain {} {}({})>'.format(self.indentifier,
+        return '<Constrain {} {}({})>'.format(self.identifier,
                                               self.operator,
                                               self.right_hand)
 
@@ -157,10 +150,8 @@ class Constraint(BaseConstraint):
         value = ElementTree.SubElement(elem, ElementTree.QName(xdat_ns, "value"))
 
         elem.set("override_value_formatting", "0")
-        schema_loc.text = self.indentifier
+        schema_loc.text = self.identifier
         operator.text = self.operator
         value.text = str(self.right_hand)
 
         return elem
-
-
