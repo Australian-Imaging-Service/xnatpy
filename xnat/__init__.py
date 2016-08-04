@@ -139,7 +139,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
             if debug:
                 print('[DEBUG] Removing schema {} from list'.format(schema_uri))
             schemas.remove(schema_uri)
-        print('[INFO] Found schemas: {}'.format(schemas))
+        print('[INFO] Found additional schemas: {}'.format(schemas))
 
         for schema in schemas:
             parser.parse_schema_uri(requests_session=requests_session,

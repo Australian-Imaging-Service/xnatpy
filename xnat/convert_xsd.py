@@ -169,7 +169,6 @@ class ClassRepresentation(object):
 
         header += "    _XSI_TYPE = '{}'\n\n".format(self.xsi_type)
         if self.xsi_type in SECONDARY_LOOKUP_FIELDS:
-            print('[FOUND] {}'.format(self.xsi_type))
             header += self.init
 
         properties = [self.properties[k] for k in sorted(self.properties.keys())]
@@ -541,7 +540,8 @@ class SchemaParser(object):
 
         if element.get('maxOccurs') == 'unbounded':
             if self.current_property is None:
-                print('[WARNING] Listing without parent property: {} ({})'.format(name, type_))
+                if self.debug:
+                    print('[DEBUG] Listing without parent property: {} ({})'.format(name, type_))
             else:
                 self.current_property.is_listing = True
                 self.parse_children(element)
