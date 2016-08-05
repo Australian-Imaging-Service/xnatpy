@@ -21,7 +21,7 @@ import sys
 from setuptools import setup
 
 # Get information about the version (polling mercurial if possible)
-version = '0.1.4'
+version = '0.2.0'
 dirstate = './.hg/dirstate'
 
 if __name__ == '__main__':
@@ -62,7 +62,7 @@ if __name__ == '__main__':
         version=version,
         author='H.C. Achterberg',
         author_email='hakim.achterberg@gmail.com',
-        packages=['xnat'],
+        packages=[str('xnat')],
         url='https://bitbucket.org/bigr_erasmusmc/xnatpy',
         license='Apache 2.0',
         description='An XNAT client that exposes the XNAT REST interface as python objects. Part of the interface is automatically generated based on the servers data model as defined by the xnat schema.',
@@ -76,6 +76,8 @@ if __name__ == '__main__':
             "License :: OSI Approved :: Apache Software License",
             "Natural Language :: English",
             "Programming Language :: Python :: 2.7",
+            "Programming Language :: Python :: 3.4",
+            "Programming Language :: Python :: 3.5",
             "Topic :: Scientific/Engineering :: Bio-Informatics",
             "Topic :: Scientific/Engineering :: Medical Science Apps.",
             ]
