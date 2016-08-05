@@ -324,7 +324,7 @@ class XNATSession(object):
         try:
             return response.json()
         except ValueError:
-            raise ValueError('Could not decode JSON from {}'.format(response.text))
+            raise ValueError('Could not decode JSON from [{}] {}'.format(uri, response.text))
 
     def download_stream(self, uri, target_stream, format=None, verbose=True, chunk_size=524288):
         uri = self._format_uri(uri, format=format)
