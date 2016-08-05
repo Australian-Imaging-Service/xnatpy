@@ -284,8 +284,18 @@ class File(XNATObject):
                                    datafields=datafields,
                                    parent=parent,
                                    fieldname=fieldname)
+
+        # Store in object
+        self._id = id_
+        self._name = name
+
         if name is not None:
             self._cache['name'] = name
+
+    @property
+    def fulldata(self):
+        # Make sure not to try to GET, it will download the entire file!
+        return {'data_fields': {'ID': self._id, 'name': self._name}}
 
     @property
     @caching
