@@ -54,10 +54,9 @@ class Services(object):
 
         uri = '/data/services/import'
         response = self.xnat_session.upload(uri=uri, file_=path, query=query, content_type=content_type, method='post')
-        return response
 
-        # TODO: figure out why the returned url is not valid!
-        #if response.status_code != 200:
-        #    raise XNATResponseError('The response for uploading was ({}) {}'.format(response.status_code, response.text))
+        if response.status_code != 200:
+            raise XNATResponseError('The response for uploading was ({}) {}'.format(response.status_code, response.text))
 
-        #return self.xnat.create_object(response.text)
+        # Create object, the return text should be the url, but it will have a \r\n at the end that needs to be stripped
+        return self.xnat_session.create_object(response.text.strip())
