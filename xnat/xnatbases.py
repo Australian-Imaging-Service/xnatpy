@@ -113,6 +113,12 @@ class ExperimentData(XNATObject):
     SECONDARY_LOOKUP_FIELD = 'label'
 
 
+class SubjectAssessorData(XNATObject):
+    @property
+    def subject(self):
+        return self.xnat_session.subjects[self.subject_id]
+
+
 class ImageSessionData(XNATObject):
     @property
     def fulluri(self):
