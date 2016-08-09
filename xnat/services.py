@@ -26,7 +26,7 @@ class Services(object):
     def xnat_session(self):
         return self._xnat_session
 
-    def import_(self, path, overwrite=None, quarantine=False, destination=None, project=None, content_type=None):
+    def import_(self, path, overwrite=None, quarantine=False, destination=None, project=None, subject=None, experiment=None, content_type=None):
         query = {}
         if overwrite is not None:
             if overwrite not in ['none', 'append', 'delete']:
@@ -41,6 +41,12 @@ class Services(object):
 
         if project is not None:
             query['project'] = project
+
+        if subject is not None:
+            query['subject'] = subject
+
+        if experiment is not None:
+            query['session'] = experiment
 
         # Get mimetype of file
         if content_type is None:
