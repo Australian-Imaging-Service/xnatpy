@@ -26,10 +26,7 @@ def get_files(connection, project, subject, session, scan):
     xnat_subject = xnat_project.subjects[subject]
     xnat_experiment = xnat_subject.experiments[session]
     xnat_scan = xnat_experiment.scans[scan]
-    files = []
-    for file in xnat_scan.files:
-            xnat_file = xnat_scan.files[file]
-            files.append(xnat_file)
+    files = xnat_scan.files.values()
     return files
 
 
