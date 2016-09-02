@@ -109,6 +109,9 @@ class FileData(XNATObjectMixin):
     def download(self, path):
         self.xnat_session.download(self.uri, path)
 
+    def download_stream(self, target_stream):
+        self.xnat_session.download_stream(self.uri, target_stream)
+
 
 # Empty class lookup to place all new lookup values
 XNAT_CLASS_LOOKUP = {{
