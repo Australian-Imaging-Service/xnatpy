@@ -113,7 +113,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
                                       schema_uri=schema_uri)
 
     if not success:
-        raise RuntimeError('Could not parse the xnat.xsd! Cannot build data model!')
+        raise RuntimeError('Could not parse the xnat.xsd! See error log for details!')
 
     # Parse extension types
     if extension_types:

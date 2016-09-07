@@ -362,11 +362,22 @@ class SchemaParser(object):
         if self.debug:
             print('[DEBUG] GET SCHEMA {}'.format(schema_uri))
         resp = requests_session.get(schema_uri, headers={'Accept-Encoding': None})
+        data = resp.text
 
         try:
-            root = ElementTree.fromstring(resp.text)
+            root = ElementTree.fromstring(data)
         except ElementTree.ParseError as exception:
-            print('[ERROR] Could not parse schema from {}'.format(schema_uri))
+            if 'action="/j_spring_security_check"' in data:
+                print('[ERROR] You do not have access to this XNAT server, please check your credentials!')
+            elif 'java.lang.IllegalStateException' in data:
+                print('[ERROR] The server returned an error. You probably do not'
+                      ' have access to this XNAT server, please check your credentials!')
+            else:
+                print('[ERROR] Could not parse schema from {}, not valid XML found'.format(schema_uri))
+
+                if self.debug:
+                    print('[DEBUG] XML schema request returned the following response: [{}] {}'.format(resp.status_code,
+                                                                                                       data))
             return False
 
         # Register schema as being loaded
