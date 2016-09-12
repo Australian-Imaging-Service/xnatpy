@@ -138,7 +138,7 @@ class ClassRepresentation(object):
     def __init__(self, parser, name, xsi_type, base_class='XNATObjectMixin', parent=None, field_name=None):
         self.parser = parser
         self.name = name
-        self.xsi_type = xsi_type
+        self._xsi_type = xsi_type
         self.baseclass = base_class
         self.properties = {}
         self.parent = parent
@@ -169,7 +169,6 @@ class ClassRepresentation(object):
         elif self.xsi_type in FIELD_HINTS:
             header += "    _CONTAINED_IN = '{}'\n".format(FIELD_HINTS[self.xsi_type])
 
-
         header += "    _XSI_TYPE = '{}'\n\n".format(self.xsi_type)
         if self.xsi_type in SECONDARY_LOOKUP_FIELDS:
             header += self.init
@@ -178,6 +177,11 @@ class ClassRepresentation(object):
 
         properties = '\n\n'.join(self.print_property(p) for p in properties if not self.hasattr(p.clean_name))
         return '{}{}'.format(header, properties)
+
+    @property
+    def xsi_type(self):
+        xsi_type_name, xsi_type_extension = self._xsi_type
+        return self.parser.xsi_mapping.get(xsi_type_name, 'xnat:' + self.name) + xsi_type_extension
 
     def hasattr(self, name):
         base = self.get_base_template()
@@ -355,6 +359,7 @@ class SchemaParser(object):
         self.property_prefixes = []
         self.debug = debug
         self.schemas = []
+        self.xsi_mapping = {}
 
     def parse_schema_uri(self, requests_session, schema_uri):
         print('[INFO] Retrieving schema from {}'.format(schema_uri))
@@ -464,12 +469,19 @@ class SchemaParser(object):
                 raise ValueError('File should contain a schema as root element!')
 
             for child in element.getchildren():
-                if child.tag != '{http://www.w3.org/2001/XMLSchema}complexType':
+                if child.tag == '{http://www.w3.org/2001/XMLSchema}complexType':
+                    self.parse(child)
+                elif child.tag == '{http://www.w3.org/2001/XMLSchema}element':
+                    name = child.get('name')
+                    type_ = child.get('type')
+
+                    if self.debug:
+                        print('[DEBUG] Adding {} -> {} to XSI map'.format(name, type_))
+                    self.xsi_mapping[name] = type_
+                else:
                     if self.debug:
                         print('[DEBUG] skipping non-class top-level tag {}'.format(child.tag))
-                    continue
 
-                self.parse(child)
         else:
             if element.tag in self.PARSERS:
                 self.PARSERS[element.tag](self, element)
@@ -511,14 +523,15 @@ class SchemaParser(object):
 
     def parse_complex_type(self, element):
         name = element.get('name')
-        xsi_type = 'xnat:{}'.format(name)
+        xsi_type = name, ''
         base_class = 'XNATObjectMixin'
         parent = None
         field_name = None
 
         if name is None:
             name = self.current_class.name + self.current_property.name.capitalize()
-            xsi_type = '{}/{}'.format(self.current_class.xsi_type, self.current_property.name)
+            xsi_type = self.current_class._xsi_type[0], '{}/{}'.format(self.current_class._xsi_type[1],
+                                                                       self.current_property.name)
             base_class = 'XNATSubObjectMixin'
             parent = self.current_class.name
             field_name = self.current_property.name
@@ -562,14 +575,18 @@ class SchemaParser(object):
                 if type_ is not None:
                     self.current_property.type_ = type_
         elif self.current_class is not None:
+            if self.debug:
+                print('[DEBUG] Found property {} ({})'.format(name, type_))
             new_property = PropertyRepresentation(self, name, type_)
             self.current_class.properties[name] = new_property
 
             with self.descend(new_property=new_property):
                 self.parse_children(element)
-
-        if self.debug:
-            print('[DEBUG] Encountered property without parent class!')
+        else:
+            if self.debug:
+                print('[DEBUG] Found XSI_MAPPING {} -> {}'.format(name, type_))
+            # Top level element is xsi mapping
+            self.xsi_mapping[name] = type_
 
     def parse_enumeration(self, element):
         if 'enum' in self.current_property.restrictions:
