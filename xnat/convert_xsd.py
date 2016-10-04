@@ -106,11 +106,17 @@ class FileData(XNATObjectMixin):
     def delete(self):
         self.xnat_session.delete(self.uri)
 
-    def download(self, path):
-        self.xnat_session.download(self.uri, path)
+    def download(self, path, verbose=True):
+        self.xnat_session.download(self.uri, path, verbose=verbose)
 
-    def download_stream(self, target_stream):
-        self.xnat_session.download_stream(self.uri, target_stream)
+    def download_stream(self, target_stream, verbose=False):
+        self.xnat_session.download_stream(self.uri, target_stream, verbose=verbose)
+
+    @property
+    @caching
+    def size(self):
+        response = self.xnat_session.head(self.uri)
+        return response.headers['Content-Length']
 
 
 # Empty class lookup to place all new lookup values
@@ -125,6 +131,18 @@ XNAT_CLASS_LOOKUP = {{
 
 
 '''
+
+# TODO: Add display identifiers support
+# <xs:annotation>
+# <xs:appinfo>
+# <xdat:element displayIdentifiers="label"/>
+# </xs:appinfo>
+# <xs:documentation>An individual person involved in experimental research</xs:documentation>
+# </xs:annotation>
+# <xs:sequence>
+# TODO: Add XPATHs for setting SubObjects
+# TODO: Make Listings without key and with numeric index possible
+# TODO: Fix scan parameters https://groups.google.com/forum/#!topic/xnat_discussion/GBZoamC2ZmY
 
 
 class ClassRepresentation(object):

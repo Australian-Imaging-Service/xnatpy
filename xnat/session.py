@@ -248,6 +248,20 @@ class XNATSession(object):
         self._check_response(response, accepted_status=accepted_status, uri=uri)  # Allow OK, as we want to get data
         return response
 
+    def head(self, path, accepted_status=None):
+        accepted_status = accepted_status or [200]
+        uri = self._format_uri(path)
+
+        if self.debug:
+            print('[DEBUG] GET URI {}'.format(uri))
+
+        try:
+            response = self.interface.head(uri)
+        except requests.exceptions.SSLError:
+            raise exceptions.XNATSSLError('Encountered a problem with the SSL connection, are you sure the server is offering https?')
+        self._check_response(response, accepted_status=accepted_status, uri=uri)  # Allow OK, as we want to get data
+        return response
+
     def post(self, path, data=None, json=None, format=None, query=None, accepted_status=None):
         accepted_status = accepted_status or [200, 201]
         uri = self._format_uri(path, format, query=query)

@@ -314,3 +314,8 @@ class File(XNATObject):
 
     def download(self, path, verbose=True):
         self.xnat_session.download(self.uri, path, verbose=verbose)
+
+    @caching
+    def size(self):
+        response = self.xnat_session.head(self.uri)
+        return response.headers['Content-Length']
