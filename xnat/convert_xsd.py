@@ -53,7 +53,7 @@ import tempfile  # Needed by generated code
 from zipfile import ZipFile  # Needed by generated code
 
 from xnat import search
-from xnat.core import XNATObject, XNATNestedObject, XNATSubObject, XNATListing, caching
+from xnat.core import XNATObject, XNATNestedObject, XNATSubObject, XNATListing, XNATSimpleListing, XNATSubListing, caching
 from xnat.utils import mixedproperty
 
 
@@ -97,13 +97,13 @@ class FileData(XNATObjectMixin):
     SECONDARY_LOOKUP_FIELD = "{file_secondary_lookup}"
     _XSI_TYPE = 'xnat:fileData'
 
-    def __init__(self, uri, xnat_session, id_=None, datafields=None, name=None, parent=None, fieldname=None):
+    def __init__(self, uri, xnat_session, id_=None, datafields=None, name=None, parent=None, field_name=None):
         super(FileData, self).__init__(uri=uri,
                                    xnat_session=xnat_session,
                                    id_=id_,
                                    datafields=datafields,
                                    parent=parent,
-                                   fieldname=fieldname)
+                                   field_name=field_name)
         if name is not None:
             self._name = name
 
@@ -154,9 +154,33 @@ XNAT_CLASS_LOOKUP = {{
 # TODO: Fix scan parameters https://groups.google.com/forum/#!topic/xnat_discussion/GBZoamC2ZmY
 # TODO: Check the nesting weirdness in petScanDataParametersFramesFrames (DONE?)
 # TODO: Figure out the object/subobject/semi-subobject mess.
+# TODO: Move all system function to use a __ prefix
 
 
-class ClassRepresentation(object):
+class BaseClassRepresentation(object):
+    def __init__(self, parser, name, parent=None):
+        self.parser = parser
+        self.name = name
+        self.parent = parent
+
+
+class SimpleClassRepresentation(BaseClassRepresentation):
+    def __init__(self, keyname, type_, **kwargs):
+        super(SimpleClassRepresentation, self).__init__(**kwargs)
+        self.keyname = keyname
+        self.type = type_
+
+
+class SubObjectClassRepresentation(BaseClassRepresentation):
+    def __init__(self, xsi_type, field_name, **kwargs):
+        super(SubObjectClassRepresentation, self).__init__(**kwargs)
+        self._xsi_type = xsi_type
+        self.attributes = collections.OrderedDict()
+        self.field_name = field_name
+        self._display_identifier = None
+
+
+class ClassRepresentation(BaseClassRepresentation):
     # Override strings for certain properties
     SUBSTITUTIONS = {
     #        "fields": "    @property\n    def fields(self):\n        return self._fields",
@@ -164,17 +188,17 @@ class ClassRepresentation(object):
 
     # Fields for lookup besides the id
 
-    def __init__(self, parser, name, xsi_type, parent=None, field_name=None, sub_object=False):
-        self.parser = parser
-        self.name = name
+    def __init__(self, xsi_type, field_name=None, sub_object=True, **kwargs):
+        super(ClassRepresentation, self).__init__(**kwargs)
         self._xsi_type = xsi_type
         self._base_class = None
         self.attributes = collections.OrderedDict()
-        self.parent = parent
         self.field_name = field_name
         self.abstract = False
         self._display_identifier = None
         self._sub_object = sub_object
+
+        self.parser.xsi_to_cls_mapping[self.xsi_type] = self
 
     def __repr__(self):
         return '<ClassRepresentation {}({})>'.format(self.name, self.base_class)
@@ -203,11 +227,11 @@ class ClassRepresentation(object):
         elif self.xsi_type in FIELD_HINTS:
             header += "    _CONTAINED_IN = '{}'\n".format(FIELD_HINTS[self.xsi_type])
 
-        header += "    _XSI_TYPE = '{}'\n\n".format(self.xsi_type)
-        header += "    _IS_SUB_OBJECT = '{}'\n\n".format(self._sub_object)
+        header += "    _XSI_TYPE = '{}'\n".format(self.xsi_type)
+        header += "    _IS_SUB_OBJECT = {}\n\n".format(self._sub_object)
 
         header += "    @classmethod\n" \
-                  "    def register(cls, target):\n" \
+                  "    def __register(cls, target):\n" \
                   "        target['{}'] = cls\n\n".format(self.xsi_type_registration)
 
         if self.xsi_type in SECONDARY_LOOKUP_FIELDS:
@@ -217,10 +241,6 @@ class ClassRepresentation(object):
             header += ("    @property\n"
                        "    def display_identifier(self):\n"
                        "        return self.{}\n\n".format(self.display_identifier))
-
-        for key, value in self.attributes.items():
-            if isinstance(value, AttributePrototype):
-                self.attributes[key] = value.create(self.parser)
 
         #print('--- CLASS {} ---'.format(self.name))
         properties = '\n\n'.join(self.print_property(p) for p in self.attributes.values() if not self.hasattr(p.clean_name))
@@ -257,11 +277,20 @@ class ClassRepresentation(object):
         else:
             raise ValueError('Trying to reset base class again from {} to {}'.format(self._base_class, value))
 
+    def root_base_class(self):
+        base = self.base_class
+
+        while not base.startswith('XNAT'):
+            cls = self.parser.class_list[base]
+            base = cls.base_class
+
+        return base
+
     @property
     def xsi_type(self):
         xsi_type_name, xsi_type_extension = self._xsi_type
-        if xsi_type_name in self.parser.xsi_mapping:
-            result = self.parser.xsi_mapping[xsi_type_name] + xsi_type_extension
+        if xsi_type_name in self.parser.cls_to_xsi_mapping:
+            result = self.parser.cls_to_xsi_mapping[xsi_type_name] + xsi_type_extension
         else:
             result = 'xnat:' + xsi_type_name
 
@@ -270,8 +299,8 @@ class ClassRepresentation(object):
     @property
     def xsi_type_registration(self):
         xsi_type_name, xsi_type_extension = self._xsi_type
-        if xsi_type_name in self.parser.xsi_mapping:
-            result = self.parser.xsi_mapping[xsi_type_name] + xsi_type_extension
+        if xsi_type_name in self.parser.cls_to_xsi_mapping:
+            result = self.parser.cls_to_xsi_mapping[xsi_type_name] + xsi_type_extension
         elif xsi_type_extension == '':
             result = 'xnat:' + xsi_type_name
         else:
@@ -368,6 +397,15 @@ class Attribute(object):
         else:
             self.restrictions = {}
 
+    def __repr__(self):
+        parent = self.parent_class.name if self.parent_class else None
+        element = self.element_class.name if self.element_class else None
+
+        return '<{} {} (parent: {}, element: {})>'.format(type(self).__name__,
+                                                          self.name,
+                                                          parent,
+                                                          element)
+
     @abstractmethod
     def __str__(self):
         """String version"""
@@ -430,6 +468,7 @@ class AttributePrototype(object):
                     print("+--> Found element class: [{}]".format(element_class.name))
                     print("+--> Found element property: [{}] {}".format(type(element_property).__name__,
                                                                         element_property.name))
+                    element_property.field_name = '{}/{}'.format(self.data["name"], element_property.name)
                     element_property.name = self.data["name"]
                     return element_property
         elif isinstance(self.data['type_'], str) and self.data['type_'].startswith('xs:') and self.cls is PropertySubObjectRepresentation:
@@ -523,24 +562,50 @@ class PropertySubObjectRepresentation(Attribute):
 
 
 class PropertyListingRepresentation(Attribute):
-    def __init__(self, display_identifier=None, **kwargs):
+    def __init__(self, display_identifier=None, field_name=None, **kwargs):
         super(PropertyListingRepresentation, self).__init__(**kwargs)
         self.display_identifier = display_identifier
+        self.field_name = field_name
 
     def __repr__(self):
         return '<PropertyListingRepresentation {}({})>'.format(self.name, self.type_)
 
     def __str__(self):
         print('SELF data: {}'.format(vars(self)))
+
+        # Figure out the baseclass of the elements
         if self.element_class is not None:
-            ec = "'{e.name}'  '{e.python_name}'".format(e=self.element_class)
+            xsi_type = self.element_class.xsi_type_registration
+            root_base = self.element_class.root_base_class()
+        elif self.type_ is not None:
+            xsi_type = self.type_
+            root_base = self.parser.xsi_to_cls_mapping.get(self.type_)
+            if root_base is not None:
+                root_base = root_base.root_base_class()
+            else:
+                root_base = 'XNATSimpleType'
+        else:
+            raise ValueError('This should never happen!')
+
+        # Get the class of the listing to use
+        LISTING_CLASSES = {
+            'XNATObjectMixin': 'XNATListing',
+            'XNATSubObjectMixin': 'XNATSubListing',
+            'XNATSimpleType': 'XNATSimpleListing',
+        }
+
+        listing_class = LISTING_CLASSES.get(root_base, 'XNATSubListing')
+
+        # TODO: Clean up this mess
+        if self.element_class is not None:
+            ec = "'{e.name}'  '{e.python_name}'  '{e.xsi_type_registration}'".format(e=self.element_class)
         else:
             ec = "None"
 
         if self.type_ is not None:
             print('Found type: {}'.format(self.type_))
-            if self.type_ in self.parser.xsi_mapping:
-                cls = self.parser.xsi_mapping[self.type_]
+            if self.type_ in self.parser.xsi_to_cls_mapping:
+                cls = self.parser.xsi_to_cls_mapping[self.type_].name
             else:
                 cls = self.type_.split(':')[1]
             print('Found class name: {}'.format(cls))
@@ -564,16 +629,19 @@ class PropertyListingRepresentation(Attribute):
         # Automatically generated PropertyListing, type: {type_}
         # Element class: '{e}'
         # Secondary lookup: '{sl}'
-        return XNATListing(self.fulluri + '/{name}',
-                           xnat_session=self.xnat_session,
-                           parent=self,
-                           field_name='{name}',
-                           secondary_lookup_field={sl},
-                           xsi_type='{type_}')""".format(clean_name=self.clean_name,
-                                                         name=self.name,
-                                                         e=ec,
-                                                         sl=secondary_lookup,
-                                                         type_=self.type_)
+        # Root base: '{rb}'
+        return {cls}(uri=self.fulluri + '/{name}',
+                     parent=self,
+                     field_name='{field_name}',
+                     secondary_lookup_field={sl},
+                     xsi_type='{type_}')""".format(clean_name=self.clean_name,
+                                                   cls=listing_class,
+                                                   name=self.name,
+                                                   field_name=self.field_name or self.name,
+                                                   e=ec,
+                                                   sl=secondary_lookup,
+                                                   rb=root_base,
+                                                   type_=xsi_type)
 
 
 class SchemaParser(object):
@@ -585,7 +653,8 @@ class SchemaParser(object):
         self.property_prefixes = []
         self.debug = debug
         self.schemas = []
-        self.xsi_mapping = collections.OrderedDict()
+        self.cls_to_xsi_mapping = collections.OrderedDict()
+        self.xsi_to_cls_mapping = collections.OrderedDict()
 
     def parse_schema_xmlstring(self, xml, schema_uri):
         root = ElementTree.fromstring(xml)
@@ -626,6 +695,8 @@ class SchemaParser(object):
         except ElementTree.ParseError as exception:
             if 'action="/j_spring_security_check"' in data:
                 print('[ERROR] You do not have access to this XNAT server, please check your credentials!')
+            elif 'Status 403 - Your password has expired' in data:
+                print('[ERROR] Your account has expired, please update your password via the website.')
             elif 'java.lang.IllegalStateException' in data:
                 print('[ERROR] The server returned an error. You probably do not'
                       ' have access to this XNAT server, please check your credentials!')
@@ -651,6 +722,7 @@ class SchemaParser(object):
 
     def __iter__(self):
         visited = {'XNATObjectMixin', 'XNATSubObjectMixin', 'XNATNestedObjectMixin'}
+        nr_previsited = len(visited)
         tries = 0
         yielded_anything = True
         while len(visited) < len(self.class_list) and yielded_anything and tries < 250:
@@ -672,7 +744,7 @@ class SchemaParser(object):
 
             tries += 1
 
-        expected = len(self.class_list) + 2  # We started with two "visited" classes
+        expected = len(self.class_list) + nr_previsited  # We started with two "visited" classes
         if self.debug:  # and len(visited) < len(self.class_list):
             print('[DEBUG] Visited: {}, expected: {}'.format(len(visited), expected))
             print('[DEBUG] Missed: {}'.format(set(self.class_list) - visited))
@@ -718,7 +790,7 @@ class SchemaParser(object):
 
                     if self.debug:
                         print('[DEBUG] Adding {} -> {} to XSI map'.format(name, type_))
-                    self.xsi_mapping[name] = type_
+                    self.cls_to_xsi_mapping[name] = type_
                 else:
                     if self.debug:
                         print('[DEBUG] skipping non-class top-level tag {}'.format(child.tag))
@@ -746,7 +818,10 @@ class SchemaParser(object):
                 if self.debug:
                     print('[DEBUG] Encountered attribute without name')
                 return
-            new_property = AttributePrototype(PropertyRepresentation, {"name": name, "type_": type_}, parent=self.current_class)
+            new_property = AttributePrototype(PropertyRepresentation,
+                                              {"name": name, "type_": type_},
+                                              parent=self.current_class)
+
             self.current_class.attributes[name] = new_property
 
             with self.descend(new_property=new_property):
@@ -770,7 +845,6 @@ class SchemaParser(object):
         sub_object = False
 
         if name is None:
-            #print('<><> Constructing name: {} + {}'.format(self.current_class.name, self.current_property.data['name']))
             name = self.current_class.name + self.current_property.data['name'].capitalize()
             xsi_type = self.current_class._xsi_type[0], '{}/{}'.format(self.current_class._xsi_type[1],
                                                                        self.current_property.data['name'])
@@ -778,7 +852,7 @@ class SchemaParser(object):
             field_name = self.current_property.data['name']
             sub_object = True
 
-        new_class = ClassRepresentation(self,
+        new_class = ClassRepresentation(parser=self,
                                         name=name,
                                         xsi_type=xsi_type,
                                         parent=parent,
@@ -786,9 +860,6 @@ class SchemaParser(object):
                                         sub_object=sub_object)
 
         if self.current_property is not None:
-            #print('!!! Setting element class {} is element of {}.{}'.format(new_class.name,
-            #                                                                self.current_class.name,
-            #                                                                self.current_property.data['name']))
             self.current_property.data['element_class'] = new_class
 
         self.class_list[name] = new_class
@@ -805,7 +876,6 @@ class SchemaParser(object):
         name = element.get('name')
         type_ = element.get('type')
 
-        #print('[DEBUG] Parse element {} ({})'.format(name, type_))
         if name is None:
             abstract = element.get('abstract')
             if abstract is not None:
@@ -816,14 +886,8 @@ class SchemaParser(object):
             return
 
         if self.current_class is None:
-            #if self.debug:
-            #    print('[DEBUG] Found XSI_MAPPING {} -> {}'.format(name, type_))
-            # Top level element is xsi mapping
-            self.xsi_mapping[name] = type_
+            self.cls_to_xsi_mapping[name] = type_
         else:
-            #if self.debug:
-            #    print('[DEBUG] Found property {} ({})'.format(name, type_))
-
             if element.get('maxOccurs') == 'unbounded':
                 new_property = AttributePrototype(PropertyListingRepresentation,
                                                   {"name": name, "type_": type_},
@@ -865,8 +929,8 @@ class SchemaParser(object):
 
             xsi_type = '', ''
 
-            new_base_class = ClassRepresentation(self,
-                                                 new_base,
+            new_base_class = ClassRepresentation(parser=self,
+                                                 name=new_base,
                                                  xsi_type=xsi_type)
 
             if self.current_property is not None:
@@ -940,7 +1004,6 @@ class SchemaParser(object):
     def parse_sqlfield(self, element):
         print("CLASS: {}, PROP: {}, ELEMENT: {}".format(self.current_class.name, self.current_property.data["name"], element))
 
-
     PARSERS = {
         '{http://www.w3.org/2001/XMLSchema}all': parse_all,
         '{http://www.w3.org/2001/XMLSchema}annotation': parse_annotation,
@@ -971,6 +1034,15 @@ class SchemaParser(object):
     }
 
     def write(self, code_file):
+        # Build XSI to class mapping for using in writing out
+        for cls in self.class_list.values():
+            self.xsi_to_cls_mapping[cls.xsi_type] = cls
+
+            # Make sure all attribute prototypes are expanded
+            for key, value in cls.attributes.items():
+                if isinstance(value, AttributePrototype):
+                    cls.attributes[key] = value.create(self)
+
         schemas = '\n'.join('# - {}'.format(s) for s in self.schemas)
         code_file.write(FILE_HEADER.format(schemas=schemas,
                                            file_secondary_lookup=SECONDARY_LOOKUP_FIELDS['xnat:fileData']))

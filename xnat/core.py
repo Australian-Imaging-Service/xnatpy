@@ -286,7 +286,13 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
     @abstractproperty
     def data(self):
         """
-        The data of the current object
+        The data of the current object (data fields only)
+        """
+
+    @abstractproperty
+    def fulldata(self):
+        """
+        The full data of the current object (incl children, meta etc)
         """
 
     @property
@@ -385,13 +391,26 @@ class XNATSubObject(XNATBaseObject):
         return '{}/{}'.format(self.parent.xpath, self.fieldname)
 
     @property
-    def data(self):
+    def fulldata(self):
         prefix = '{}/'.format(self.fieldname)
 
-        result = self.parent.data
-        result = {k[len(prefix):]: v for k, v in result.items() if k.startswith(prefix)}
+        result = self.parent.fulldata
+
+        if isinstance(result, dict):
+            result = {k[len(prefix):]: v for k, v in result.items() if k.startswith(prefix)}
+        elif isinstance(result, list):
+            if self.parent.secondary_lookup_field is not None:
+                result = next(x for x in result if x['data_fields'][self.parent.secondary_lookup_field] == self.fieldname)
+            else:
+                result = result[self.fieldname]
+        else:
+            raise ValueError("Found unexpected data in parent! ({})".format(result))
 
         return result
+
+    @property
+    def data(self):
+        return self.fulldata['data_fields']
 
     def clearcache(self):
         self.parent.clearcache()
@@ -399,7 +418,7 @@ class XNATSubObject(XNATBaseObject):
 
 
 class XNATBaseListing(Mapping, Sequence):
-    def __init__(self, parent, field_name, secondary_lookup_field=None, xsi_type=None):
+    def __init__(self, parent, field_name, secondary_lookup_field=None, xsi_type=None, **kwargs):
         # Cache fields
         self._cache = {}
         self.caching = True
@@ -407,6 +426,9 @@ class XNATBaseListing(Mapping, Sequence):
         # Save the parent and field name
         self.parent = parent
         self.field_name = field_name
+
+        # Copy parent xnat session for future use
+        self._xnat_session = parent.xnat_session
 
         # Get the lookup field before type hints, they can ruin it for abstract types
         if secondary_lookup_field is None:
@@ -424,6 +446,10 @@ class XNATBaseListing(Mapping, Sequence):
             secondary_lookup_field = self.xnat_session.XNAT_CLASS_LOOKUP.get(self._xsi_type).SECONDARY_LOOKUP_FIELD
 
         self.secondary_lookup_field = secondary_lookup_field
+
+    @property
+    def xnat_session(self):
+        return self._xnat_session
 
     @abstractproperty
     def data_maps(self):
@@ -467,7 +493,7 @@ class XNATBaseListing(Mapping, Sequence):
 
     def __repr__(self):
         content = ', '.join('({}, {}): {}'.format(k, getattr(v, self.secondary_lookup_field), v) for k, v in self.items())
-        return '<XNATListing {}>'.format(content)
+        return '<{} {}>'.format(type(self).__name__, content)
 
     def __getitem__(self, item):
         if isinstance(item, (int, slice)):
@@ -486,8 +512,13 @@ class XNATBaseListing(Mapping, Sequence):
                 raise KeyError('Could not find ID/label {} in collection!'.format(item))
 
     def __iter__(self):
-        for item in self.listing:
-            yield item.id
+        for index, item in enumerate(self.listing):
+            if hasattr(item, 'id'):
+                yield item.id
+            elif self.secondary_lookup_field is not None and hasattr(item, self.secondary_lookup_field):
+                yield getattr(item, self.secondary_lookup_field)
+            else:
+                yield index
 
     def __len__(self):
         return len(self.data)
@@ -505,19 +536,14 @@ class XNATBaseListing(Mapping, Sequence):
 
 
 class XNATListing(XNATBaseListing):
-    def __init__(self, uri, xnat_session, filter=None, **kwargs):
+    def __init__(self, uri, filter=None, **kwargs):
         # Important for communication, needed before superclass is called
-        self._xnat_session = xnat_session
         self._uri = uri
 
         super(XNATListing, self).__init__(**kwargs)
 
         # Manager the filters
         self._used_filters = filter or {}
-
-    @property
-    def xnat_session(self):
-        return self._xnat_session
 
     @property
     @caching
@@ -669,7 +695,7 @@ class XNATListing(XNATBaseListing):
                            filter=new_filters)
 
 
-class XNATSubListing(XNATBaseListing, MutableMapping, MutableSequence):
+class XNATSimpleListing(XNATBaseListing, MutableMapping, MutableSequence):
     @property
     def xnat_session(self):
         return self.parent.xnat_session
@@ -678,6 +704,55 @@ class XNATSubListing(XNATBaseListing, MutableMapping, MutableSequence):
     @caching
     def data_maps(self):
         return {}, {}, set(), []
+
+    def __setitem__(self, key, value):
+        pass
+
+    def __delitem__(self, key):
+        pass
+
+    def insert(self, index, value):
+        pass
+
+
+class XNATSubListing(XNATBaseListing, MutableMapping, MutableSequence):
+    @property
+    def xnat_session(self):
+        return self.parent.xnat_session
+
+    @property
+    def fulldata(self):
+        for child in self.parent.fulldata['children']:
+            if child['field'] == self.field_name:
+                return child['items']
+        return []
+
+    @property
+    @caching
+    def data_maps(self):
+        id_map = {}
+        key_map = {}
+        listing = []
+        non_unique_keys = set()
+
+        for index, element in enumerate(self.fulldata):
+            if self.secondary_lookup_field is not None:
+                key = element['data_fields'][self.secondary_lookup_field]
+            else:
+                key = index
+
+            cls = self.xnat_session.XNAT_CLASS_LOOKUP[self._xsi_type]
+            object = cls(uri=self.parent.uri, id_=key, datafields=element['data_fields'], parent=self, fieldname=key)
+
+            if key in key_map:
+                non_unique_keys.add(key)
+                key_map[key] = None
+            elif self.secondary_lookup_field is not None:
+                key_map[key] = object
+
+            listing.append(object)
+
+        return id_map, key_map, non_unique_keys, listing
 
     def __setitem__(self, key, value):
         pass
