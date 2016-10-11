@@ -167,8 +167,8 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
 
     # Register all types parsed
     for cls in parser:
-        if not (cls.name is None or cls.baseclass.startswith('xs:')):
-            xnat_module.XNAT_CLASS_LOOKUP[cls.xsi_type] = getattr(xnat_module, cls.python_name)
+        if not (cls.name is None or cls.base_class.startswith('xs:')):
+            getattr(xnat_module, cls.python_name).register(xnat_module.XNAT_CLASS_LOOKUP)
 
     # Create the XNAT connection
     session = XNATSession(server=server, interface=requests_session, debug=debug)

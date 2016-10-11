@@ -19,10 +19,10 @@ import os
 import tempfile
 from zipfile import ZipFile
 
-from .core import caching, XNATObject, XNATListing
+from .core import caching, XNATBaseObject, XNATListing
 
 
-class ProjectData(XNATObject):
+class ProjectData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'name'
 
     @property
@@ -80,7 +80,7 @@ class ProjectData(XNATObject):
             print('Downloaded subject to {}'.format(project_dir))
 
 
-class SubjectData(XNATObject):
+class SubjectData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'label'
 
     @property
@@ -109,17 +109,17 @@ class SubjectData(XNATObject):
             print('Downloaded subject to {}'.format(subject_dir))
 
 
-class ExperimentData(XNATObject):
+class ExperimentData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'label'
 
 
-class SubjectAssessorData(XNATObject):
+class SubjectAssessorData(XNATBaseObject):
     @property
     def subject(self):
         return self.xnat_session.subjects[self.subject_id]
 
 
-class ImageSessionData(XNATObject):
+class ImageSessionData(XNATBaseObject):
     @property
     def fulluri(self):
         return '/data/archive/projects/{}/subjects/{}/experiments/{}'.format(self.project, self.subject_id, self.id)
@@ -156,7 +156,7 @@ class ImageSessionData(XNATObject):
             print('Downloaded image session to {}'.format(target_dir))
 
 
-class DerivedData(XNATObject):
+class DerivedData(XNATBaseObject):
     @property
     def fulluri(self):
         return '/data/experiments/{}/assessors/{}'.format(self.imagesession_id, self.id)
@@ -191,7 +191,7 @@ class DerivedData(XNATObject):
         self.xnat_session.download_zip(self.uri + '/files', path, verbose=verbose)
 
 
-class ImageScanData(XNATObject):
+class ImageScanData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'type'
 
     @property
@@ -234,7 +234,7 @@ class ImageScanData(XNATObject):
             print('Downloaded image scan data to {}'.format(target_dir))
 
 
-class AbstractResource(XNATObject):
+class AbstractResource(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'label'
 
     @property
@@ -280,7 +280,7 @@ class AbstractResource(XNATObject):
         self.xnat_session.upload(uri, data)
 
 
-class File(XNATObject):
+class File(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'name'
 
     def __init__(self, uri, xnat_session, id_=None, datafields=None, name=None, parent=None, fieldname=None):

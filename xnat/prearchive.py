@@ -19,14 +19,18 @@ import datetime
 
 import isodate
 
-from .core import XNATObject
+from .core import XNATBaseObject
 from .datatypes import to_date, to_time
 
 
-class PrearchiveSession(XNATObject):
+class PrearchiveSession(XNATBaseObject):
     @property
     def id(self):
         return '{}/{}/{}'.format(self.data['project'], self.data['timestamp'], self.data['name'])
+
+    @property
+    def xpath(self):
+        return "xnatpy:prearchiveSession"
 
     @property
     def fulldata(self):
@@ -114,6 +118,7 @@ class PrearchiveSession(XNATObject):
 
         return [PrearchiveScan('{}/scans/{}'.format(self.uri, x['ID']),
                                self.xnat_session,
+                               id_=x['ID'],
                                datafields=x) for x in data['ResultSet']['Result']]
 
     def download(self, path):
@@ -214,7 +219,7 @@ class PrearchiveSession(XNATObject):
         return response
 
 
-class PrearchiveScan(XNATObject):
+class PrearchiveScan(XNATBaseObject):
     def __init__(self, uri, xnat_session, id_=None, datafields=None, parent=None, fieldname=None):
         super(PrearchiveScan, self).__init__(uri=uri,
                                              xnat_session=xnat_session,
@@ -229,13 +234,58 @@ class PrearchiveScan(XNATObject):
     def series_description(self):
         return self.data['series_description']
 
+    @property
+    def files(self):
+        data = self.xnat_session.get_json(self.uri + '/resources/DICOM/files')
+
+        return [PrearchiveFile(x['URI'],
+                               self.xnat_session,
+                               id_=x['Name'],
+                               datafields=x) for x in data['ResultSet']['Result']]
+
     def download(self, path):
         self.xnat_session.download_zip(self.uri, path)
         return path
 
     @property
-    def fulldata(self):
+    def data(self):
         return self._fulldata
+
+    @property
+    def xpath(self):
+        return "xnatpy:prearchiveScan"
+
+
+class PrearchiveFile(XNATBaseObject):
+    def __init__(self, uri, xnat_session, id_=None, datafields=None, parent=None, fieldname=None):
+        super(PrearchiveFile, self).__init__(uri=uri,
+                                             xnat_session=xnat_session,
+                                             id_=id_,
+                                             datafields=datafields,
+                                             parent=parent,
+                                             fieldname=fieldname)
+
+        self._fulldata = datafields
+
+    @property
+    def data(self):
+        return self._fulldata
+
+    @property
+    def name(self):
+        return self.data['Name']
+
+    @property
+    def size(self):
+        return self.data['Size']
+
+    @property
+    def xpath(self):
+        return "xnatpy:prearchiveFile"
+
+    def download(self, path):
+        self.xnat_session.download_zip(self.uri, path)
+        return path
 
 
 class Prearchive(object):
