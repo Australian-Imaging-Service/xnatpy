@@ -165,10 +165,28 @@ class BaseClassRepresentation(object):
 
 
 class SimpleClassRepresentation(BaseClassRepresentation):
-    def __init__(self, keyname, type_, **kwargs):
+    def __init__(self, key_name, type_, **kwargs):
         super(SimpleClassRepresentation, self).__init__(**kwargs)
-        self.keyname = keyname
+        self.key_name = key_name
         self.type = type_
+
+    @property
+    def base_class(self):
+        return "XNATSimpleClass"
+
+    def create_listing(self, field_name, secondary_lookup):
+        return """
+        # Automatically generated PropertyListing, by {element_class_name} (SimpleClassRepresentation)
+        # Secondary lookup: '{secondary_lookup}'
+        return XNATSimpleListing(
+            parent=self,
+            field_name='{field_name}',
+            secondary_lookup_field={secondary_lookup},
+            type='{type}'
+        )""".format(field_name=field_name,
+                    secondary_lookup=secondary_lookup,
+                    element_class_name=self.name,
+                    type=self.type)
 
 
 class SubObjectClassRepresentation(BaseClassRepresentation):
@@ -181,13 +199,6 @@ class SubObjectClassRepresentation(BaseClassRepresentation):
 
 
 class ClassRepresentation(BaseClassRepresentation):
-    # Override strings for certain properties
-    SUBSTITUTIONS = {
-    #        "fields": "    @property\n    def fields(self):\n        return self._fields",
-            }
-
-    # Fields for lookup besides the id
-
     def __init__(self, xsi_type, field_name=None, sub_object=True, **kwargs):
         super(ClassRepresentation, self).__init__(**kwargs)
         self._xsi_type = xsi_type
@@ -242,7 +253,6 @@ class ClassRepresentation(BaseClassRepresentation):
                        "    def display_identifier(self):\n"
                        "        return self.{}\n\n".format(self.display_identifier))
 
-        #print('--- CLASS {} ---'.format(self.name))
         properties = '\n\n'.join(self.print_property(p) for p in self.attributes.values() if not self.hasattr(p.clean_name))
         return '{}{}'.format(header, properties)
 
@@ -253,6 +263,24 @@ class ClassRepresentation(BaseClassRepresentation):
         else:
             return self._display_identifier
 
+    def create_listing(self, field_name, secondary_lookup):
+        if secondary_lookup is None:
+            secondary_lookup = self.display_identifier
+
+        return """
+        # Automatically generated PropertyListing, by {element_class_name} (ClassRepresentation)
+        # Secondary lookup: '{secondary_lookup}'
+        return XNATListing(uri=self.fulluri + '/{field_name}',
+                           parent=self,
+                           field_name='{field_name}',
+                           secondary_lookup_field={secondary_lookup},
+                           xsi_type='{type_}')""".format(name=self.name,
+                                                         field_name=self.field_name or self.name,
+                                                         secondary_lookup=secondary_lookup,
+                                                         element_class_name=self.name,
+                                                         type_=self.xsi_type)
+
+        pass
     @display_identifier.setter
     def display_identifier(self, value):
         self._display_identifier = value
@@ -361,14 +389,11 @@ class ClassRepresentation(BaseClassRepresentation):
             return getattr(core, self.python_baseclass)
 
     def print_property(self, prop):
-        if prop.name in self.SUBSTITUTIONS:
-            return self.SUBSTITUTIONS[prop.name]
-        else:
-            data = str(prop)
-            if prop.name == SECONDARY_LOOKUP_FIELDS.get(self.name, '!None'):
-                head, tail = data.split('\n', 1)
-                data = '{}\n    @caching\n{}'.format(head, tail)
-            return data
+        data = str(prop)
+        if prop.name == SECONDARY_LOOKUP_FIELDS.get(self.name, '!None'):
+            head, tail = data.split('\n', 1)
+            data = '{}\n    @caching\n{}'.format(head, tail)
+        return data
 
     @property
     def init(self):
@@ -470,6 +495,11 @@ class AttributePrototype(object):
                                                                         element_property.name))
                     element_property.field_name = '{}/{}'.format(self.data["name"], element_property.name)
                     element_property.name = self.data["name"]
+
+                    if element_class.name in parser.class_list:
+                        print('!!!!!!!!!!!!! REMOVING CLASS {} FROM PARSER'.format(element_class.name))
+                        del parser.class_list[element_class.name]
+
                     return element_property
         elif isinstance(self.data['type_'], str) and self.data['type_'].startswith('xs:') and self.cls is PropertySubObjectRepresentation:
             self.cls = PropertyRepresentation
@@ -566,6 +596,8 @@ class PropertyListingRepresentation(Attribute):
         super(PropertyListingRepresentation, self).__init__(**kwargs)
         self.display_identifier = display_identifier
         self.field_name = field_name
+        if self.element_class is None:
+            self.element_class = self.parser.xsi_to_cls_mapping.get(self.type_)
 
     def __repr__(self):
         return '<PropertyListingRepresentation {}({})>'.format(self.name, self.type_)
@@ -573,75 +605,37 @@ class PropertyListingRepresentation(Attribute):
     def __str__(self):
         print('SELF data: {}'.format(vars(self)))
 
-        # Figure out the baseclass of the elements
-        if self.element_class is not None:
-            xsi_type = self.element_class.xsi_type_registration
-            root_base = self.element_class.root_base_class()
-        elif self.type_ is not None:
-            xsi_type = self.type_
-            root_base = self.parser.xsi_to_cls_mapping.get(self.type_)
-            if root_base is not None:
-                root_base = root_base.root_base_class()
-            else:
-                root_base = 'XNATSimpleType'
-        else:
-            raise ValueError('This should never happen!')
-
-        # Get the class of the listing to use
-        LISTING_CLASSES = {
-            'XNATObjectMixin': 'XNATListing',
-            'XNATSubObjectMixin': 'XNATSubListing',
-            'XNATSimpleType': 'XNATSimpleListing',
-        }
-
-        listing_class = LISTING_CLASSES.get(root_base, 'XNATSubListing')
-
-        # TODO: Clean up this mess
-        if self.element_class is not None:
-            ec = "'{e.name}'  '{e.python_name}'  '{e.xsi_type_registration}'".format(e=self.element_class)
-        else:
-            ec = "None"
-
-        if self.type_ is not None:
-            print('Found type: {}'.format(self.type_))
-            if self.type_ in self.parser.xsi_to_cls_mapping:
-                cls = self.parser.xsi_to_cls_mapping[self.type_].name
-            else:
-                cls = self.type_.split(':')[1]
-            print('Found class name: {}'.format(cls))
-
-            if cls in ['string', 'float', 'int']:
-                print('Found string TYPE {}'.format(self.clean_name))
-                secondary_lookup = "N/A"
-            else:
-                cls = self.parser.class_list[cls]
-                secondary_lookup = cls.display_identifier
-                print('Secondary lookup: {}'.format(secondary_lookup))
-        else:
+        if self.display_identifier is not None:
             secondary_lookup = self.display_identifier
+        elif self.type_ is not None:
+            cls = self.parser.xsi_to_cls_mapping.get(self.type_)
+            if cls is not None:
+                secondary_lookup = cls.display_identifier
+            else:
+                secondary_lookup = None
+        else:
+            secondary_lookup = None
 
         if secondary_lookup is not None:
             secondary_lookup = "'{}'".format(secondary_lookup)
 
-        return """    @property
+        print('=====> Secondary lookup: {}'.format(secondary_lookup))
+
+        field_name = self.field_name or self.name
+        print('=====> Field name: {}'.format(field_name))
+
+        print('=====> Element class: {}'.format(self.element_class.name if self.element_class else None))
+        print('-----> Parent class: {}, name: {}'.format(self.parent_class.name, self.name))
+
+        property_base = """    @property
     @caching
-    def {clean_name}(self):
-        # Automatically generated PropertyListing, type: {type_}
-        # Element class: '{e}'
-        # Secondary lookup: '{sl}'
-        # Root base: '{rb}'
-        return {cls}(uri=self.fulluri + '/{name}',
-                     parent=self,
-                     field_name='{field_name}',
-                     secondary_lookup_field={sl},
-                     xsi_type='{type_}')""".format(clean_name=self.clean_name,
-                                                   cls=listing_class,
-                                                   name=self.name,
-                                                   field_name=self.field_name or self.name,
-                                                   e=ec,
-                                                   sl=secondary_lookup,
-                                                   rb=root_base,
-                                                   type_=xsi_type)
+    def {clean_name}(self):""".format(clean_name=self.clean_name)
+        if self.element_class is not None:
+            property_base += self.element_class.create_listing(secondary_lookup=secondary_lookup, field_name=field_name)
+        else:
+            property_base += "\n        # FIXME! THIS IS BROKEN!\n" \
+                             "        pass\n"
+        return property_base
 
 
 class SchemaParser(object):
@@ -927,20 +921,16 @@ class SchemaParser(object):
             else:
                 new_base = self.current_class.python_name + name
 
-            xsi_type = '', ''
-
-            new_base_class = ClassRepresentation(parser=self,
-                                                 name=new_base,
-                                                 xsi_type=xsi_type)
-
             if self.current_property is not None:
                 property_name = self.current_property.data['name']
             else:
                 property_name = self.current_class.name.lower()
 
-            new_property = AttributePrototype(PropertyRepresentation, {"name": property_name,
-                                                                       "type_": original_new_base})
-            new_base_class.attributes[name] = new_property
+            new_base_class = SimpleClassRepresentation(parser=self,
+                                                       name=new_base,
+                                                       key_name=property_name,
+                                                       type_=original_new_base)
+
             self.class_list[new_base] = new_base_class
         elif ':' in new_base:
             new_base = new_base.split(':')[1]
@@ -1036,12 +1026,13 @@ class SchemaParser(object):
     def write(self, code_file):
         # Build XSI to class mapping for using in writing out
         for cls in self.class_list.values():
-            self.xsi_to_cls_mapping[cls.xsi_type] = cls
+            if isinstance(cls, ClassRepresentation):
+                self.xsi_to_cls_mapping[cls.xsi_type] = cls
 
-            # Make sure all attribute prototypes are expanded
-            for key, value in cls.attributes.items():
-                if isinstance(value, AttributePrototype):
-                    cls.attributes[key] = value.create(self)
+                # Make sure all attribute prototypes are expanded
+                for key, value in cls.attributes.items():
+                    if isinstance(value, AttributePrototype):
+                        cls.attributes[key] = value.create(self)
 
         schemas = '\n'.join('# - {}'.format(s) for s in self.schemas)
         code_file.write(FILE_HEADER.format(schemas=schemas,
