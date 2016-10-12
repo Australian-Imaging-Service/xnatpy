@@ -28,7 +28,7 @@ class SearchField(object):
     def identifier(self):
         # For the search criteria (where this is used) any xsitype/field
         # can be used (no need for display fields)
-        return '{}/{}'.format(self.search_class.xsi_type, self.field_name)
+        return '{}/{}'.format(self.search_class.__xsi_type__, self.field_name)
 
     def __eq__(self, other):
         return Constraint(self.identifier, '=', other)

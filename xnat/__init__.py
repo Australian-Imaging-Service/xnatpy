@@ -166,10 +166,17 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
         print('[DEBUG] Loaded generated module')
 
     # Register all types parsed
-    for cls in parser:
-        if not (cls.name is None or cls.base_class.startswith('xs:')):
-            pycls = getattr(xnat_module, cls.python_name) #.__register(xnat_module.XNAT_CLASS_LOOKUP)
-            xnat_module.XNAT_CLASS_LOOKUP[pycls.xsi_type] = pycls
+    for cls in parser.class_list.values():
+        if not (cls.name is None or (cls.base_class is not None and cls.base_class.startswith('xs:'))):
+            getattr(xnat_module, cls.writer.python_name).__register__(xnat_module.XNAT_CLASS_LOOKUP)
+            #pycls = getattr(xnat_module, cls.writer.python_name)
+            #xnat_module.XNAT_CLASS_LOOKUP[pycls.xsi_type] = pycls
+            if len(xnat_module.XNAT_CLASS_LOOKUP) < 5:
+                print('+ Registered {} in {}'.format(cls, xnat_module.XNAT_CLASS_LOOKUP))
+            else:
+                print('+ Registered {}'.format(cls))
+        else:
+            print('Skip registration of {}'.format(cls))
 
     # Create the XNAT connection
     session = XNATSession(server=server, interface=requests_session, debug=debug)

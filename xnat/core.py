@@ -76,10 +76,10 @@ class VariableMap(MutableMapping):
         return self.data[item]
 
     def __setitem__(self, key, value):
-        query = {'xsiType': self.parent.xsi_type,
-                 '{parent_type_}/{field}[@xsi_type={type}]/{key}'.format(parent_type_=self.parent.xsi_type,
+        query = {'xsiType': self.parent.__xsi_type__,
+                 '{parent_type_}/{field}[@xsi_type={type}]/{key}'.format(parent_type_=self.parent.__xsi_type__,
                                                                          field=self.field,
-                                                                         type=self.parent.xsi_type,
+                                                                         type=self.parent.__xsi_type__,
                                                                          key=key): value}
         self.xnat.put(self.parent.fulluri, query=query)
 
@@ -112,8 +112,8 @@ class VariableMap(MutableMapping):
 
 class CustomVariableMap(VariableMap):
     def __setitem__(self, key, value):
-        query = {'xsiType': self.parent.xsi_type,
-                 '{type_}/fields/field[name={key}]/field'.format(type_=self.parent.xsi_type,
+        query = {'xsiType': self.parent.__xsi_type__,
+                 '{type_}/fields/field[name={key}]/field'.format(type_=self.parent.__xsi_type__,
                                                                  key=key): value}
         self.xnat.put(self.parent.fulluri, query=query)
 
@@ -153,7 +153,7 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
                     uri = '{}/{}'.format(parent.uri, kwargs[self.SECONDARY_LOOKUP_FIELD])
                     print('[TEMP] PUT URI: {}'.format(uri))
                     query = {
-                        'xsiType': self.xsi_type,
+                        'xsiType': self.__xsi_type__,
                         self.SECONDARY_LOOKUP_FIELD: kwargs[self.SECONDARY_LOOKUP_FIELD],
                         'req_format': 'qa',
                     }
@@ -161,7 +161,7 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
                     response = self.xnat_session.put(uri, query=query)
                 else:
                     raise exceptions.XNATValueError('The {} for a {} need to be specified on creation'.format(self.SECONDARY_LOOKUP_FIELD,
-                                                                                                              self.xsi_type))
+                                                                                                              self.__xsi_type__))
             else:
                 raise exceptions.XNATValueError('The secondary look up is None, creation currently not supported!')
             print('[TEMP] RESPONE: ({}) {}'.format(response.status_code, response.text))
@@ -258,9 +258,9 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
                 value = type_(value)
 
         if self.parent is not None:
-            xsi_type = self.parent.xsi_type
+            xsi_type = self.parent.__xsi_type__
         else:
-            xsi_type = self.xsi_type
+            xsi_type = self.__xsi_type__
 
         xpath = '{}/{}'.format(self.xpath, name)
         query = {'xsiType': xsi_type,
@@ -270,7 +270,7 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
         self.parent.clearcache()
 
     @mixedproperty
-    def xsi_type(self):
+    def __xsi_type__(self):
         return self._XSI_TYPE
 
     @property
@@ -351,7 +351,7 @@ class XNATObject(XNATBaseObject):
 
     @property
     def xpath(self):
-        return '{}'.format(self.xsi_type)
+        return '{}'.format(self.__xsi_type__)
 
 
 class XNATNestedObject(XNATBaseObject):
@@ -367,7 +367,7 @@ class XNATNestedObject(XNATBaseObject):
     def xpath(self):
         return '{}/{}[@xsi:type={}]'.format(self.parent.xpath,
                                             self.fieldname,
-                                            self.xsi_type)
+                                            self.__xsi_type__)
 
     def clearcache(self):
         self.parent.clearcache()
@@ -382,8 +382,8 @@ class XNATSubObject(XNATBaseObject):
         return self.parent.uri
 
     @property
-    def xsi_type(self):
-        return self.parent.xsi_type
+    def __xsi_type__(self):
+        return self.parent.__xsi_type__
 
     @property
     def xpath(self):

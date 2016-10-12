@@ -16,7 +16,7 @@
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import unicode_literals
-from abc import ABCMeta, abstractmethod
+from abc import ABCMeta, abstractmethod, abstractproperty
 import collections
 import contextlib
 import inspect
@@ -157,16 +157,378 @@ XNAT_CLASS_LOOKUP = {{
 # TODO: Move all system function to use a __ prefix
 
 
-class BaseClassRepresentation(object):
-    def __init__(self, parser, name, parent=None):
+class ClassPrototype(object):
+    def __init__(self, parser, name, field_name=None, parent_class=None, simple=False):
+        self.parser = parser
+        self.name = name  # This is the XSI type
+
+        self.field_name = field_name
+        self.parent_class = parent_class
+        self.parent_property = None
+
+        self.attributes = collections.OrderedDict()
+        self.base_class = None
+        self.display_identifier = None
+        self.abstract = False
+        self.simple = simple
+
+        self._writer = None
+        self.source_schema = self.parser.current_schema
+
+    def __repr__(self):
+        return "<ClassPrototype {}>".format(self.name)
+
+    @property
+    def class_type(self):
+        if self.base_class is not None and self.base_class.startswith('xs:'):
+            return 'Simple'
+        if self.field_name is not None:
+            return 'SubObject'
+        elif self.name in CORE_REST_OBJECTS:
+            return 'Object'
+        else:
+            return 'NestedObject'
+
+    @property
+    def writer(self):
+        if self._writer is None:
+            writers = {
+                'Object': ObjectClassWriter,
+                'SubObject': SubObjectClassWriter,
+                'NestedObject': NestedObjectClassWriter,
+                'Simple': SimpleClassWriter,
+            }
+
+            self._writer = writers[self.class_type](self)
+            #self.parser.class_list[self._writer.name] = self._writer
+
+        return self._writer
+
+    def tostring(self):
+        """
+        Generate a string of the code for this class. We do this by finding the
+        appropriate writer (depending on the type of class we are generating)
+        and then delegating the actual generation to the writer.
+        """
+        return self.writer.tostring()
+
+
+class AttributePrototype(object):
+    def __init__(self, parser, name, type=None, parent_class=None, parent_property=None,
+                 min_occur=None, max_occur=None):
         self.parser = parser
         self.name = name
-        self.parent = parent
+        self.type = type
+        self.parent_class = parent_class
+        self.parent_property = parent_property
+
+        # Set initial values for possible additions
+        self.restrictions = collections.OrderedDict()
+        self.element_class = None
+        self.min_occur = min_occur
+        self.max_occur = max_occur
+        self.docstring = None
+        self.display_identifier = None
+
+        self._writer = None
+
+    @property
+    def clean_name(self):
+        name = re.sub('[^0-9a-zA-Z]+', '_', self.name)
+
+        # Change CamelCaseString to camel_case_string
+        # Note that addID would become add_id
+        name = re.sub("[A-Z]+", lambda x: '_' + x.group(0).lower(), name)
+        if name[0] == '_':
+            name = name[1:]
+
+        # Avoid overwriting keywords TODO: Do we want this, as a property it is not a huge problem?
+        if keyword.iskeyword(name):
+            name += '_'
+
+        return name
+
+    @property
+    def property_type(self):
+        #print('-------------------------')
+        #print('VARS: {}'.format(vars(self)))
+        if self.max_occur is not None and (self.max_occur == 'unbounded' or int(self.max_occur) > 1):
+            return 'listing'
+        if isinstance(self.type, str):
+            if self.type.startswith('xs:'):
+                return 'property'
+            else:
+                return 'subobject'
+                #object_type = self.parser.class_list[self.type].class_type
+        else:
+            #object_type = self.element_class.class_type
+            return 'subobject'
+
+        type_map = {
+            'Object': 'subobject',
+            'NestedObject': 'subobject',
+            'SubObject': 'subobject',
+        }
+
+        print('FOUND OBJECT TYPE: {}'.format(object_type))
+        return type_map[object_type]
+
+    @property
+    def writer(self):
+        if self._writer is None:
+            writers = {
+                'constant': ConstantWriter,
+                'listing': ListingPropertyWriter,
+                'property': PropertyWriter,
+                'subobject': SubObjectPropertyWriter,
+            }
+
+            self._writer = writers[self.property_type](self)
+
+        return self._writer
+
+    def tostring(self):
+        """
+        Generate a string of the code for this property. We do this by finding the
+        appropriate writer (depending on the type of property we are generating)
+        and then delegating the actual generation to the writer.
+        """
+        return self.writer.tostring()
+
+    # def create(self, parser):
+    #     if 'element_class' in self.data:
+    #         element_class = self.data['element_class']
+    #
+    #         if isinstance(element_class, ClassPrototype):
+    #             element_class = parser.class_list[element_class.name]
+    #
+    #         if element_class is not None and len(element_class.attributes) == 1:
+    #             element_property = element_class.attributes.values()[0]
+    #
+    #             if isinstance(element_property, AttributePrototype):
+    #                 element_property = element_property.create(parser)
+    #
+    #             if isinstance(element_property, ListingPropertyWriter):
+    #                 print("+--> Found element class: [{}]".format(element_class.name))
+    #                 print("+--> Found element property: [{}] {}".format(type(element_property).__name__,
+    #                                                                     element_property.name))
+    #
+    #                 # Reset parent to current parent
+    #                 parent_class = self.data["parent_class"]
+    #                 if parent_class is not None:
+    #                     parent_class = parser.class_list[parent_class.name]
+    #                     print("+--> Found parent class: [{}]".format(parent_class.name))
+    #                 element_property.parent_class = parent_class
+    #
+    #                 element_property.field_name = '{}/{}'.format(self.data["name"], element_property.name)
+    #                 element_property.name = self.data["name"]
+    #
+    #                 if element_class.name in parser.class_list:
+    #                     print('!!!!!!!!!!!!! REMOVING CLASS {} FROM PARSER'.format(element_class.name))
+    #                     del parser.class_list[element_class.name]
+    #
+    #                 return element_property
+    #     elif isinstance(self.data['type_'], str) and self.data['type_'].startswith('xs:') and self.cls is SubObjectPropertyWriter:
+    #         self.cls = PropertyWriter
+    #     elif self.data['type_'] is None:
+    #         self.data['type_'] = 'xs:string'
+    #         self.cls = PropertyWriter
+    #
+    #     return self.cls(parser=parser, **self.data)
+
+    def __repr__(self):
+        return "<AttributePrototype [{}] {}>".format(self.property_type, self.name)
 
 
-class SimpleClassRepresentation(BaseClassRepresentation):
+class BaseWriter(object):
+    __metaclass__ = ABCMeta
+
+    def __init__(self, prototype):
+        self.prototype = prototype
+
+    @abstractmethod
+    def tostring(self):
+        """String version"""
+
+
+class BaseClassWriter(BaseWriter):
+    def __init__(self, prototype):
+        super(BaseClassWriter, self).__init__(prototype=prototype)
+
+    # Give easy access to prototypes attributes
+    @property
+    def parser(self):
+        return self.prototype.parser
+
+    @property
+    def name(self):
+        return self.prototype.name
+
+    @property
+    def field_name(self):
+        return self.prototype.field_name
+
+    @property
+    def parent_class(self):
+        return self.prototype.parent_class
+
+    @property
+    def parent_property(self):
+        return self.prototype.parent_property
+
+    @property
+    def attributes(self):
+        return self.prototype.attributes
+
+    @property
+    def base_class(self):
+        if self.prototype.base_class is None:
+            return self.default_base_class
+
+        return self.prototype.base_class
+
+    @property
+    def display_identifier(self):
+        return self.prototype.display_identifier
+
+    @property
+    def abstract(self):
+        return self.prototype.abstract
+
+    @property
+    def simple(self):
+        return self.prototype.simple
+
+    @property
+    def source_schema(self):
+        return self.prototype.source_schema
+
+    # Convenience methods that can be shared along writers
+    def get_base_template(self):
+        if hasattr(xnatbases, self.python_name):
+            return getattr(xnatbases, self.python_name)
+
+    def _pythonize_name(self, name):
+        #if name in self.parser.class_names:
+        #    name = self.parser.class_names[name]
+
+        if ':' in name:
+            name = name.split(':', 1)[1]
+
+        parts = name.split('_')
+        parts = [x[0].upper() + x[1:] for x in parts]
+        return ''.join(parts)
+
+    @property
+    def python_name(self):
+        return self._pythonize_name(self.name)
+
+    @property
+    def python_base_class(self):
+        return self._pythonize_name(self.base_class)
+
+    @property
+    def python_parent_class(self):
+        return self._pythonize_name(self.parent_class)
+
+    def root_base_class(self, topxsd=False):
+        base = self.base_class
+
+        while not base.startswith('XNAT'):
+            cls = self.parser.class_list[base]
+            if topxsd and cls.base_class.startswith('XNAT'):
+                return base
+            base = cls.base_class
+
+        return base
+
+    def hasattr(self, name):
+        base = self.get_base_template()
+
+        if base is not None:
+            return hasattr(base, name)
+        else:
+            base = self.parser.class_list.get(self.base_class)
+            if base is not None:
+                if isinstance(base, ClassPrototype):
+                    return base.writer.hasattr(name)
+                else:
+                    return base.hasattr(name)
+            else:
+                base = self.get_super_class()
+                return hasattr(base, name)
+
+    def get_super_class(self):
+        if hasattr(core, self.python_base_class):
+            return getattr(core, self.python_base_class)
+
+    # Shared functional blocks
+    def tostring(self):
+        header = self.header()
+        properties = '\n\n'.join(self.print_property(p) for p in self.attributes.values() if not self.hasattr(p.clean_name))
+
+        return '{}{}'.format(header, properties)
+
+    def print_property(self, prop):
+        data = prop.tostring()
+        if prop.name == SECONDARY_LOOKUP_FIELDS.get(self.name, '!None'):
+            head, tail = data.split('\n', 1)
+            data = '{}\n    @caching\n{}'.format(head, tail)
+        return data
+
+    def header(self):
+        base = self.get_base_template()
+        if base is not None:
+            base_source = inspect.getsource(base)
+            base_source = re.sub(r'class {}\(XNATBaseObject\):'.format(self.python_name), 'class {}({}):'.format(self.python_name, self.python_base_class), base_source)
+            header = base_source.strip() + '\n\n    # END HEADER\n'
+        else:
+            header = '# No base template found for {}\n'.format(self.python_name)
+            header += "class {name}({base}):\n".format(name=self.python_name, base=self.python_base_class)
+
+        header += "    # Abstract: {}\n".format(self.abstract)
+        header += "    # Simple: {}\n".format(self.simple)
+        header += "    # Source schema: {}\n".format(self.source_schema)
+
+        if self.display_identifier is not None:
+            header += "    _DISPLAY_IDENTIFIER = '{}'\n".format(self.display_identifier)
+
+        if 'fields' in self.attributes:
+            header += "    _HAS_FIELDS = True\n"
+
+        if self.parent_class is not None:
+            header += "    #_PARENT_CLASS = {}\n".format(self.python_parent_class)
+            header += "    _FIELD_NAME = '{}'\n".format(self.field_name)
+        elif self.name in FIELD_HINTS:
+            header += "    _CONTAINED_IN = '{}'\n".format(FIELD_HINTS[self.name])
+
+        header += "    _XSI_TYPE = '{}'\n\n".format(self.name)
+
+        header += "    @classmethod\n" \
+                  "    def __register__(cls, target):\n" \
+                  "        target['{}'] = cls\n\n".format(self.name)
+
+        if self.name in SECONDARY_LOOKUP_FIELDS:
+            header += self.init
+
+        if self.display_identifier is not None:
+            header += ("    @property\n"
+                       "    def __display_identifier(self):\n"
+                       "        return self.{}\n\n".format(self.display_identifier))
+
+        return header
+
+    # Abstract stuff that needs to be reimplemented by subclasses
+    @abstractproperty
+    def default_base_class(self):
+        """
+        The default base class if none is supplied
+        """
+
+
+class SimpleClassWriter(BaseClassWriter):
     def __init__(self, key_name, type_, **kwargs):
-        super(SimpleClassRepresentation, self).__init__(**kwargs)
+        super(SimpleClassWriter, self).__init__(**kwargs)
         self.key_name = key_name
         self.type = type_
 
@@ -176,7 +538,7 @@ class SimpleClassRepresentation(BaseClassRepresentation):
 
     def create_listing(self, field_name, secondary_lookup):
         return """
-        # Automatically generated PropertyListing, by {element_class_name} (SimpleClassRepresentation)
+        # Automatically generated PropertyListing, by {element_class_name} (SimpleClassWriter)
         # Secondary lookup: '{secondary_lookup}'
         return XNATSimpleListing(
             parent=self,
@@ -189,211 +551,98 @@ class SimpleClassRepresentation(BaseClassRepresentation):
                     type=self.type)
 
 
-class SubObjectClassRepresentation(BaseClassRepresentation):
-    def __init__(self, xsi_type, field_name, **kwargs):
-        super(SubObjectClassRepresentation, self).__init__(**kwargs)
-        self._xsi_type = xsi_type
-        self.attributes = collections.OrderedDict()
-        self.field_name = field_name
-        self._display_identifier = None
+class SubObjectClassWriter(BaseClassWriter):
+    def create_listing(self, field_name, secondary_lookup):
+        if '/' in field_name:
+            field_name = field_name.split('/')[0]
 
-
-class ClassRepresentation(BaseClassRepresentation):
-    def __init__(self, xsi_type, field_name=None, sub_object=True, **kwargs):
-        super(ClassRepresentation, self).__init__(**kwargs)
-        self._xsi_type = xsi_type
-        self._base_class = None
-        self.attributes = collections.OrderedDict()
-        self.field_name = field_name
-        self.abstract = False
-        self._display_identifier = None
-        self._sub_object = sub_object
-
-        self.parser.xsi_to_cls_mapping[self.xsi_type] = self
-
-    def __repr__(self):
-        return '<ClassRepresentation {}({})>'.format(self.name, self.base_class)
-
-    def __str__(self):
-        base = self.get_base_template()
-        if base is not None:
-            base_source = inspect.getsource(base)
-            base_source = re.sub(r'class {}\(XNATBaseObject\):'.format(self.python_name), 'class {}({}):'.format(self.python_name, self.python_baseclass), base_source)
-            header = base_source.strip() + '\n\n    # END HEADER\n'
-        else:
-            header = '# No base template found for {}\n'.format(self.python_name)
-            header += "class {name}({base}):\n".format(name=self.python_name, base=self.python_baseclass)
-
-        header += "    # Abstract: {}\n".format(self.abstract)
-
-        if self.display_identifier is not None:
-            header += "    _DISPLAY_IDENTIFIER = '{}'\n".format(self.display_identifier)
-
-        if 'fields' in self.attributes:
-            header += "    _HAS_FIELDS = True\n"
-
-        if self.parent is not None:
-            header += "    _PARENT_CLASS = {}\n".format(self.python_parentclass)
-            header += "    _FIELD_NAME = '{}'\n".format(self.field_name)
-        elif self.xsi_type in FIELD_HINTS:
-            header += "    _CONTAINED_IN = '{}'\n".format(FIELD_HINTS[self.xsi_type])
-
-        header += "    _XSI_TYPE = '{}'\n".format(self.xsi_type)
-        header += "    _IS_SUB_OBJECT = {}\n\n".format(self._sub_object)
-
-        header += "    @classmethod\n" \
-                  "    def __register(cls, target):\n" \
-                  "        target['{}'] = cls\n\n".format(self.xsi_type_registration)
-
-        if self.xsi_type in SECONDARY_LOOKUP_FIELDS:
-            header += self.init
-
-        if self.display_identifier is not None:
-            header += ("    @property\n"
-                       "    def display_identifier(self):\n"
-                       "        return self.{}\n\n".format(self.display_identifier))
-
-        properties = '\n\n'.join(self.print_property(p) for p in self.attributes.values() if not self.hasattr(p.clean_name))
-        return '{}{}'.format(header, properties)
+        return """
+        # Automatically generated PropertyListing, by {element_class_name} (SubObjectClassWriter)
+        # Secondary lookup: '{secondary_lookup}'
+        return XNATSubListing(parent=self,
+                              field_name='{field_name}',
+                              secondary_lookup_field={secondary_lookup},
+                              xsi_type='{type_}')""".format(field_name=field_name,
+                                                            secondary_lookup=secondary_lookup,
+                                                            element_class_name=self.name,
+                                                            type_=self.name)
 
     @property
-    def display_identifier(self):
-        if self.xsi_type in SECONDARY_LOOKUP_FIELDS:
-            return SECONDARY_LOOKUP_FIELDS[self.xsi_type]
-        else:
-            return self._display_identifier
+    def xsi_type_registration(self):
+        result = 'xnatpy:' + self.name
+
+        return result
+
+    @property
+    def default_base_class(self):
+        return 'XNATSubObjectMixin'
+
+
+class NestedObjectClassWriter(BaseClassWriter):
+    @property
+    def default_base_class(self):
+        return 'XNATNestedObjectMixin'
+
+    @property
+    def xsi_type_registration(self):
+        return self.xsi_type
 
     def create_listing(self, field_name, secondary_lookup):
         if secondary_lookup is None:
             secondary_lookup = self.display_identifier
 
+        if '/' in field_name:
+            field_name = field_name.split('/')[0]
+
         return """
-        # Automatically generated PropertyListing, by {element_class_name} (ClassRepresentation)
+        # Automatically generated PropertyListing, by {element_class_name} (NestedObjectClassWriter)
+        # Secondary lookup: '{secondary_lookup}'
+        return XNATNestedListing(uri=self.fulluri + '/{field_name}',
+                                 parent=self,
+                                 field_name='{field_name}',
+                                 secondary_lookup_field={secondary_lookup},
+                                 xsi_type='{type_}')""".format(field_name=field_name,
+                                                               secondary_lookup=secondary_lookup,
+                                                               element_class_name=self.name,
+                                                               type_=self.name)
+
+class ObjectClassWriter(BaseClassWriter):
+    def __repr__(self):
+        return '<ObjectClassWriter {}({})>'.format(self.name, self.base_class)
+
+    @property
+    def display_identifier(self):
+        if self.name in SECONDARY_LOOKUP_FIELDS:
+            return SECONDARY_LOOKUP_FIELDS[self.name]
+        else:
+            return self.prototype.display_identifier
+
+    def create_listing(self, field_name, secondary_lookup):
+        if secondary_lookup is None:
+            secondary_lookup = self.display_identifier
+
+        if '/' in field_name:
+            field_name = field_name.split('/')[0]
+
+        return """
+        # Automatically generated PropertyListing, by {element_class_name} (ObjectClassWriter)
         # Secondary lookup: '{secondary_lookup}'
         return XNATListing(uri=self.fulluri + '/{field_name}',
                            parent=self,
                            field_name='{field_name}',
                            secondary_lookup_field={secondary_lookup},
-                           xsi_type='{type_}')""".format(name=self.name,
-                                                         field_name=self.field_name or self.name,
+                           xsi_type='{type_}')""".format(field_name=field_name,
                                                          secondary_lookup=secondary_lookup,
                                                          element_class_name=self.name,
-                                                         type_=self.xsi_type)
+                                                         type_=self.name)
 
-        pass
     @display_identifier.setter
     def display_identifier(self, value):
         self._display_identifier = value
 
     @property
-    def base_class(self):
-        if self._base_class is None:
-            if not self._sub_object:
-                if self.xsi_type in CORE_REST_OBJECTS:
-                    return 'XNATObjectMixin'
-                else:
-                    return 'XNATNestedObjectMixin'
-            else:
-                return 'XNATSubObjectMixin'
-        else:
-            return self._base_class
-
-    @base_class.setter
-    def base_class(self, value):
-        if self._base_class is None:
-            self._base_class = value
-        else:
-            raise ValueError('Trying to reset base class again from {} to {}'.format(self._base_class, value))
-
-    def root_base_class(self):
-        base = self.base_class
-
-        while not base.startswith('XNAT'):
-            cls = self.parser.class_list[base]
-            base = cls.base_class
-
-        return base
-
-    @property
-    def xsi_type(self):
-        xsi_type_name, xsi_type_extension = self._xsi_type
-        if xsi_type_name in self.parser.cls_to_xsi_mapping:
-            result = self.parser.cls_to_xsi_mapping[xsi_type_name] + xsi_type_extension
-        else:
-            result = 'xnat:' + xsi_type_name
-
-        return result
-
-    @property
-    def xsi_type_registration(self):
-        xsi_type_name, xsi_type_extension = self._xsi_type
-        if xsi_type_name in self.parser.cls_to_xsi_mapping:
-            result = self.parser.cls_to_xsi_mapping[xsi_type_name] + xsi_type_extension
-        elif xsi_type_extension == '':
-            result = 'xnat:' + xsi_type_name
-        else:
-            result = 'xnatpy:' + self.name
-
-        return result
-
-    def hasattr(self, name):
-        base = self.get_base_template()
-
-        if base is not None:
-            return hasattr(base, name)
-        else:
-            base = self.parser.class_list.get(self.base_class)
-            if base is not None:
-                return base.hasattr(name)
-            else:
-                base = self.get_super_class()
-                return hasattr(base, name)
-
-    def getattr(self, name):
-        base = self.get_base_template()
-
-        if base is not None:
-            return getattr(base, name)
-        else:
-            base = self.parser.class_list.get(self.base_class)
-            if base is not None:
-                return base.getattr(name)
-            else:
-                base = self.get_super_class()
-                return getattr(base, name)
-
-    @staticmethod
-    def _pythonize_name(name):
-        parts = name.split('_')
-        parts = [x[0].upper() + x[1:] for x in parts]
-        return ''.join(parts)
-
-    @property
-    def python_name(self):
-        return self._pythonize_name(self.name)
-
-    @property
-    def python_baseclass(self):
-        return self._pythonize_name(self.base_class)
-
-    @property
-    def python_parentclass(self):
-        return self._pythonize_name(self.parent)
-
-    def get_base_template(self):
-        if hasattr(xnatbases, self.python_name):
-            return getattr(xnatbases, self.python_name)
-
-    def get_super_class(self):
-        if hasattr(core, self.python_baseclass):
-            return getattr(core, self.python_baseclass)
-
-    def print_property(self, prop):
-        data = str(prop)
-        if prop.name == SECONDARY_LOOKUP_FIELDS.get(self.name, '!None'):
-            head, tail = data.split('\n', 1)
-            data = '{}\n    @caching\n{}'.format(head, tail)
-        return data
+    def default_base_class(self):
+        return 'XNATObjectMixin'
 
     @property
     def init(self):
@@ -403,25 +652,60 @@ class ClassRepresentation(BaseClassRepresentation):
         if {lookup} is not None:
             self._cache['{lookup}'] = {lookup}
 
-""".format(name=self.python_name, lookup=SECONDARY_LOOKUP_FIELDS[self.xsi_type])
+""".format(name=self.python_name, lookup=SECONDARY_LOOKUP_FIELDS[self.name])
 
 
-class Attribute(object):
-    __metaclass__ = ABCMeta
+class AttributeWriter(BaseWriter):
+    # Give easy access to prototypes attributes
+    @property
+    def parser(self):
+        return self.prototype.parser
 
-    def __init__(self, parser, name, type_=None, restrictions=None, docstring=None, element_class=None, parent_class=None):
-        self.docstring = docstring
-        self.parser = parser
-        self.name = name
-        self.type_ = type_
-        self.element_class = element_class
-        self.parent_class = parent_class
+    @property
+    def name(self):
+        return self.prototype.name
 
-        if restrictions is not None:
-            self.restrictions = restrictions
-        else:
-            self.restrictions = {}
+    @property
+    def clean_name(self):
+        return self.prototype.clean_name
 
+    @property
+    def type(self):
+        return self.prototype.type
+
+    @property
+    def parent_class(self):
+        return self.prototype.parent_class
+
+    @property
+    def parent_property(self):
+        return self.prototype.parent_property
+
+    @property
+    def restrictions(self):
+        return self.prototype.restrictions
+
+    @property
+    def element_class(self):
+        return self.prototype.element_class
+
+    @property
+    def min_occurs(self):
+        return self.prototype.min_occur
+
+    @property
+    def max_occurs(self):
+        return self.prototype.max_occur
+
+    @property
+    def docstring(self):
+        return self.prototype.docstring
+
+    @property
+    def display_identifier(self):
+        return self.prototype.display_identifier
+
+    # Actual funcions
     def __repr__(self):
         parent = self.parent_class.name if self.parent_class else None
         element = self.element_class.name if self.element_class else None
@@ -430,18 +714,6 @@ class Attribute(object):
                                                           self.name,
                                                           parent,
                                                           element)
-
-    @abstractmethod
-    def __str__(self):
-        """String version"""
-
-    @property
-    def clean_name(self):
-        name = re.sub('[^0-9a-zA-Z]+', '_', self.name)
-
-        if keyword.iskeyword(name):
-            name += '_'
-        return name.lower()
 
     def restrictions_code(self):
         if len(self.restrictions) > 0:
@@ -462,60 +734,9 @@ class Attribute(object):
             return ''
 
 
-class AttributePrototype(object):
-    def __init__(self, cls, data=None, parent=None):
-        self.cls = cls
-
-        if data is None:
-            self.data = collections.defaultdict(collections.OrderedDict)
-        elif not isinstance(data, collections.defaultdict):
-            self.data = collections.defaultdict(collections.OrderedDict)
-            self.data.update(data)
-        else:
-            self.data = data
-
-        self.data['parent_class'] = parent
-
-    def create(self, parser):
-        if 'element_class' in self.data:
-            element_class = self.data['element_class']
-
-            if element_class is not None and len(element_class.attributes) == 1:
-                element_property = element_class.attributes.values()[0]
-
-                if isinstance(element_property, AttributePrototype):
-                    element_property = element_property.create(parser)
-
-                # Reset parent to current parent
-                element_property.parent_class = self.data["parent_class"]
-
-                if isinstance(element_property, PropertyListingRepresentation):
-                    print("+--> Found element class: [{}]".format(element_class.name))
-                    print("+--> Found element property: [{}] {}".format(type(element_property).__name__,
-                                                                        element_property.name))
-                    element_property.field_name = '{}/{}'.format(self.data["name"], element_property.name)
-                    element_property.name = self.data["name"]
-
-                    if element_class.name in parser.class_list:
-                        print('!!!!!!!!!!!!! REMOVING CLASS {} FROM PARSER'.format(element_class.name))
-                        del parser.class_list[element_class.name]
-
-                    return element_property
-        elif isinstance(self.data['type_'], str) and self.data['type_'].startswith('xs:') and self.cls is PropertySubObjectRepresentation:
-            self.cls = PropertyRepresentation
-        elif self.data['type_'] is None:
-            self.data['type_'] = 'xs:string'
-            self.cls = PropertyRepresentation
-
-        return self.cls(parser=parser, **self.data)
-
-    def __repr__(self):
-        return "<AttributePrototype [{}] {}>".format(self.cls.__name__, self.data)
-
-
-class ConstantRepresentation(Attribute):
+class ConstantWriter(AttributeWriter):
     def __init__(self, parser, name, value=None):
-        super(ConstantRepresentation, self).__init__(parser, name)
+        super(ConstantWriter, self).__init__(parser, name)
 
         self.value = value
 
@@ -523,7 +744,7 @@ class ConstantRepresentation(Attribute):
         return "    {s.clean_name} = {s.value}".format(s=self)
 
     def __repr__(self):
-        return '<ConstantRepresentation {}({})>'.format(self.name, self.value)
+        return '<ConstantWriter {}({})>'.format(self.name, self.value)
 
     @property
     def clean_name(self):
@@ -532,12 +753,15 @@ class ConstantRepresentation(Attribute):
 
         return name
 
+    def tostring(self):
+        return "CONSTANT = 'VALUE'"
 
-class PropertyRepresentation(Attribute):
+
+class PropertyWriter(AttributeWriter):
     def __repr__(self):
-        return '<PropertyRepresentation {}({})>'.format(self.name, self.type_)
+        return '<PropertyWriter {}({})>'.format(self.name, self.type_)
 
-    def __str__(self):
+    def tostring(self):
         docstring = '\n        """ {} """'.format(self.docstring) if self.docstring is not None else ''
         return \
     """    @mixedproperty
@@ -556,21 +780,23 @@ class PropertyRepresentation(Attribute):
         self.set("{name}", value, type_="{type_}")""".format(clean_name=self.clean_name,
                                                              docstring=docstring,
                                                              name=self.name,
-                                                             type_=self.type_,
+                                                             type_=self.type,
                                                              restrictions=self.restrictions_code())
 
 
-class PropertySubObjectRepresentation(Attribute):
+class SubObjectPropertyWriter(AttributeWriter):
     def __repr__(self):
-        return '<PropertySubObjectRepresentation {}({})>'.format(self.name, self.type_)
+        return '<SubObjectPropertyWriter {}({})>'.format(self.name, self.type)
 
-    def __str__(self):
+    def tostring(self):
         docstring = '\n        """ {} """'.format(self.docstring) if self.docstring is not None else ''
-        if self.type_ is None:
-            xsi_type = self.element_class.xsi_type_registration
+        if self.type is None:
+            #xsi_type = self.element_class.name
+            #xsi_type_arg = ', "{}"'.format(xsi_type)
+            xsi_type = 'TO BE DETERMINED'
             xsi_type_arg = ', "{}"'.format(xsi_type)
         else:
-            xsi_type = '{}'.format(core.TYPE_HINTS.get(self.name, self.type_))
+            xsi_type = '{}'.format(core.TYPE_HINTS.get(self.name, self.type))
             xsi_type_arg = ''
 
         return \
@@ -586,29 +812,22 @@ class PropertySubObjectRepresentation(Attribute):
         return self.get_object("{name}"{xsi_type_arg})""".format(clean_name=self.clean_name,
                                                                  docstring=docstring,
                                                                  name=self.name,
-                                                                 type_=self.type_,
+                                                                 type_=self.type,
                                                                  xsi_type=xsi_type,
                                                                  xsi_type_arg=xsi_type_arg)
 
 
-class PropertyListingRepresentation(Attribute):
-    def __init__(self, display_identifier=None, field_name=None, **kwargs):
-        super(PropertyListingRepresentation, self).__init__(**kwargs)
-        self.display_identifier = display_identifier
-        self.field_name = field_name
-        if self.element_class is None:
-            self.element_class = self.parser.xsi_to_cls_mapping.get(self.type_)
-
+class ListingPropertyWriter(AttributeWriter):
     def __repr__(self):
-        return '<PropertyListingRepresentation {}({})>'.format(self.name, self.type_)
+        return '<ListingPropertyWriter {}({})>'.format(self.name, self.type)
 
-    def __str__(self):
+    def tostring(self):
         print('SELF data: {}'.format(vars(self)))
 
         if self.display_identifier is not None:
             secondary_lookup = self.display_identifier
-        elif self.type_ is not None:
-            cls = self.parser.xsi_to_cls_mapping.get(self.type_)
+        elif self.type is not None:
+            cls = self.parser.class_list.get(self.type)
             if cls is not None:
                 secondary_lookup = cls.display_identifier
             else:
@@ -619,27 +838,33 @@ class PropertyListingRepresentation(Attribute):
         if secondary_lookup is not None:
             secondary_lookup = "'{}'".format(secondary_lookup)
 
-        print('=====> Secondary lookup: {}'.format(secondary_lookup))
-
-        field_name = self.field_name or self.name
-        print('=====> Field name: {}'.format(field_name))
-
-        print('=====> Element class: {}'.format(self.element_class.name if self.element_class else None))
-        print('-----> Parent class: {}, name: {}'.format(self.parent_class.name, self.name))
+        field_name = self.name
 
         property_base = """    @property
     @caching
     def {clean_name}(self):""".format(clean_name=self.clean_name)
         if self.element_class is not None:
-            property_base += self.element_class.create_listing(secondary_lookup=secondary_lookup, field_name=field_name)
+            element_class = self.element_class
+            property_base += element_class.writer.create_listing(secondary_lookup=secondary_lookup, field_name=field_name)
+        elif not self.type.startswith('xs:'):
+            element_class = self.parser.class_list[self.type]
+            property_base += element_class.writer.create_listing(secondary_lookup=secondary_lookup, field_name=field_name)
         else:
-            property_base += "\n        # FIXME! THIS IS BROKEN!\n" \
-                             "        pass\n"
+            print('[TODO] Skipping simple type listing')
+            property_base += "\n        # TODO: Implement simple type listing! (type: {})\n".format(self.type) + \
+                             "        pass"
         return property_base
 
 
 class SchemaParser(object):
     def __init__(self, debug=False):
+        # Manage XML namespaces
+        self.namespaces = {}
+        self.namespace_prefixes = {}
+        self.target_namespace = ''
+        self.current_schema = None
+
+        self.class_list = collections.OrderedDict()
         self.class_list = collections.OrderedDict()
         self.unknown_tags = set()
         self.new_class_stack = [None]
@@ -647,22 +872,37 @@ class SchemaParser(object):
         self.property_prefixes = []
         self.debug = debug
         self.schemas = []
-        self.cls_to_xsi_mapping = collections.OrderedDict()
-        self.xsi_to_cls_mapping = collections.OrderedDict()
+        self.class_names = collections.OrderedDict()
 
     def parse_schema_xmlstring(self, xml, schema_uri):
+        self.current_schema = schema_uri
         root = ElementTree.fromstring(xml)
+
+        # Get the namespaces from the XML document (ElementTree loses them, so
+        # get them by hand) and register them
+        for line in xml.splitlines():
+            if "<xs:schema" in line:
+                result = re.findall('xmlns:(?P<prefix>\w+)="(?P<ns>\S+)"', line)
+                break
+        else:
+            result = []
+
+        for prefix, namespace in result:
+            self.namespace_prefixes[namespace] = prefix
+            self.namespaces[prefix] = namespace
 
         # Register schema as being loaded
         self.schemas.append(schema_uri)
 
         # Parse xml schema
+        print('Parsing root element: {}'.format(root.tag))
         self.parse(root, toplevel=True)
 
         if self.debug:
             print('[DEBUG] Found {} unknown tags: {}'.format(len(self.unknown_tags),
                                                              self.unknown_tags))
 
+        self.current_schema = None
         return True
 
     def parse_schema_file(self, filepath):
@@ -691,6 +931,8 @@ class SchemaParser(object):
                 print('[ERROR] You do not have access to this XNAT server, please check your credentials!')
             elif 'Status 403 - Your password has expired' in data:
                 print('[ERROR] Your account has expired, please update your password via the website.')
+            elif 'Status 401 - Login attempt failed' in data:
+                print('[ERROR] Login failed (probably an invalid password/username provided)')
             elif 'java.lang.IllegalStateException' in data:
                 print('[ERROR] The server returned an error. You probably do not'
                       ' have access to this XNAT server, please check your credentials!')
@@ -715,7 +957,7 @@ class SchemaParser(object):
         return schemas
 
     def __iter__(self):
-        visited = {'XNATObjectMixin', 'XNATSubObjectMixin', 'XNATNestedObjectMixin'}
+        visited = set()
         nr_previsited = len(visited)
         tries = 0
         yielded_anything = True
@@ -726,10 +968,14 @@ class SchemaParser(object):
                     continue
 
                 base = value.base_class
-                if not base.startswith('xs:') and base not in visited:
+                if base is not None and not base.startswith('xs:') and base not in visited:
+                    print("Skipping {} because of base {} is not processed".format(value.name,
+                                                                                   base))
                     continue
 
-                if value.parent is not None and value.parent not in visited:
+                if value.parent_class is not None and value.parent_class not in visited:
+                    print("Skipping {} because of parent {} is not processed".format(value.name,
+                                                                                     value.parent_class))
                     continue
 
                 visited.add(key)
@@ -740,12 +986,15 @@ class SchemaParser(object):
 
         expected = len(self.class_list) + nr_previsited  # We started with two "visited" classes
         if self.debug:  # and len(visited) < len(self.class_list):
+            missed = set(self.class_list) - visited
             print('[DEBUG] Visited: {}, expected: {}'.format(len(visited), expected))
-            print('[DEBUG] Missed: {}'.format(set(self.class_list) - visited))
+            print('[DEBUG] Visited: {}'.format(visited))
+            print('[DEBUG] Missed: {}'.format(missed))
+            print('[DEBUG] Missed base class: {}'.format([self.class_list[x].base_class for x in missed]))
             print('[DEBUG] Spent {} iterations'.format(tries))
 
     @contextlib.contextmanager
-    def descend(self, new_class=None, new_property=None, property_prefix=None):
+    def _descend(self, new_class=None, new_property=None, property_prefix=None):
         if new_class is not None:
             self.new_class_stack.append(new_class)
         if new_property is not None:
@@ -763,279 +1012,310 @@ class SchemaParser(object):
             self.property_prefixes.pop()
 
     @property
-    def current_class(self):
+    def _current_class(self):
         return self.new_class_stack[-1]
 
     @property
-    def current_property(self):
+    def _current_property(self):
         return self.new_property_stack[-1]
 
     def parse(self, element, toplevel=False):
-        if toplevel:
-            if element.tag != '{http://www.w3.org/2001/XMLSchema}schema':
-                raise ValueError('File should contain a schema as root element!')
-
-            for child in element.getchildren():
-                if child.tag == '{http://www.w3.org/2001/XMLSchema}complexType':
-                    self.parse(child)
-                elif child.tag == '{http://www.w3.org/2001/XMLSchema}element':
-                    name = child.get('name')
-                    type_ = child.get('type')
-
-                    if self.debug:
-                        print('[DEBUG] Adding {} -> {} to XSI map'.format(name, type_))
-                    self.cls_to_xsi_mapping[name] = type_
-                else:
-                    if self.debug:
-                        print('[DEBUG] skipping non-class top-level tag {}'.format(child.tag))
-
+        if element.tag in self.PARSERS:
+            self.PARSERS[element.tag](self, element)
         else:
-            if element.tag in self.PARSERS:
-                self.PARSERS[element.tag](self, element)
-            else:
-                self.parse_unknown(element)
+            self._parse_unknown(element)
 
     # TODO: We should check the following restrictions: http://www.w3schools.com/xml/schema_facets.asp
 
-    def parse_all(self, element):
-        self.parse_children(element)
+    def _parse_all(self, element):
+        self._parse_children(element)
 
-    def parse_annotation(self, element):
-        self.parse_children(element)
+    def _parse_annotation(self, element):
+        self._parse_children(element)
 
-    def parse_attribute(self, element):
+    def _parse_attribute(self, element):
         name = element.get('name')
         type_ = element.get('type')
 
-        if self.current_class is not None:
+        if self._current_class is not None:
             if name is None:
                 if self.debug:
                     print('[DEBUG] Encountered attribute without name')
                 return
-            new_property = AttributePrototype(PropertyRepresentation,
-                                              {"name": name, "type_": type_},
-                                              parent=self.current_class)
 
-            self.current_class.attributes[name] = new_property
+            new_property = AttributePrototype(self, name=name, type=type_,
+                                              parent_class=self._current_class,
+                                              parent_property=self._current_property)
 
-            with self.descend(new_property=new_property):
-                self.parse_children(element)
+            self._current_class.attributes[name] = new_property
 
-    def parse_children(self, element):
+            with self._descend(new_property=new_property):
+                self._parse_children(element)
+
+    def _parse_children(self, element):
         for child in element.getchildren():
             self.parse(child)
 
-    def parse_choice(self, element):
-        self.parse_children(element)
+    def _parse_choice(self, element):
+        self._parse_children(element)
 
-    def parse_complex_content(self, element):
-        self.parse_children(element)
+    def _parse_complex_content(self, element):
+        self._parse_children(element)
 
-    def parse_complex_type(self, element):
+    def _parse_complex_type(self, element):
         name = element.get('name')
-        xsi_type = name, ''
-        parent = None
+        parent_class = None
         field_name = None
-        sub_object = False
 
         if name is None:
-            name = self.current_class.name + self.current_property.data['name'].capitalize()
-            xsi_type = self.current_class._xsi_type[0], '{}/{}'.format(self.current_class._xsi_type[1],
-                                                                       self.current_property.data['name'])
-            parent = self.current_class.name
-            field_name = self.current_property.data['name']
-            sub_object = True
+            name = 'xnatpy:' + self._current_class.name.split(":", 1)[1] + self._current_property.name.capitalize()
+            parent_class = self._current_class.name
+            field_name = self._current_property.name
+        else:
+            if ':' not in name:
+                name = self.target_namespace_prefix + name
 
-        new_class = ClassRepresentation(parser=self,
-                                        name=name,
-                                        xsi_type=xsi_type,
-                                        parent=parent,
-                                        field_name=field_name,
-                                        sub_object=sub_object)
+        new_class = ClassPrototype(self,
+                                   name=name,
+                                   field_name=field_name,
+                                   parent_class=parent_class)
 
-        if self.current_property is not None:
-            self.current_property.data['element_class'] = new_class
+        if self._current_property is not None:
+            self._current_property.element_class = new_class
+            new_class.parent_property = self._current_property
 
         self.class_list[name] = new_class
 
         # Descend
-        with self.descend(new_class=new_class):
-            self.parse_children(element)
+        with self._descend(new_class=new_class):
+            self._parse_children(element)
 
-    def parse_documentation(self, element):
-        if self.current_property is not None:
-            self.current_property.data['docstring'] = element.text
+    def _parse_documentation(self, element):
+        if self._current_property is not None:
+            self._current_property.docstring = element.text
 
-    def parse_element(self, element):
+    def _parse_element(self, element):
         name = element.get('name')
         type_ = element.get('type')
 
         if name is None:
             abstract = element.get('abstract')
             if abstract is not None:
-                self.current_class.abstract = abstract == "true"
+                self._current_class.abstract = abstract == "true"
             else:
                 if self.debug:
                     print('[DEBUG] Encountered attribute without name')
             return
 
-        if self.current_class is None:
-            self.cls_to_xsi_mapping[name] = type_
+        if self._current_class is not None:
+            min_occur = element.get('minOccurs')
+            max_occur = element.get('maxOccurs')
+
+            new_property = AttributePrototype(self, name=name, type=type_,
+                                              parent_class=self._current_class,
+                                              parent_property=self._current_property,
+                                              min_occur=min_occur, max_occur=max_occur)
+
+            self._current_class.attributes[name] = new_property
+
+            with self._descend(new_property=new_property):
+                self._parse_children(element)
+
+    def _parse_enumeration(self, element):
+        if 'enum' in self._current_property.restrictions:
+            self._current_property.restrictions['enum'].append(element.get('value'))
         else:
-            if element.get('maxOccurs') == 'unbounded':
-                new_property = AttributePrototype(PropertyListingRepresentation,
-                                                  {"name": name, "type_": type_},
-                                                  parent=self.current_class)
+            self._current_property.restrictions['enum'] = [element.get('value')]
 
-            elif isinstance(type_, str) and type_.startswith('xs:'):
-                new_property = AttributePrototype(PropertyRepresentation,
-                                                  {"name": name, "type_": type_},
-                                                  parent=self.current_class)
-            else:
-                new_property = AttributePrototype(PropertySubObjectRepresentation,
-                                                  {"name": name, "type_": type_},
-                                                  parent=self.current_class)
-
-            self.current_class.attributes[name] = new_property
-
-            with self.descend(new_property=new_property):
-                self.parse_children(element)
-
-    def parse_enumeration(self, element):
-        if 'enum' in self.current_property.data['restrictions']:
-            self.current_property.data['restrictions']['enum'].append(element.get('value'))
-        else:
-            self.current_property.data['restrictions']['enum'] = [element.get('value')]
-
-    def parse_error(self, element):
+    def _parse_error(self, element):
         raise NotImplementedError('The parser for {} has not yet been implemented'.format(element.tag))
 
-    def parse_extension(self, element):
+    def _parse_extension(self, element):
         new_base = element.get('base')
         if new_base.startswith('xs:'):
             # Need to create a base object as we do not have this
+            previous_base = new_base
             name = new_base[3:].capitalize()
-            original_new_base = new_base
-            if self.current_property is not None:
-                new_base = self.current_property.data['name'].capitalize() + name
+            if self._current_property is not None:
+                new_prop = self._current_property.name
+                new_base = 'xnatpy:{}{}'.format(new_prop, name)
             else:
-                new_base = self.current_class.python_name + name
+                new_prop = self._current_class.name
+                new_base = self._current_class.name + name
+                new_base = 'xnatpy:{}'.format(new_base.split(':', 1)[1])
 
-            if self.current_property is not None:
-                property_name = self.current_property.data['name']
-            else:
-                property_name = self.current_class.name.lower()
+            new_base_class = ClassPrototype(self,
+                                            name=new_base,
+                                            simple=True)
 
-            new_base_class = SimpleClassRepresentation(parser=self,
-                                                       name=new_base,
-                                                       key_name=property_name,
-                                                       type_=original_new_base)
-
+            new_base_class.attributes[new_prop] = AttributePrototype(self,
+                                                                     name=new_prop,
+                                                                     type=previous_base)
             self.class_list[new_base] = new_base_class
-        elif ':' in new_base:
-            new_base = new_base.split(':')[1]
 
-        self.current_class.base_class = new_base
-        self.parse_children(element)
+        self._current_class.base_class = new_base
+        self._parse_children(element)
 
-    def parse_ignore(self, element):
+    def _parse_ignore(self, element):
         pass
 
-    def parse_max_inclusive(self, element):
-        self.current_property.data['restrictions']['max'] = element.get('value')
+    def _parse_max_inclusive(self, element):
+        self._current_property.restrictions['max'] = element.get('value')
 
-    def parse_max_length(self, element):
-        self.current_property.data['restrictions']['maxlength'] = element.get('value')
+    def _parse_max_length(self, element):
+        self._current_property.restrictions['maxlength'] = element.get('value')
 
-    def parse_min_inclusive(self, element):
-        self.current_property.data['restrictions']['min'] = element.get('value')
+    def _parse_min_inclusive(self, element):
+        self._current_property.restrictions['min'] = element.get('value')
 
-    def parse_min_length(self, element):
-        self.current_property.data['restrictions']['minlength'] = element.get('value')
+    def _parse_min_length(self, element):
+        self._current_property.restrictions['minlength'] = element.get('value')
 
-    def parse_restriction(self, element):
-        old_type = self.current_property.data['type_']
+    def _parse_restriction(self, element):
+        old_type = self._current_property.type
         new_type = element.get('base')
 
         if old_type is not None:
             raise ValueError('Trying to override a type from a restriction!? (from {} to {})'.format(old_type, new_type))
 
-        self.current_property.data['type_'] = new_type
+        self._current_property.type = new_type
 
-        self.parse_children(element)
+        self._parse_children(element)
 
-    def parse_schema(self, element):
-        self.parse_children(element)
+    def _parse_schema(self, element):
+        self.target_namespace = element.get("targetNamespace", '')
+        if self.target_namespace != '':
+            self.target_namespace_prefix = self.namespace_prefixes[self.target_namespace] + ':'
+        else:
+            self.target_namespace_prefix = ''
 
-    def parse_sequence(self, element):
-        self.parse_children(element)
+        for child in element.getchildren():
+            if child.tag == '{http://www.w3.org/2001/XMLSchema}complexType':
+                self.parse(child)
+            elif child.tag == '{http://www.w3.org/2001/XMLSchema}element':
+                name = child.get('name')
+                type_ = child.get('type')
 
-    def parse_simple_content(self, element):
-        self.parse_children(element)
+                if self.debug:
+                    print('[DEBUG] Adding {} -> {} to class name map'.format(name, type_))
+                self.class_names[type_] = name
+            else:
+                if self.debug:
+                    print('[DEBUG] skipping non-class top-level tag {}'.format(child.tag))
 
-    def parse_simple_type(self, element):
-        self.parse_children(element)
+    def _parse_sequence(self, element):
+        self._parse_children(element)
 
-    def parse_unknown(self, element):
+    def _parse_simple_content(self, element):
+        self._parse_children(element)
+
+    def _parse_simple_type(self, element):
+        self._parse_children(element)
+
+    def _parse_unknown(self, element):
         self.unknown_tags.add(element.tag)
 
-    def parse_xdat_element(self, element):
+    def _parse_xdat_element(self, element):
         abstract = element.get("abstract")
         if abstract is not None:
-            self.current_class.abstract = abstract == "true"
+            self._current_class.abstract = abstract == "true"
 
         display_identifier = element.get("displayIdentifiers")
         if display_identifier is not None:
-            if self.current_property is None:
-                self.current_class.display_identifier = display_identifier
+            if self._current_property is None:
+                self._current_class.display_identifier = display_identifier
             else:
-                self.current_property.data['display_identifier'] = display_identifier
+                self._current_property.display_identifier = display_identifier
 
-    def parse_sqlfield(self, element):
-        print("CLASS: {}, PROP: {}, ELEMENT: {}".format(self.current_class.name, self.current_property.data["name"], element))
+    def _parse_sqlfield(self, element):
+        print("CLASS: {}, PROP: {}, ELEMENT: {}".format(self._current_class.name, self._current_property.name, element))
 
     PARSERS = {
-        '{http://www.w3.org/2001/XMLSchema}all': parse_all,
-        '{http://www.w3.org/2001/XMLSchema}annotation': parse_annotation,
-        '{http://www.w3.org/2001/XMLSchema}appinfo': parse_children,
-        '{http://www.w3.org/2001/XMLSchema}attribute': parse_attribute,
-        '{http://www.w3.org/2001/XMLSchema}attributeGroup': parse_error,
-        '{http://www.w3.org/2001/XMLSchema}choice': parse_choice,
-        '{http://www.w3.org/2001/XMLSchema}complexContent': parse_complex_content,
-        '{http://www.w3.org/2001/XMLSchema}complexType': parse_complex_type,
-        '{http://www.w3.org/2001/XMLSchema}documentation': parse_documentation,
-        '{http://www.w3.org/2001/XMLSchema}element': parse_element,
-        '{http://www.w3.org/2001/XMLSchema}enumeration': parse_enumeration,
-        '{http://www.w3.org/2001/XMLSchema}extension': parse_extension,
-        '{http://www.w3.org/2001/XMLSchema}import': parse_ignore,
-        '{http://www.w3.org/2001/XMLSchema}group': parse_error,
-        '{http://www.w3.org/2001/XMLSchema}maxInclusive': parse_max_inclusive,
-        '{http://www.w3.org/2001/XMLSchema}maxLength': parse_max_length,
-        '{http://www.w3.org/2001/XMLSchema}minInclusive': parse_min_inclusive,
-        '{http://www.w3.org/2001/XMLSchema}minLength': parse_min_length,
-        '{http://www.w3.org/2001/XMLSchema}restriction': parse_restriction,
-        '{http://www.w3.org/2001/XMLSchema}schema': parse_schema,
-        '{http://www.w3.org/2001/XMLSchema}sequence': parse_sequence,
-        '{http://www.w3.org/2001/XMLSchema}simpleContent': parse_simple_content,
-        '{http://www.w3.org/2001/XMLSchema}simpleType': parse_simple_type,
-        '{http://nrg.wustl.edu/xdat}element': parse_xdat_element,
-        '{http://nrg.wustl.edu/xdat}field': parse_children,
-        '{http://nrg.wustl.edu/xdat}sqlField': parse_sqlfield,
+        '{http://www.w3.org/2001/XMLSchema}all': _parse_all,
+        '{http://www.w3.org/2001/XMLSchema}annotation': _parse_annotation,
+        '{http://www.w3.org/2001/XMLSchema}appinfo': _parse_children,
+        '{http://www.w3.org/2001/XMLSchema}attribute': _parse_attribute,
+        '{http://www.w3.org/2001/XMLSchema}attributeGroup': _parse_error,
+        '{http://www.w3.org/2001/XMLSchema}choice': _parse_choice,
+        '{http://www.w3.org/2001/XMLSchema}complexContent': _parse_complex_content,
+        '{http://www.w3.org/2001/XMLSchema}complexType': _parse_complex_type,
+        '{http://www.w3.org/2001/XMLSchema}documentation': _parse_documentation,
+        '{http://www.w3.org/2001/XMLSchema}element': _parse_element,
+        '{http://www.w3.org/2001/XMLSchema}enumeration': _parse_enumeration,
+        '{http://www.w3.org/2001/XMLSchema}extension': _parse_extension,
+        '{http://www.w3.org/2001/XMLSchema}import': _parse_ignore,
+        '{http://www.w3.org/2001/XMLSchema}group': _parse_error,
+        '{http://www.w3.org/2001/XMLSchema}maxInclusive': _parse_max_inclusive,
+        '{http://www.w3.org/2001/XMLSchema}maxLength': _parse_max_length,
+        '{http://www.w3.org/2001/XMLSchema}minInclusive': _parse_min_inclusive,
+        '{http://www.w3.org/2001/XMLSchema}minLength': _parse_min_length,
+        '{http://www.w3.org/2001/XMLSchema}restriction': _parse_restriction,
+        '{http://www.w3.org/2001/XMLSchema}schema': _parse_schema,
+        '{http://www.w3.org/2001/XMLSchema}sequence': _parse_sequence,
+        '{http://www.w3.org/2001/XMLSchema}simpleContent': _parse_simple_content,
+        '{http://www.w3.org/2001/XMLSchema}simpleType': _parse_simple_type,
+        '{http://nrg.wustl.edu/xdat}element': _parse_xdat_element,
+        '{http://nrg.wustl.edu/xdat}field': _parse_children,
+        '{http://nrg.wustl.edu/xdat}sqlField': _parse_sqlfield,
     }
 
-    def write(self, code_file):
-        # Build XSI to class mapping for using in writing out
+    def prune_tree(self):
         for cls in self.class_list.values():
-            if isinstance(cls, ClassRepresentation):
-                self.xsi_to_cls_mapping[cls.xsi_type] = cls
+            for property_key, prop in cls.attributes.items():
+                element_class = prop.element_class
 
-                # Make sure all attribute prototypes are expanded
-                for key, value in cls.attributes.items():
-                    if isinstance(value, AttributePrototype):
-                        cls.attributes[key] = value.create(self)
+                if element_class is not None and len(element_class.attributes) == 1:
+                    element_property = element_class.attributes.values()[0]
+
+                    print('+++> Found option: {} -> {} -> {} [{}]'.format(prop, element_class, element_property, element_property.property_type))
+
+                    if element_property.property_type == 'listing':
+                        print("+--> Found element class: [{}]".format(element_class.name))
+                        print("+--> Found element property: [{}] {}".format(type(element_property).__name__,
+                                                                            element_property.name))
+
+                        # Reset parent to current parent
+                        parent_class = prop.parent_class
+
+                        print("+--> Found parent class: [{}]".format(parent_class.name))
+                        print("---> Change parent class {} -> {}".format(element_property.parent_class, parent_class))
+                        element_property.parent_class = parent_class
+                        element_property.field_name = '{}/{}'.format(prop.name, element_property.name)
+                        print("---> Changing name {} to {}".format(element_property.name, prop.name))
+                        element_property.name = prop.name
+
+                        # The new element_class has to be updated to take the place of the old element_class
+                        new_element_class = element_property.element_class
+                        if new_element_class is not None:
+                            new_element_class.name = element_class.name
+                            new_element_class.field_name = '{}/{}'.format(element_class.field_name,
+                                                                          new_element_class.field_name)
+                            print("---> Change CLS parent class {} -> {}".format(new_element_class.parent_class,
+                                                                                 element_class.parent_class))
+                            new_element_class.parent_class = element_class.parent_class
+
+                        if element_class.name in self.class_list:
+                            print('!!!!!!!!!!!!! REMOVING CLASS {} FROM PARSER'.format(element_class.name))
+                            del self.class_list[element_class.name]
+
+                        cls.attributes[property_key] = element_property
+                    else:
+                        print("Ignoring non-listing...")
+                        print("Element class: {}".format(element_class.__dict__))
+
+    def write(self, code_file):
+        print('namespaces: {}'.format(self.namespaces))
+        print('namespace prefixes: {}'.format(self.namespace_prefixes))
+
+        before = set(self.class_list.keys())
+        print('#! Classed before prune: {}'.format(before))
+        self.prune_tree()
+        after = set(self.class_list.keys())
+        print('#! Classed after prune: {}'.format(after))
+        print('#! Classes removed: {}'.format(before - after))
 
         schemas = '\n'.join('# - {}'.format(s) for s in self.schemas)
         code_file.write(FILE_HEADER.format(schemas=schemas,
                                            file_secondary_lookup=SECONDARY_LOOKUP_FIELDS['xnat:fileData']))
 
-        code_file.write('\n\n\n'.join(str(c).strip() for c in self if c.name is not None))
+        code_file.write('\n\n\n'.join(c.tostring().strip() for c in self if c.name is not None))

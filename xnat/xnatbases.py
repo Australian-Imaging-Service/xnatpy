@@ -309,7 +309,7 @@ class File(XNATBaseObject):
         return self.data['name']
 
     @property
-    def xsi_type(self):
+    def __xsi_type__(self):
         return 'xnat:fileData'  # FIXME: is this correct?
 
     def download(self, path, verbose=True):
