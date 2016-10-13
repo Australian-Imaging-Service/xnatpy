@@ -375,6 +375,10 @@ class XNATNestedObject(XNATBaseObject):
         return self.fulldata['data_fields']
 
     @property
+    def uri(self):
+        return self.parent.uri
+
+    @property
     def xpath(self):
         return '{}/{}[@xsi:type={}]'.format(self.parent.xpath,
                                             self.fieldname,
@@ -390,7 +394,7 @@ class XNATSubObject(XNATBaseObject):
 
     @property
     def uri(self):
-        return self.parent.uri
+        return self.parent.fulluri
 
     @property
     def __xsi_type__(self):
@@ -398,8 +402,21 @@ class XNATSubObject(XNATBaseObject):
 
     @property
     def xpath(self):
-        # XPath is this plus fieldname
-        return '{}/{}'.format(self.parent.xpath, self.fieldname)
+        if isinstance(self.parent, XNATBaseObject):
+            # XPath is this plus fieldname
+            return '{}/{}'.format(self.parent.xpath, self.fieldname)
+        elif isinstance(self.parent, XNATBaseListing):
+            # XPath is an index in a list
+            if isinstance(self.fieldname, int):
+                return '{}[{}]'.format(self.parent.xpath,
+                                       self.fieldname)
+            else:
+                return '{}[{}={}]'.format(self.parent.xpath,
+                                          self.parent.secondary_lookup_field,
+                                          self.fieldname)
+        else:
+            raise TypeError('Type of parent is invalid! (Found {})'.format(type(self.parent).__name__))
+
 
     @property
     def fulldata(self):
@@ -503,7 +520,12 @@ class XNATBaseListing(Mapping, Sequence):
         pass
 
     def __repr__(self):
-        content = ', '.join('({}, {}): {}'.format(k, getattr(v, self.secondary_lookup_field), v) for k, v in self.items())
+        if self.secondary_lookup_field is not None:
+            content = ', '.join('({}, {}): {}'.format(k, getattr(v, self.secondary_lookup_field), v) for k, v in self.items())
+            content = '{{{}}}'.format(content)
+        else:
+            content = ', '.join(str(v) for v in self.values())
+            content = '[{}]'.format(content)
         return '<{} {}>'.format(type(self).__name__, content)
 
     def __getitem__(self, item):
@@ -543,6 +565,7 @@ class XNATBaseListing(Mapping, Sequence):
         return self._xnat_session
 
     def clearcache(self):
+        self.parent.clearcache()
         self._cache.clear()
 
 
@@ -739,6 +762,14 @@ class XNATSubListing(XNATBaseListing, MutableMapping, MutableSequence):
         return []
 
     @property
+    def uri(self):
+        return self.parent.fulluri
+
+    @property
+    def fulluri(self):
+        return self.parent.fulluri
+
+    @property
     @caching
     def data_maps(self):
         id_map = {}
@@ -764,6 +795,14 @@ class XNATSubListing(XNATBaseListing, MutableMapping, MutableSequence):
             listing.append(object)
 
         return id_map, key_map, non_unique_keys, listing
+
+    @property
+    def __xsi_type__(self):
+        return self.parent.__xsi_type__
+
+    @property
+    def xpath(self):
+        return '{}/{}'.format(self.parent.xpath, self.field_name)
 
     def __setitem__(self, key, value):
         pass

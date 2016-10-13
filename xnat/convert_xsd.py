@@ -206,8 +206,6 @@ class ClassPrototype(object):
         else:
             if self.base_class is not None:
                 root_base = self.root_base_class(topxsd=True)
-                print('Base class: {}'.format(self.base_class))
-                print('Root base class: {}'.format(root_base))
                 return self.parser.class_list[root_base].class_type
             else:
                 return 'NestedObject'
@@ -265,6 +263,9 @@ class AttributePrototype(object):
         name = re.sub("[A-Z]+", lambda x: '_' + x.group(0).lower(), name)
         if name[0] == '_':
             name = name[1:]
+
+        # Avoid multiple underscores (replace them by single underscore)
+        name = re.sub("__+", '_', name)
 
         # Avoid overwriting keywords TODO: Do we want this, as a property it is not a huge problem?
         if keyword.iskeyword(name):

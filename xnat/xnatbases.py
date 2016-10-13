@@ -115,15 +115,15 @@ class ExperimentData(XNATBaseObject):
 
 class SubjectAssessorData(XNATBaseObject):
     @property
+    def fulluri(self):
+        return '/data/archive/projects/{}/subjects/{}/experiments/{}'.format(self.project, self.subject_id, self.id)
+
+    @property
     def subject(self):
         return self.xnat_session.subjects[self.subject_id]
 
 
 class ImageSessionData(XNATBaseObject):
-    @property
-    def fulluri(self):
-        return '/data/archive/projects/{}/subjects/{}/experiments/{}'.format(self.project, self.subject_id, self.id)
-
     @property
     @caching
     def files(self):
