@@ -178,6 +178,23 @@ class ClassPrototype(object):
     def __repr__(self):
         return "<ClassPrototype {}>".format(self.name)
 
+    def root_base_class(self, topxsd=False):
+        base = self.base_class
+        if self.base_class is None:
+            return self.name
+
+        while not base.startswith('XNAT'):
+            cls = self.parser.class_list[base]
+            if cls.base_class is None:
+                return base
+
+            if topxsd and cls.base_class.startswith('XNAT'):
+                return base
+
+            base = cls.base_class
+
+        return base
+
     @property
     def class_type(self):
         if self.base_class is not None and self.base_class.startswith('xs:'):
@@ -187,7 +204,13 @@ class ClassPrototype(object):
         elif self.name in CORE_REST_OBJECTS:
             return 'Object'
         else:
-            return 'NestedObject'
+            if self.base_class is not None:
+                root_base = self.root_base_class(topxsd=True)
+                print('Base class: {}'.format(self.base_class))
+                print('Root base class: {}'.format(root_base))
+                return self.parser.class_list[root_base].class_type
+            else:
+                return 'NestedObject'
 
     @property
     def writer(self):
@@ -221,6 +244,7 @@ class AttributePrototype(object):
         self.type = type
         self.parent_class = parent_class
         self.parent_property = parent_property
+        self.field_name = None
 
         # Set initial values for possible additions
         self.restrictions = collections.OrderedDict()
@@ -250,8 +274,6 @@ class AttributePrototype(object):
 
     @property
     def property_type(self):
-        #print('-------------------------')
-        #print('VARS: {}'.format(vars(self)))
         if self.max_occur is not None and (self.max_occur == 'unbounded' or int(self.max_occur) > 1):
             return 'listing'
         if isinstance(self.type, str):
@@ -259,16 +281,8 @@ class AttributePrototype(object):
                 return 'property'
             else:
                 return 'subobject'
-                #object_type = self.parser.class_list[self.type].class_type
         else:
-            #object_type = self.element_class.class_type
             return 'subobject'
-
-        type_map = {
-            'Object': 'subobject',
-            'NestedObject': 'subobject',
-            'SubObject': 'subobject',
-        }
 
         print('FOUND OBJECT TYPE: {}'.format(object_type))
         return type_map[object_type]
@@ -431,17 +445,6 @@ class BaseClassWriter(BaseWriter):
     def python_parent_class(self):
         return self._pythonize_name(self.parent_class)
 
-    def root_base_class(self, topxsd=False):
-        base = self.base_class
-
-        while not base.startswith('XNAT'):
-            cls = self.parser.class_list[base]
-            if topxsd and cls.base_class.startswith('XNAT'):
-                return base
-            base = cls.base_class
-
-        return base
-
     def hasattr(self, name):
         base = self.get_base_template()
 
@@ -488,6 +491,7 @@ class BaseClassWriter(BaseWriter):
 
         header += "    # Abstract: {}\n".format(self.abstract)
         header += "    # Simple: {}\n".format(self.simple)
+        header += "    # Object class: {}\n".format(self.default_base_class)
         header += "    # Source schema: {}\n".format(self.source_schema)
 
         if self.display_identifier is not None:
@@ -553,9 +557,6 @@ class SimpleClassWriter(BaseClassWriter):
 
 class SubObjectClassWriter(BaseClassWriter):
     def create_listing(self, field_name, secondary_lookup):
-        if '/' in field_name:
-            field_name = field_name.split('/')[0]
-
         return """
         # Automatically generated PropertyListing, by {element_class_name} (SubObjectClassWriter)
         # Secondary lookup: '{secondary_lookup}'
@@ -705,6 +706,10 @@ class AttributeWriter(BaseWriter):
     def display_identifier(self):
         return self.prototype.display_identifier
 
+    @property
+    def field_name(self):
+        return self.prototype.field_name
+
     # Actual funcions
     def __repr__(self):
         parent = self.parent_class.name if self.parent_class else None
@@ -838,7 +843,8 @@ class ListingPropertyWriter(AttributeWriter):
         if secondary_lookup is not None:
             secondary_lookup = "'{}'".format(secondary_lookup)
 
-        field_name = self.name
+        field_name = self.field_name or self.name
+        print('***** FIELD_NAME FOR LISTING: {}'.format(field_name))
 
         property_base = """    @property
     @caching

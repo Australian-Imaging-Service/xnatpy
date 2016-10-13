@@ -356,12 +356,23 @@ class XNATObject(XNATBaseObject):
 
 class XNATNestedObject(XNATBaseObject):
     @property
-    def data(self):
+    def fulldata(self):
         try:
-            data = next(x for x in self.parent.fulldata['children'] if x['field'] == self.fieldname)['items'][0]['data_fields']
+            if isinstance(self.parent.fulldata, dict):
+                data = next(x for x in self.parent.fulldata['children'] if x['field'] == self.fieldname)['items'][0]
+            elif isinstance(self.parent.fulldata, list):
+                data = next(x for x in self.parent.fulldata if x['data_fields'][self.parent.secondary_lookup_field] == self.fieldname)
+            else:
+                raise ValueError("Found unexpected data in parent! ({})".format(self.parent.fulldata))
+
         except StopIteration:
-            data = {}
+            data = {'data_fields': {}}
+
         return data
+
+    @property
+    def data(self):
+        return self.fulldata['data_fields']
 
     @property
     def xpath(self):
