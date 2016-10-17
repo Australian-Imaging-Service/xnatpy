@@ -170,7 +170,7 @@ class ClassPrototype(object):
         self.base_class = None
         self.display_identifier = None
         self.abstract = False
-        self.simple = simple
+        self._simple = simple
 
         self._writer = None
         self.source_schema = self.parser.current_schema
@@ -194,6 +194,15 @@ class ClassPrototype(object):
             base = cls.base_class
 
         return base
+
+    @property
+    def simple(self):
+        root_base = self.root_base_class(topxsd=True)
+        root_base = self.parser.class_list.get(root_base, self)
+        if root_base is self:
+            return self._simple
+        else:
+            return root_base.simple
 
     @property
     def class_type(self):
@@ -1274,21 +1283,21 @@ class SchemaParser(object):
                 if element_class is not None and len(element_class.attributes) == 1:
                     element_property = element_class.attributes.values()[0]
 
-                    print('+++> Found option: {} -> {} -> {} [{}]'.format(prop, element_class, element_property, element_property.property_type))
+                    #print('+++> Found option: {} -> {} -> {} [{}]'.format(prop, element_class, element_property, element_property.property_type))
 
                     if element_property.property_type == 'listing':
-                        print("+--> Found element class: [{}]".format(element_class.name))
-                        print("+--> Found element property: [{}] {}".format(type(element_property).__name__,
-                                                                            element_property.name))
+                        #print("+--> Found element class: [{}]".format(element_class.name))
+                        #print("+--> Found element property: [{}] {}".format(type(element_property).__name__,
+                        #                                                    element_property.name))
 
                         # Reset parent to current parent
                         parent_class = prop.parent_class
 
-                        print("+--> Found parent class: [{}]".format(parent_class.name))
-                        print("---> Change parent class {} -> {}".format(element_property.parent_class, parent_class))
+                        #print("+--> Found parent class: [{}]".format(parent_class.name))
+                        #print("---> Change parent class {} -> {}".format(element_property.parent_class, parent_class))
                         element_property.parent_class = parent_class
                         element_property.field_name = '{}/{}'.format(prop.name, element_property.name)
-                        print("---> Changing name {} to {}".format(element_property.name, prop.name))
+                        #print("---> Changing name {} to {}".format(element_property.name, prop.name))
                         element_property.name = prop.name
 
                         # The new element_class has to be updated to take the place of the old element_class
@@ -1297,8 +1306,8 @@ class SchemaParser(object):
                             new_element_class.name = element_class.name
                             new_element_class.field_name = '{}/{}'.format(element_class.field_name,
                                                                           new_element_class.field_name)
-                            print("---> Change CLS parent class {} -> {}".format(new_element_class.parent_class,
-                                                                                 element_class.parent_class))
+                            #print("---> Change CLS parent class {} -> {}".format(new_element_class.parent_class,
+                            #                                                     element_class.parent_class))
                             new_element_class.parent_class = element_class.parent_class
 
                         if element_class.name in self.class_list:
@@ -1309,6 +1318,33 @@ class SchemaParser(object):
                     else:
                         print("Ignoring non-listing...")
                         print("Element class: {}".format(element_class.__dict__))
+
+        for cls in self.class_list.values():
+            for property_key, prop in cls.attributes.items():
+                # Only consider simplifying listings
+                if prop.property_type != 'listing':
+                    continue
+
+                # If the type is not by element class, no need to check further
+                if prop.element_class is None:
+                    continue
+
+                if prop.element_class.simple:
+                    print('$$$ Found simple mapping {}.{} -> {}'.format(cls.name,
+                                                                    property_key,
+                                                                    prop.element_class.name))
+
+                    if len(prop.element_class.attributes) > 2:
+                        print('!! Too many attributes')
+                        continue
+                    elif len(prop.element_class.attributes) == 2:
+                        print('!! Two attributes incl name={}'.format(property_key in prop.element_class.attributes))
+                    elif len(prop.element_class.attributes) == 1:
+                        print('!! Single attribute')
+                    else:
+                        print('!! No attribute')
+                # Attempt to find listings with simple type
+
 
     def write(self, code_file):
         print('namespaces: {}'.format(self.namespaces))

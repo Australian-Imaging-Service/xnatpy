@@ -242,6 +242,24 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
     def fulluri(self):
         return self.uri
 
+    def mset(self, values=None, **kwargs):
+        if not isinstance(values, dict):
+            values = kwargs
+
+        if self.parent is not None:
+            xsi_type = self.parent.__xsi_type__
+        else:
+            xsi_type = self.__xsi_type__
+
+        # Add xpaths to query
+        query = {'xsiType': xsi_type}
+        for name, value in values.items():
+            xpath = '{}/{}'.format(self.xpath, name)
+            query[xpath] = value
+
+        self.xnat_session.put(self.fulluri, query=query)
+        self.parent.clearcache()
+
     def set(self, name, value, type_=None):
         """
         Set a field in the current object
@@ -257,17 +275,10 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
             else:
                 value = type_(value)
 
-        if self.parent is not None:
-            xsi_type = self.parent.__xsi_type__
-        else:
-            xsi_type = self.__xsi_type__
+        self.mset({name: value})
 
-        xpath = '{}/{}'.format(self.xpath, name)
-        query = {'xsiType': xsi_type,
-                 xpath: value}
-
-        self.xnat_session.put(self.fulluri, query=query)
-        self.parent.clearcache()
+    def del_(self, name):
+        self.mset({name: 'NULL'})
 
     @mixedproperty
     def __xsi_type__(self):
@@ -380,9 +391,14 @@ class XNATNestedObject(XNATBaseObject):
 
     @property
     def xpath(self):
-        return '{}/{}[@xsi:type={}]'.format(self.parent.xpath,
-                                            self.fieldname,
-                                            self.__xsi_type__)
+        if isinstance(self.parent, XNATBaseObject):
+            return '{}/{}[@xsi:type={}]'.format(self.parent.xpath,
+                                                self.fieldname,
+                                                self.__xsi_type__)
+        else:
+            return '{}[{}={}]'.format(self.parent.xpath,
+                                      self.parent.secondary_lookup_field,
+                                      self.fieldname)
 
     def clearcache(self):
         self.parent.clearcache()
@@ -427,10 +443,13 @@ class XNATSubObject(XNATBaseObject):
         if isinstance(result, dict):
             result = {k[len(prefix):]: v for k, v in result.items() if k.startswith(prefix)}
         elif isinstance(result, list):
-            if self.parent.secondary_lookup_field is not None:
-                result = next(x for x in result if x['data_fields'][self.parent.secondary_lookup_field] == self.fieldname)
-            else:
-                result = result[self.fieldname]
+            try:
+                if self.parent.secondary_lookup_field is not None:
+                    result = next(x for x in result if x['data_fields'][self.parent.secondary_lookup_field] == self.fieldname)
+                else:
+                    result = result[self.fieldname]
+            except (IndexError, KeyError):
+                return {'data_fields': {}}
         else:
             raise ValueError("Found unexpected data in parent! ({})".format(result))
 
@@ -750,6 +769,14 @@ class XNATSimpleListing(XNATBaseListing, MutableMapping, MutableSequence):
 
 
 class XNATSubListing(XNATBaseListing, MutableMapping, MutableSequence):
+    def __getitem__(self, item):
+        try:
+            return super(XNATSubListing, self).__getitem__(item)
+        except (IndexError, KeyError):
+            cls = self.xnat_session.XNAT_CLASS_LOOKUP[self._xsi_type]
+            object = cls(uri=self.parent.uri, id_=item, datafields={}, parent=self, fieldname=item)
+            return object
+
     @property
     def xnat_session(self):
         return self.parent.xnat_session
@@ -808,7 +835,27 @@ class XNATSubListing(XNATBaseListing, MutableMapping, MutableSequence):
         pass
 
     def __delitem__(self, key):
-        pass
+        # Determine XPATH of item to remove
+        if isinstance(key, int):
+            xpath = '{}[{}]'.format(self.xpath,
+                                   key)
+        else:
+            xpath = '{}[{}={}]'.format(self.xpath,
+                                      self.secondary_lookup_field,
+                                      key)
+
+        # Get correct xsi type
+        if self.parent is not None:
+            xsi_type = self.parent.__xsi_type__
+        else:
+            xsi_type = self.__xsi_type__
+
+        query = {'xsiType': xsi_type}
+
+        query[xpath] = 'NULL'
+
+        self.xnat_session.put(self.fulluri, query=query)
+        self.clearcache()
 
     def insert(self, index, value):
         pass

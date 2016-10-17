@@ -284,7 +284,7 @@ class XNATSession(object):
         if self.debug:
             print('[DEBUG] PUT URI {}'.format(uri))
             print('[DEBUG] PUT DATA {}'.format(data))
-            print('[DEBUG] PUT FILES {}'.format(data))
+            print('[DEBUG] PUT FILES {}'.format(files))
 
         try:
             response = self._interface.put(uri, data=data, files=files, json=json)
