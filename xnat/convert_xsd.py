@@ -216,15 +216,21 @@ class ClassRepresentation(object):
 
     @property
     def python_name(self):
-        return self.name[0].upper() + self.name[1:]
+        name = ''.join(x if x.isalnum() else '_' for x in self.name)
+        name = re.sub('_+', '_', name)
+        return name[0].upper() + name[1:]
 
     @property
     def python_baseclass(self):
-        return self.baseclass[0].upper() + self.baseclass[1:]
+        name = ''.join(x if x.isalnum() else '_' for x in self.baseclass)
+        name = re.sub('_+', '_', name)
+        return name[0].upper() + name[1:]
 
     @property
     def python_parentclass(self):
-        return self.parent[0].upper() + self.parent[1:]
+        name = ''.join(x if x.isalnum() else '_' for x in self.parent)
+        name = re.sub('_+', '_', name)
+        return name[0].upper() + name[1:]
 
     def get_base_template(self):
         if hasattr(xnatbases, self.python_name):
