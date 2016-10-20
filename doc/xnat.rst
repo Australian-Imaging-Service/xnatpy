@@ -8,3 +8,34 @@ Code reference
     :members:
     :undoc-members:
     :show-inheritance:
+
+:mod:`session` Module
+-------------------
+
+.. automodule:: xnat.session
+    :members:
+    :show-inheritance:
+
+:mod:`inspect` Module
+-------------------
+
+.. automodule:: xnat.inspect
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+:mod:`prearchive` Module
+-------------------
+
+.. automodule:: xnat.prearchive
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+:mod:`services` Module
+-------------------
+
+.. automodule:: xnat.services
+    :members:
+    :undoc-members:
+    :show-inheritance:
