@@ -41,6 +41,63 @@ GEN_MODULES = {}
 __all__ = ['connect']
 
 
+def parse_schemas_16(parser, requests_session, server, extension_types=True, debug=False):
+    # Retrieve schema from XNAT server
+    schema_uri = '{}/schemas/xnat/xnat.xsd'.format(server.rstrip('/'))
+
+    success = parser.parse_schema_uri(requests_session=requests_session,
+                                      schema_uri=schema_uri)
+
+    if not success:
+        raise RuntimeError('Could not parse the xnat.xsd! See error log for details!')
+
+    # Parse extension types
+    if extension_types:
+        projects_uri = '{}/data/projects?format=json'.format(server.rstrip('/'))
+        response = requests_session.get(projects_uri)
+        if response.status_code != 200:
+            raise ValueError('Could not get project list from {} (status {})'.format(projects_uri,
+                                                                                     response.status_code))
+        try:
+            project_id = response.json()['ResultSet']['Result'][0]['ID']
+        except (KeyError, IndexError):
+            raise ValueError('Could not find an example project for scanning extension types!')
+
+        project_uri = '{}/data/projects/{}?format=xml'.format(server.rstrip('/'), project_id)
+        response = requests_session.get(project_uri)
+
+        if response.status_code != 200:
+            raise ValueError('Could not get example project from {} (status {})'.format(project_uri,
+                                                                                        response.status_code))
+
+        schemas = parser.find_schema_uris(response.text)
+        if schema_uri in schemas:
+            if debug:
+                print('[DEBUG] Removing schema {} from list'.format(schema_uri))
+            schemas.remove(schema_uri)
+        print('[INFO] Found additional schemas: {}'.format(schemas))
+
+        for schema in schemas:
+            parser.parse_schema_uri(requests_session=requests_session,
+                                    schema_uri=schema)
+
+
+def parse_schemas_17(parser, requests_session, server, debug=False):
+    schemas_uri  = '{}/xapi/schemas'.format(server.rstrip('/'))
+    schemas_request = requests_session.get(schemas_uri)
+
+    if schemas_request.status_code != 200:
+        print('[ERROR] Problem retrieving schemas list: [{}] {}'.format(schemas_request.status_code, schemas_request.text))
+        raise ValueError('Problem retrieving schemas list: [{}] {}'.format(schemas_request.status_code, schemas_request.text))
+
+    schema_list = schemas_request.json()
+    schema_list = ['{server}/xapi/schemas/{schema}'.format(server=server.rstrip('/'), schema=x) for x in schema_list]
+    
+    for schema in schema_list:
+        parser.parse_schema_uri(requests_session=requests_session,
+                                schema_uri=schema)
+
+
 def connect(server, user=None, password=None, verify=True, netrc_file=None, debug=False, extension_types=True):
     """
     Connect to a server and generate the correct classed based on the servers xnat.xsd
@@ -79,9 +136,6 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
         Subjects in the SampleDICOM project: <XNATListing (CENTRAL_S01894, dcmtest1): <SubjectData CENTRAL_S01894>, (CENTRAL_S00461, PACE_HF_SUPINE): <SubjectData CENTRAL_S00461>>
         >>> session.disconnect()
     """
-    # Retrieve schema from XNAT server
-    schema_uri = '{}/schemas/xnat/xnat.xsd'.format(server.rstrip('/'))
-
     # Get the login info
     parsed_server = parse.urlparse(server)
 
@@ -109,41 +163,31 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
 
     # Generate module
     parser = SchemaParser(debug=debug)
-    success = parser.parse_schema_uri(requests_session=requests_session,
-                                      schema_uri=schema_uri)
 
-    if not success:
-        raise RuntimeError('Could not parse the xnat.xsd! Cannot build data model!')
+    # Parse schemas
+    version_uri = '{}/data/version'.format(server.rstrip('/'))
+    version_request = requests_session.get(version_uri)
+    if version_request.status_code == 200:
+        version = version_request.text
+    else:
+        schemas_uri  = '{}/xapi/schemas'.format(server.rstrip('/'))
+        schemas_request = requests_session.get(schemas_uri)
 
-    # Parse extension types
-    if extension_types:
-        projects_uri = '{}/data/projects?format=json'.format(server.rstrip('/'))
-        response = requests_session.get(projects_uri)
-        if response.status_code != 200:
-            raise ValueError('Could not get project list from {} (status {})'.format(projects_uri,
-                                                                                     response.status_code))
-        try:
-            project_id = response.json()['ResultSet']['Result'][0]['ID']
-        except (KeyError, IndexError):
-            raise ValueError('Could not find an example project for scanning extension types!')
+        if schemas_request.status_code == 200:
+            version = '1.7.0'
+        else:
+            print('[ERROR] Could not retrieve version: [{}] {}'.format(version_request.status_code, version_request.text))
+            raise ValueError('Cannot continue on unknown XNAT version')
 
-        project_uri = '{}/data/projects/{}?format=xml'.format(server.rstrip('/'), project_id)
-        response = requests_session.get(project_uri)
-
-        if response.status_code != 200:
-            raise ValueError('Could not get example project from {} (status {})'.format(project_uri,
-                                                                                        response.status_code))
-
-        schemas = parser.find_schema_uris(response.text)
-        if schema_uri in schemas:
-            if debug:
-                print('[DEBUG] Removing schema {} from list'.format(schema_uri))
-            schemas.remove(schema_uri)
-        print('[INFO] Found additional schemas: {}'.format(schemas))
-
-        for schema in schemas:
-            parser.parse_schema_uri(requests_session=requests_session,
-                                    schema_uri=schema)
+    if version.startswith('1.6'):
+        print('[INFO] Found an 1.6 version ({})'.format(version))
+        parse_schemas_16(parser, requests_session, server, extension_types=extension_types, debug=debug)
+    elif version.startswith('1.7'):
+        print('[INFO] Found an 1.7 version ({})'.format(version))
+        parse_schemas_17(parser, requests_session, server, debug=debug)
+    else:
+        print('[ERROR] Found an unsupported version ({})'.format(version))
+        raise ValueError('Cannot continue on unsupported XNAT version')
 
     # Write code to temp file
     with tempfile.NamedTemporaryFile(mode='w', suffix='_generated_xnat.py', delete=False) as code_file:
@@ -154,7 +198,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
 
     # Import temp file as a module
     hasher = hashlib.md5()
-    hasher.update(schema_uri.encode('utf-8'))
+    hasher.update(server.encode('utf-8'))
     hasher.update(str(time.time()).encode('utf-8'))
 
     # The module is loaded in its private namespace based on the code_file name

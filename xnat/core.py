@@ -79,7 +79,7 @@ class VariableMap(MutableMapping):
         query = {'xsiType': self.parent.xsi_type,
                  '{parent_type_}/{field}[@xsi_type={type}]/{key}'.format(parent_type_=self.parent.xsi_type,
                                                                          field=self.field,
-                                                                         type=self.xsi_type,
+                                                                         type=self.parent.xsi_type,
                                                                          key=key): value}
         self.xnat.put(self.parent.fulluri, query=query)
 
@@ -138,6 +138,7 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
 
         # This is the object creation branch
         if uri is None and parent is not None:
+            # This is the creation of a new object in the XNAT server
             self._xnat_session = parent.xnat_session
             if isinstance(parent, XNATListing):
                 pass
@@ -172,6 +173,7 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
             self._uri = uri
             self._parent = None
         else:
+            # This is the creation of a Python proxy for an existing XNAT object
             self._uri = uri
             self._parent = parent
 
@@ -381,8 +383,12 @@ class XNATListing(Mapping):
     @property
     @caching
     def data_maps(self):
-        xsi_type = ',xsiType' if self._xsi_type is None else ''
-        columns = 'ID,URI,{}{}'.format(self.secondary_lookup_field, xsi_type)
+        columns = 'ID,URI'
+        if self.secondary_lookup_field is not None:
+            columns = '{},{}'.format(columns, self.secondary_lookup_field)
+        if self._xsi_type is None:
+            columns += ',xsiType'
+
         query = dict(self.used_filters)
         query['columns'] = columns
         result = self.xnat_session.get_json(self.uri, query=query)
@@ -412,16 +418,25 @@ class XNATListing(Mapping):
         # Create object dictionaries
         id_map = {}
         key_map = {}
+        non_unique = {None}
         for x in result:
             # HACK: xsi_type of resources is called element_name... yay!
-            new_object = self.xnat_session.create_object(x['URI'],
-                                                         type_=x.get('xsiType', x.get('element_name', self._xsi_type)),
-                                                         id_=x['ID'],
-                                                         **{self.secondary_lookup_field: x.get(self.secondary_lookup_field)})
+            if self.secondary_lookup_field is not None:
+                secondary_lookup_value = x.get(self.secondary_lookup_field)
+                new_object = self.xnat_session.create_object(x['URI'],
+                                                             type_=x.get('xsiType', x.get('element_name', self._xsi_type)),
+                                                             id_=x['ID'],
+                                                             **{self.secondary_lookup_field: secondary_lookup_value})
+                if secondary_lookup_value in key_map:
+                    non_unique.add(secondary_lookup_value)
+                key_map[secondary_lookup_value] = new_object
+            else:
+                new_object = self.xnat_session.create_object(x['URI'],
+                                                             type_=x.get('xsiType', x.get('element_name', self._xsi_type)),
+                                                             id_=x['ID'])
             id_map[x['ID']] = new_object
-            key_map[x.get(self.secondary_lookup_field)] = new_object
 
-        return id_map, key_map
+        return id_map, key_map, non_unique
 
     @property
     def data(self):
@@ -430,6 +445,10 @@ class XNATListing(Mapping):
     @property
     def key_map(self):
         return self.data_maps[1]
+
+    @property
+    def non_unique_keys(self):
+        return self.data_maps[2]
 
     def __repr__(self):
         content = ', '.join('({}, {}): {}'.format(k, getattr(v, self.secondary_lookup_field), v) for k, v in self.items())
@@ -440,6 +459,10 @@ class XNATListing(Mapping):
             return self.data[item]
         except KeyError:
             try:
+                if item in self.non_unique_keys:
+                    raise KeyError('There are multiple items with that key in'
+                                   ' this collection! To avoid problem you need'
+                                   ' to use the ID.')
                 return self.key_map[item]
             except StopIteration:
                 raise KeyError('Could not find ID/label {} in collection!'.format(item))

@@ -26,7 +26,7 @@ class Services(object):
     def xnat_session(self):
         return self._xnat_session
 
-    def import_(self, path, overwrite=None, quarantine=False, destination=None, project=None, content_type=None):
+    def import_(self, path, overwrite=None, quarantine=False, destination=None, project=None, subject=None, experiment=None, content_type=None):
         query = {}
         if overwrite is not None:
             if overwrite not in ['none', 'append', 'delete']:
@@ -42,16 +42,21 @@ class Services(object):
         if project is not None:
             query['project'] = project
 
+        if subject is not None:
+            query['subject'] = subject
+
+        if experiment is not None:
+            query['session'] = experiment
+
         # Get mimetype of file
         if content_type is None:
             content_type, transfer_encoding = mimetypes.guess_type(path)
 
         uri = '/data/services/import'
         response = self.xnat_session.upload(uri=uri, file_=path, query=query, content_type=content_type, method='post')
-        return response
 
-        # TODO: figure out why the returned url is not valid!
-        #if response.status_code != 200:
-        #    raise XNATResponseError('The response for uploading was ({}) {}'.format(response.status_code, response.text))
+        if response.status_code != 200:
+            raise XNATResponseError('The response for uploading was ({}) {}'.format(response.status_code, response.text))
 
-        #return self.xnat.create_object(response.text)
+        # Create object, the return text should be the url, but it will have a \r\n at the end that needs to be stripped
+        return self.xnat_session.create_object(response.text.strip())

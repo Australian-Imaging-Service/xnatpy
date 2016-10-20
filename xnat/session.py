@@ -179,7 +179,7 @@ class XNATSession(object):
             else:
                 value = False
 
-        if not isinstance(value, bool):
+        elif not isinstance(value, bool):
             raise TypeError('Type should be an integer or boolean!')
 
         self._keepalive = value
@@ -235,6 +235,17 @@ class XNATSession(object):
             raise exceptions.XNATResponseError('Invalid response from XNATSession for url {} (status {}):\n{}'.format(uri, response.status_code, response.text))
 
     def get(self, path, format=None, query=None, accepted_status=None):
+        """
+        Retrieve the content of a given REST directory.
+
+        :param str path: the path of the uri to retrieve (e.g. "/data/archive/projects")
+                         the remained for the uri is constructed automatically
+        :param str format: the format of the request, this will add the format= to the query string
+        :param dict query: the values to be added to the query string in the uri
+        :param list accepted_status: a list of the valid values for the return code, default [200]
+        :returns: the requests reponse
+        :rtype: requests.Response
+        """
         accepted_status = accepted_status or [200]
         uri = self._format_uri(path, format, query=query)
 
@@ -248,7 +259,43 @@ class XNATSession(object):
         self._check_response(response, accepted_status=accepted_status, uri=uri)  # Allow OK, as we want to get data
         return response
 
+    def head(self, path, accepted_status=None):
+        """
+        Retrieve the header for a http request of a given REST directory.
+
+        :param str path: the path of the uri to retrieve (e.g. "/data/archive/projects")
+                         the remained for the uri is constructed automatically
+        :param list accepted_status: a list of the valid values for the return code, default [200]
+        :returns: the requests reponse
+        :rtype: requests.Response
+        """
+        accepted_status = accepted_status or [200]
+        uri = self._format_uri(path)
+
+        if self.debug:
+            print('[DEBUG] GET URI {}'.format(uri))
+
+        try:
+            response = self.interface.head(uri)
+        except requests.exceptions.SSLError:
+            raise exceptions.XNATSSLError('Encountered a problem with the SSL connection, are you sure the server is offering https?')
+        self._check_response(response, accepted_status=accepted_status, uri=uri)  # Allow OK, as we want to get data
+        return response
+
     def post(self, path, data=None, json=None, format=None, query=None, accepted_status=None):
+        """
+        Post data to a given REST directory.
+
+        :param str path: the path of the uri to retrieve (e.g. "/data/archive/projects")
+                         the remained for the uri is constructed automatically
+        :param data: Dictionary, bytes, or file-like object to send in the body of the :class:`Request`.
+        :param json: json data to send in the body of the :class:`Request`.
+        :param str format: the format of the request, this will add the format= to the query string
+        :param dict query: the values to be added to the query string in the uri
+        :param list accepted_status: a list of the valid values for the return code, default [200]
+        :returns: the requests reponse
+        :rtype: requests.Response
+        """
         accepted_status = accepted_status or [200, 201]
         uri = self._format_uri(path, format, query=query)
 
@@ -264,6 +311,24 @@ class XNATSession(object):
         return response
 
     def put(self, path, data=None, files=None, json=None, format=None, query=None, accepted_status=None):
+        """
+        Put the content of a given REST directory.
+
+        :param str path: the path of the uri to retrieve (e.g. "/data/archive/projects")
+                         the remained for the uri is constructed automatically
+        :param data: Dictionary, bytes, or file-like object to send in the body of the :class:`Request`.
+        :param json: json data to send in the body of the :class:`Request`.
+        :param files: Dictionary of ``'name': file-like-objects`` (or ``{'name': file-tuple}``) for multipart encoding upload.
+                      ``file-tuple`` can be a 2-tuple ``('filename', fileobj)``, 3-tuple ``('filename', fileobj, 'content_type')``
+                      or a 4-tuple ``('filename', fileobj, 'content_type', custom_headers)``, where ``'content-type'`` is a string
+                      defining the content type of the given file and ``custom_headers`` a dict-like object containing additional headers
+                      to add for the file.
+        :param str format: the format of the request, this will add the format= to the query string
+        :param dict query: the values to be added to the query string in the uri
+        :param list accepted_status: a list of the valid values for the return code, default [200]
+        :returns: the requests reponse
+        :rtype: requests.Response
+        """
         accepted_status = accepted_status or [200, 201]
         uri = self._format_uri(path, format, query=query)
 
@@ -280,6 +345,17 @@ class XNATSession(object):
         return response
 
     def delete(self, path, headers=None, accepted_status=None, query=None):
+        """
+        Delete the content of a given REST directory.
+
+        :param str path: the path of the uri to retrieve (e.g. "/data/archive/projects")
+                         the remained for the uri is constructed automatically
+        :param str format: the format of the request, this will add the format= to the query string
+        :param dict query: the values to be added to the query string in the uri
+        :param list accepted_status: a list of the valid values for the return code, default [200]
+        :returns: the requests reponse
+        :rtype: requests.Response
+        """
         accepted_status = accepted_status or [200]
         uri = self._format_uri(path, query=query)
 
@@ -320,13 +396,21 @@ class XNATSession(object):
         return parse.urlunparse(data)
 
     def get_json(self, uri, query=None):
+        """
+        Helper function that perform a GET, but sets the format to JSON and
+        parses the result as JSON
+
+        :param str uri: the path of the uri to retrieve (e.g. "/data/archive/projects")
+                         the remained for the uri is constructed automatically
+        :param dict query: the values to be added to the query string in the uri
+        """
         response = self.get(uri, format='json', query=query)
         try:
             return response.json()
         except ValueError:
-            raise ValueError('Could not decode JSON from {}'.format(response.text))
+            raise ValueError('Could not decode JSON from [{}] {}'.format(uri, response.text))
 
-    def download_stream(self, uri, target_stream, format=None, verbose=True, chunk_size=524288):
+    def download_stream(self, uri, target_stream, format=None, verbose=False, chunk_size=524288):
         uri = self._format_uri(uri, format=format)
         if self.debug:
             print('[DEBUG] DOWNLOAD URI {}'.format(uri))
@@ -352,6 +436,9 @@ class XNATSession(object):
                 sys.stdout.flush()
 
     def download(self, uri, target, format=None, verbose=True):
+        """
+        Download uri to a target file
+        """
         with open(target, 'wb') as out_fh:
             self.download_stream(uri, out_fh, format=format, verbose=verbose)
 
@@ -360,6 +447,9 @@ class XNATSession(object):
             sys.stdout.flush()
 
     def download_zip(self, uri, target, verbose=True):
+        """
+        Download uri to a target zip file
+        """
         self.download(uri, target, format='zip', verbose=verbose)
 
     def upload(self, uri, file_, retries=1, query=None, content_type=None, method='put'):
@@ -426,6 +516,9 @@ class XNATSession(object):
 
     @property
     def xnat_version(self):
+        """
+        The version of the XNAT server
+        """
         return self.get('/data/version').text
 
     def create_object(self, uri, type_=None, fieldname=None, **kwargs):
@@ -439,6 +532,8 @@ class XNATSession(object):
             else:
                 datafields = None
 
+            if self.xnat_session.debug:
+                print('[DEBUG] Looking up type {} [{}]'.format(type_, type(type_).__name__))
             if type_ not in self.XNAT_CLASS_LOOKUP:
                 raise KeyError('Type {} unknow to this XNATSession REST client (see XNAT_CLASS_LOOKUP class variable)'.format(type_))
 
@@ -456,6 +551,9 @@ class XNATSession(object):
     @property
     @caching
     def projects(self):
+        """
+        Listing of all projects on the XNAT server
+        """
         return XNATListing(self.uri + '/projects',
                            xnat_session=self.xnat_session,
                            parent=self,
@@ -466,6 +564,9 @@ class XNATSession(object):
     @property
     @caching
     def subjects(self):
+        """
+        Listing of all subjects on the XNAT server
+        """
         return XNATListing(self.uri + '/subjects',
                            xnat_session=self.xnat_session,
                            parent=self,
@@ -476,6 +577,9 @@ class XNATSession(object):
     @property
     @caching
     def experiments(self):
+        """
+        Listing of all experiments on the XNAT server
+        """
         return XNATListing(self.uri + '/experiments',
                            xnat_session=self.xnat_session,
                            parent=self,
@@ -484,12 +588,21 @@ class XNATSession(object):
 
     @property
     def prearchive(self):
+        """
+        Representation of the prearchive on the XNAT server, see :py:mod:`xnat.prearchive`
+        """
         return self._prearchive
 
     @property
     def services(self):
+        """
+        Collection of services, see :py:mod:`xnat.services`
+        """
         return self._services
 
     def clearcache(self):
+        """
+        Clear the cache of the listings in the Session object
+        """
         self._cache.clear()
         self._cache['__objects__'] = {}

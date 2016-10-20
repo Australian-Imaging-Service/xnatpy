@@ -113,6 +113,12 @@ class ExperimentData(XNATObject):
     SECONDARY_LOOKUP_FIELD = 'label'
 
 
+class SubjectAssessorData(XNATObject):
+    @property
+    def subject(self):
+        return self.xnat_session.subjects[self.subject_id]
+
+
 class ImageSessionData(XNATObject):
     @property
     def fulluri(self):
@@ -136,8 +142,8 @@ class ImageSessionData(XNATObject):
         self.clearcache()  # The resources changed, so we have to clear the cache
         return self.xnat_session.create_object('{}/assessors/{}'.format(self.fulluri, label), type_=type_)
 
-    def download(self, path):
-        self.xnat_session.download_zip(self.uri + '/scans/ALL/files', path)
+    def download(self, path, verbose=True):
+        self.xnat_session.download_zip(self.uri + '/scans/ALL/files', path, verbose=verbose)
 
     def download_dir(self, target_dir, verbose=True):
         with tempfile.TemporaryFile() as temp_path:
@@ -181,8 +187,8 @@ class DerivedData(XNATObject):
         self.clearcache()  # The resources changed, so we have to clear the cache
         return self.xnat_session.create_object(uri, type_='xnat:resourceCatalog')
 
-    def download(self, path):
-        self.xnat_session.download_zip(self.uri + '/files', path)
+    def download(self, path, verbose=True):
+        self.xnat_session.download_zip(self.uri + '/files', path, verbose=verbose)
 
 
 class ImageScanData(XNATObject):
@@ -214,8 +220,8 @@ class ImageScanData(XNATObject):
         self.clearcache()  # The resources changed, so we have to clear the cache
         return self.xnat_session.create_object(uri, type_='xnat:resourceCatalog')
 
-    def download(self, path):
-        self.xnat_session.download_zip(self.uri + '/files', path)
+    def download(self, path, verbose=True):
+        self.xnat_session.download_zip(self.uri + '/files', path, verbose=verbose)
 
     def download_dir(self, target_dir, verbose=True):
         with tempfile.TemporaryFile() as temp_path:
@@ -256,8 +262,8 @@ class AbstractResource(XNATObject):
                            secondary_lookup_field='name',
                            xsi_type='xnat:fileData')
 
-    def download(self, path):
-        self.xnat_session.download_zip(self.uri + '/files', path)
+    def download(self, path, verbose=True):
+        self.xnat_session.download_zip(self.uri + '/files', path, verbose=verbose)
 
     def download_dir(self, target_dir, verbose=True):
         with tempfile.TemporaryFile() as temp_path:
@@ -284,8 +290,18 @@ class File(XNATObject):
                                    datafields=datafields,
                                    parent=parent,
                                    fieldname=fieldname)
+
+        # Store in object
+        self._id = id_
+        self._name = name
+
         if name is not None:
             self._cache['name'] = name
+
+    @property
+    def fulldata(self):
+        # Make sure not to try to GET, it will download the entire file!
+        return {'data_fields': {'ID': self._id, 'name': self._name}}
 
     @property
     @caching
@@ -296,5 +312,10 @@ class File(XNATObject):
     def xsi_type(self):
         return 'xnat:fileData'  # FIXME: is this correct?
 
-    def download(self, path):
-        self.xnat_session.download(self.uri, path)
+    def download(self, path, verbose=True):
+        self.xnat_session.download(self.uri, path, verbose=verbose)
+
+    @caching
+    def size(self):
+        response = self.xnat_session.head(self.uri)
+        return response.headers['Content-Length']
