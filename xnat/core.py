@@ -18,6 +18,7 @@ from __future__ import unicode_literals
 from abc import ABCMeta, abstractproperty
 from collections import MutableMapping, MutableSequence, Mapping, Sequence, namedtuple
 import fnmatch
+import keyword
 import re
 import textwrap
 
@@ -494,6 +495,24 @@ class XNATBaseListing(Mapping, Sequence):
 
         self.secondary_lookup_field = secondary_lookup_field
 
+    def sanitize_name(self, name):
+        name = re.sub('[^0-9a-zA-Z]+', '_', name)
+
+        # Change CamelCaseString to camel_case_string
+        # Note that addID would become add_id
+        name = re.sub("[A-Z]+", lambda x: '_' + x.group(0).lower(), name)
+        if name[0] == '_':
+            name = name[1:]
+
+        # Avoid multiple underscores (replace them by single underscore)
+        name = re.sub("__+", '_', name)
+
+        # Avoid overwriting keywords TODO: Do we want this, as a property it is not a huge problem?
+        if keyword.iskeyword(name):
+            name += '_'
+
+        return name
+
     @property
     def xnat_session(self):
         return self._xnat_session
@@ -540,7 +559,7 @@ class XNATBaseListing(Mapping, Sequence):
 
     def __repr__(self):
         if self.secondary_lookup_field is not None:
-            content = ', '.join('({}, {}): {}'.format(k, getattr(v, self.secondary_lookup_field), v) for k, v in self.items())
+            content = ', '.join('({}, {}): {}'.format(k, getattr(v, self.sanitize_name(self.secondary_lookup_field)), v) for k, v in self.items())
             content = '{{{}}}'.format(content)
         else:
             content = ', '.join(str(v) for v in self.values())
