@@ -153,7 +153,7 @@ class ImageSessionData(XNATObject):
                 zip_file.extractall(target_dir)
 
         if verbose:
-            print('Downloaded image session to {}'.format(target_dir))
+            print('\nDownloaded image session to {}'.format(target_dir))
 
 
 class DerivedData(XNATObject):

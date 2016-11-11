@@ -1,18 +1,18 @@
-Tutorial
-========
+XNATpy Tutorial
+===============
 
 XNAT REST API
 -------------
 
 The XNAT REST API allows users to work with xnat via scripts. The REST API is
-we interface that is language indepedent and is build on top of HTTP. Operations
+an interface that is language independent and is build on top of HTTP. Operations
 are carried out by HTTP requests with one of the verbs ``GET``, ``PUT``,
 ``POST`` or ``DELETE``. The ``GET`` request is generally used for retrieving
 data, whereas the ``PUT``, ``POST``, and ``DELETE`` are used for modifying data.
 
 A simple ``GET`` request can be send by simply putting the target url in a web
 browser and looking at the result. For a sending more complex HTTP requests,
-you can for example use ``curl`` (a command-line tool for linux), **postman**
+you can for example use ``curl`` (a command-line tool for linux), ``postman``
 (an extension for the chrome browser), or the ``requests`` package for Python
 (on top of which this package as well as pyxnat is build)
 
@@ -26,7 +26,7 @@ following URLs in your browser:
 The first URL give you a table with an overview of all projects you can access
 on XNAT central. The second and third URL give the same information, but in
 different machine readable formats (XML and JSON respectively). This is
-extremely uesful when creating scripts to automatically retrieve or store data
+extremely useful when creating scripts to automatically retrieve or store data
 from XNAT.
 
 Installation
@@ -88,7 +88,7 @@ permission correct.
 Self-closing sessions
 ^^^^^^^^^^^^^^^^^^^^^
 
-When in a script where there is a possibility for unforseen errors it is safest
+When in a script where there is a possibility for unforeseen errors it is safest
 to use a context operator in Python. This can be achieved by using the
 following::
 

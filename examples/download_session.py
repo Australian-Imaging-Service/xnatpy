@@ -18,36 +18,30 @@
 
 import xnat
 import argparse
+import os
 
 
-def delete_xnat_session_type(connection, projectid, session_to_be_removed, dryrun):
-    for subject in connection.projects[projectid].subjects:
-        experiments = connection.projects[projectid].subjects[subject].experiments
-        for experiment in experiments:
-            xsiType = connection.projects[projectid].subjects[subject].experiments[experiment].xsi_type
-            if xsiType == session_to_be_removed:
-                if dryrun:
-                    print('{},{},{}'.format(subject, experiment, xsiType))
-                    print('Remove session: {}'.format(session.projects[projectid].subjects[subject].experiments[experiment]))
-                else:
-                    connection.projects[projectid].subjects[subject].experiments[experiment].delete(remove_files=True)
+def download_xnat_session_type(connection, projectid, session, outputdir):
+    #should use path.append
+    output_path = os.path.join('outputdir',connection.projects[projectid].experiments[session].label)
+    connection.projects[projectid].experiments[session].download(output_path)
 
 
 def main():
     parser = argparse.ArgumentParser(description='delete all data with a given session type')
     parser.add_argument('--xnathost', type=unicode, required=True, help='xnat host name')
     parser.add_argument('--project', type=unicode, required=True, help='Project id')
-    parser.add_argument('--sessiontype', type=unicode, required=True, help='session')
-    parser.add_argument('--dryrun', type=unicode, required=False,default=True, help='dryrun')
+    parser.add_argument('--session', type=unicode, required=True, help='session')
+    parser.add_argument('--output_dir', type=unicode, required=False,default=True, help='outputdir')
     args = parser.parse_args()
 
     print('xnat host: {}'.format(args.xnathost))
     print('project: {}'.format(args.project))
     print('session: {}'.format(args.session))
-    print('dryrun: {}'.format(args.dryrun))
+    print('output: {}'.format(args.output_dir))
 
     with xnat.connect(args.xnathost) as connection:
-        delete_xnat_session_type(connection, args.project, args.session, args.dryrun)
+        download_xnat_session_type(connection, args.project, args.session, args.output_dir)
 
 
 if __name__ == '__main__':
