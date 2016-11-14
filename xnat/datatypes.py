@@ -18,6 +18,7 @@ from __future__ import unicode_literals
 import datetime
 
 import isodate
+import six
 
 
 # Some type conversion functions
@@ -42,7 +43,7 @@ def to_bool(value):
 
 
 def from_datetime(value):
-    if isinstance(value, str):
+    if isinstance(value, six.string_types):
         value = isodate.parse_datetime(value)
 
     if isinstance(value, datetime.datetime):
@@ -52,7 +53,7 @@ def from_datetime(value):
 
 
 def from_date(value):
-    if isinstance(value, str):
+    if isinstance(value, six.string_types):
         value = isodate.parse_date(value)
 
     if isinstance(value, datetime.date):
@@ -62,7 +63,7 @@ def from_date(value):
 
 
 def from_time(value):
-    if isinstance(value, str):
+    if isinstance(value, six.string_types):
         value = isodate.parse_time(value)
 
     if isinstance(value, datetime.time):
@@ -72,7 +73,7 @@ def from_time(value):
 
 
 def from_timedelta(value):
-    if isinstance(value, str):
+    if isinstance(value, six.string_types):
         value = isodate.parse_duration(value)
     elif isinstance(value, datetime.timedelta):
         value = isodate.duration.Duration(days=value.days,
@@ -86,7 +87,7 @@ def from_timedelta(value):
 
 
 def from_bool(value):
-    if isinstance(value, str):
+    if isinstance(value, six.string_types):
         if value in ["true", "false", "1", "0"]:
             return value
         else:
@@ -100,19 +101,19 @@ def from_bool(value):
 def from_int(value):
     if not isinstance(value, int):
         value = int(value)
-    return str(value)
+    return six.text_type(value)
 
 
 def from_float(value):
     if not isinstance(value, float):
         value = float(value)
-    return str(value)
+    return six.text_type(value)
 
 
 # Here to be after all needed function definitions
 TYPE_TO_MAP = {
-    'xs:anyURI': str,
-    'xs:string': str,
+    'xs:anyURI': six.text_type,
+    'xs:string': six.text_type,
     'xs:boolean': to_bool,
     'xs:integer': int,
     'xs:long': int,
@@ -125,8 +126,8 @@ TYPE_TO_MAP = {
 }
 
 TYPE_FROM_MAP = {
-    'xs:anyURI': str,
-    'xs:string': str,
+    'xs:anyURI': six.text_type,
+    'xs:string': six.text_type,
     'xs:boolean': from_bool,
     'xs:integer': from_int,
     'xs:long': from_int,
@@ -140,7 +141,7 @@ TYPE_FROM_MAP = {
 
 
 def convert_to(value, type_):
-    return TYPE_TO_MAP.get(type_, str)(value)
+    return TYPE_TO_MAP.get(type_, six.text_type)(value)
 
 
 def convert_from(value, type_):
