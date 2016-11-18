@@ -222,7 +222,6 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
 
     logger.debug('Code file written to: {}'.format(code_file.name))
 
-
     # The module is loaded in its private namespace based on the code_file name
     xnat_module = imp.load_source('xnat_gen_{}'.format(connection_id),
                                   code_file.name)
@@ -236,7 +235,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
             xnat_module.XNAT_CLASS_LOOKUP[cls.xsi_type] = getattr(xnat_module, cls.python_name)
 
     # Create the XNAT connection
-    session = XNATSession(server=server, interface=requests_session, debug=debug)
+    session = XNATSession(server=server, logger=logger, interface=requests_session, debug=debug)
 
     # FIXME: is this a good idea, it makes things simple, but I suppose we
     # FIXME: can no longer re-use the modules between sessions?

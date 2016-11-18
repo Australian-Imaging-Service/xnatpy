@@ -17,9 +17,11 @@ from __future__ import absolute_import
 from __future__ import unicode_literals
 import netrc
 import os
-import sys
 import threading
 
+from progressbar import DataTransferBar, NullBar
+from progressbar import AdaptiveETA, AdaptiveTransferSpeed, Bar, BouncingBar, \
+    DataSize, Percentage, ProgressBar, Timer, UnknownLength
 import requests
 import six
 from six.moves.urllib import parse
@@ -425,19 +427,48 @@ class XNATSession(object):
         if response.status_code != 200:
             raise exceptions.XNATResponseError('Invalid response from XNATSession for url {} (status {}):\n{}'.format(uri, response.status_code, response.text))
 
-        bytes_read = 0
+        # Get the content length if available
+        content_length = response.headers.get('Content-Length', UnknownLength)
+
+        if isinstance(content_length, six.string_types):
+            content_length = int(content_length)
+
+        # Create the progress bar if required
         if verbose:
+            if content_length is not UnknownLength:
+                widgets = [
+                    Percentage(),
+                    ' of ', DataSize('max_value'),
+                    ' ', Bar(),
+                    ' ', AdaptiveTransferSpeed(),
+                    ' ', AdaptiveETA(),
+                ]
+            else:
+                widgets = [
+                    DataSize(),
+                    ' ', BouncingBar(),
+                    ' ', AdaptiveTransferSpeed(),
+                    ' ', Timer(),
+                ]
+
             self.logger.info('Downloading {}:'.format(uri))
-        for chunk in response.iter_content(chunk_size):
-            if bytes_read == 0 and chunk[0] == '<' and chunk.startswith(('<!DOCTYPE', '<html>')):
-                raise ValueError('Invalid response from XNATSession (status {}):\n{}'.format(response.status_code, chunk))
+            progress_bar = ProgressBar(widgets=widgets, max_value=content_length)
+        else:
+            progress_bar = NullBar()
 
-            bytes_read += len(chunk)
-            target_stream.write(chunk)
+        bytes_read = 0
+        try:
+            progress_bar.start()
+            for chunk in response.iter_content(chunk_size):
+                if bytes_read == 0 and chunk[0] == '<' and chunk.startswith(('<!DOCTYPE', '<html>')):
+                    raise ValueError('Invalid response from XNATSession (status {}):\n{}'.format(response.status_code, chunk))
 
-            if verbose:
-                sys.stdout.write('\r{:d} kb'.format(bytes_read / 1024))
-                sys.stdout.flush()
+                bytes_read += len(chunk)
+                target_stream.write(chunk)
+
+                progress_bar.update(bytes_read)
+        finally:
+            progress_bar.finish()
 
     def download(self, uri, target, format=None, verbose=True):
         """
@@ -447,8 +478,7 @@ class XNATSession(object):
             self.download_stream(uri, out_fh, format=format, verbose=verbose)
 
         if verbose:
-            sys.stdout.write('\nSaved as {}...\n'.format(target))
-            sys.stdout.flush()
+            self.logger.info('\nSaved as {}...'.format(target))
 
     def download_zip(self, uri, target, verbose=True):
         """
