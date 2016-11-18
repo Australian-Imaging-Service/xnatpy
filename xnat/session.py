@@ -85,6 +85,12 @@ class XNATSession(object):
         self._debug = debug
         self.inspect = Inspect(self)
 
+        # Accepted status
+        self.accepted_status_get = [200]
+        self.accepted_status_post = [200, 201]
+        self.accepted_status_put = [200, 201]
+        self.accepted_status_delete = [200]
+
         # Set the keep alive settings and spawn the keepalive thread for sending heartbeats
         if isinstance(keepalive, int) and keepalive > 0:
             self._keepalive = True
@@ -247,7 +253,7 @@ class XNATSession(object):
         :returns: the requests reponse
         :rtype: requests.Response
         """
-        accepted_status = accepted_status or [200]
+        accepted_status = accepted_status or self.accepted_status_get
         uri = self._format_uri(path, format, query=query)
 
         if self.debug:
@@ -270,7 +276,7 @@ class XNATSession(object):
         :returns: the requests reponse
         :rtype: requests.Response
         """
-        accepted_status = accepted_status or [200]
+        accepted_status = accepted_status or self.accepted_status_get
         uri = self._format_uri(path)
 
         if self.debug:
@@ -297,7 +303,7 @@ class XNATSession(object):
         :returns: the requests reponse
         :rtype: requests.Response
         """
-        accepted_status = accepted_status or [200, 201]
+        accepted_status = accepted_status or self.accepted_status_post
         uri = self._format_uri(path, format, query=query)
 
         if self.debug:
@@ -330,7 +336,7 @@ class XNATSession(object):
         :returns: the requests reponse
         :rtype: requests.Response
         """
-        accepted_status = accepted_status or [200, 201]
+        accepted_status = accepted_status or self.accepted_status_put
         uri = self._format_uri(path, format, query=query)
 
         if self.debug:
@@ -357,7 +363,7 @@ class XNATSession(object):
         :returns: the requests reponse
         :rtype: requests.Response
         """
-        accepted_status = accepted_status or [200]
+        accepted_status = accepted_status or self.accepted_status_delete
         uri = self._format_uri(path, query=query)
 
         if self.debug:
@@ -400,7 +406,7 @@ class XNATSession(object):
 
         return parse.urlunparse(data)
 
-    def get_json(self, uri, query=None):
+    def get_json(self, uri, query=None, accepted_status=None):
         """
         Helper function that perform a GET, but sets the format to JSON and
         parses the result as JSON
@@ -409,7 +415,7 @@ class XNATSession(object):
                          the remained for the uri is constructed automatically
         :param dict query: the values to be added to the query string in the uri
         """
-        response = self.get(uri, format='json', query=query)
+        response = self.get(uri, format='json', query=query, accepted_status=accepted_status)
         try:
             return response.json()
         except ValueError:
@@ -423,7 +429,7 @@ class XNATSession(object):
         # Stream the get and write to file
         response = self.interface.get(uri, stream=True)
 
-        if response.status_code != 200:
+        if response.status_code not in self.accepted_status_get:
             raise exceptions.XNATResponseError('Invalid response from XNATSession for url {} (status {}):\n{}'.format(uri, response.status_code, response.text))
 
         bytes_read = 0
