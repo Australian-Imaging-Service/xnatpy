@@ -122,6 +122,7 @@ class CustomVariableMap(VariableMap):
             self.clearcache()
 
 
+@six.python_2_unicode_compatible
 class XNATObject(six.with_metaclass(ABCMeta, object)):
     SECONDARY_LOOKUP_FIELD = None
     _HAS_FIELDS = False
@@ -191,13 +192,16 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
         if datafields is not None:
             self._cache['data'] = datafields
 
-    def __repr__(self):
+    def __str__(self):
         if self.SECONDARY_LOOKUP_FIELD is None:
-            return '<{} {}>'.format(self.__class__.__name__, self.id)
+            return six.text_type('<{} {}>').format(self.__class__.__name__, self.id)
         else:
-            return '<{} {} ({})>'.format(self.__class__.__name__,
-                                         getattr(self, self.SECONDARY_LOOKUP_FIELD),
-                                         self.id)
+            return six.text_type('<{} {} ({})>').format(self.__class__.__name__,
+                                                getattr(self, self.SECONDARY_LOOKUP_FIELD),
+                                                self.id)
+
+    def __repr__(self):
+        return str(self)
 
     @property
     def parent(self):
@@ -348,6 +352,7 @@ class XNATSubObject(XNATObject):
         self.parent.set(name, value, type_)
 
 
+@six.python_2_unicode_compatible
 class XNATListing(Mapping):
     def __init__(self, uri, xnat_session, parent, field_name, secondary_lookup_field=None, xsi_type=None, filter=None):
         # Cache fields
@@ -450,9 +455,14 @@ class XNATListing(Mapping):
     def non_unique_keys(self):
         return self.data_maps[2]
 
+    def __str__(self):
+        content = ', '.join(six.text_type('({}, {}): {}').format(k,
+                                                                 getattr(v, self.secondary_lookup_field),
+                                                                 six.text_type(v)) for k, v in self.items())
+        return six.text_type('<XNATListing {}>').format(content)
+
     def __repr__(self):
-        content = ', '.join('({}, {}): {}'.format(k, getattr(v, self.secondary_lookup_field), v) for k, v in self.items())
-        return '<XNATListing {}>'.format(content)
+        return str(self)
 
     def __getitem__(self, item):
         try:
