@@ -88,7 +88,7 @@ class VariableMap(MutableMapping):
             self.clearcache()
 
     def __delitem__(self, key):
-        print('[WARNING] Deleting of variables is currently not supported!')
+        self.parent.logger.warning('Deleting of variables is currently not supported!')
 
     def __iter__(self):
         for key in self.data.keys():
@@ -146,19 +146,19 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
             elif self._CONTAINED_IN is not None:
                 parent = getattr(parent, self._CONTAINED_IN)
             else:
-                print('[TEMP] parent {}, self._CONTAINED_IN: {}'.format(parent, self._CONTAINED_IN))
+                self.logger.debug('parent {}, self._CONTAINED_IN: {}'.format(parent, self._CONTAINED_IN))
                 raise exceptions.XNATValueError('Cannot determine PUT url!')
 
             if self.SECONDARY_LOOKUP_FIELD is not None:
                 if kwargs[self.SECONDARY_LOOKUP_FIELD] is not None:
                     uri = '{}/{}'.format(parent.uri, kwargs[self.SECONDARY_LOOKUP_FIELD])
-                    print('[TEMP] PUT URI: {}'.format(uri))
+                    self.logger.debug('PUT URI: {}'.format(uri))
                     query = {
                         'xsiType': self.xsi_type,
                         self.SECONDARY_LOOKUP_FIELD: kwargs[self.SECONDARY_LOOKUP_FIELD],
                         'req_format': 'qa',
                     }
-                    print('[TEMP] query: {}'.format(query))
+                    self.logger.debug('query: {}'.format(query))
                     response = self.xnat_session.put(uri, query=query)
                 else:
                     raise exceptions.XNATValueError('The {} for a {} need to be specified on creation'.format(self.SECONDARY_LOOKUP_FIELD,
@@ -206,6 +206,10 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
     @property
     def parent(self):
         return self._parent
+
+    @property
+    def logger(self):
+        return self.xnat_session.logger
 
     @property
     def fieldname(self):
