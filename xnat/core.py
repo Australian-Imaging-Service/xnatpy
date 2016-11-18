@@ -207,7 +207,7 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
     def parent(self):
         return self._parent
 
-    @@property
+    @property
     def logger(self):
         return self.xnat_session.logger
 
