@@ -34,6 +34,26 @@ def to_datetime(value):
     return isodate.parse_datetime(value)
 
 
+def to_string(value):
+    """
+    For Python 2, make sure the string is properly converted to unicode
+
+    :param basestring value:
+    :return:
+    """
+
+    if six.PY2:
+        if isinstance(value, unicode):
+            value.encode('utf8')
+        elif isinstance(value, str):
+            # Must be encoded in UTF-8
+            value = value.decode('utf8')
+    else:
+        value = str(value)
+
+    return value
+
+
 def to_timedelta(value):
     return isodate.parse_duration(value).tdelta
 
@@ -110,10 +130,33 @@ def from_float(value):
     return six.text_type(value)
 
 
+def from_string(value):
+    """
+    For Python 2, make sure the string is a valid utf-8 encoded str before
+    shipping it off to urllib and such.
+
+    :param basestring value:
+    :return:
+    """
+    if not isinstance(value, six.string_types):
+        value = str(value)
+
+    if six.PY2:
+        if isinstance(value, unicode):
+            value.encode('utf8')
+        elif isinstance(value, str):
+            # Must be encoded in UTF-8
+            value = value.decode('utf8')
+    else:
+        value = str(value)
+
+    return value
+
+
 # Here to be after all needed function definitions
 TYPE_TO_MAP = {
-    'xs:anyURI': six.text_type,
-    'xs:string': six.text_type,
+    'xs:anyURI': to_string,
+    'xs:string': to_string,
     'xs:boolean': to_bool,
     'xs:integer': int,
     'xs:long': int,
@@ -126,8 +169,8 @@ TYPE_TO_MAP = {
 }
 
 TYPE_FROM_MAP = {
-    'xs:anyURI': six.text_type,
-    'xs:string': six.text_type,
+    'xs:anyURI': from_string,
+    'xs:string': from_string,
     'xs:boolean': from_bool,
     'xs:integer': from_int,
     'xs:long': from_int,

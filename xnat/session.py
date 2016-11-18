@@ -21,6 +21,7 @@ import sys
 import threading
 
 import requests
+import six
 from six.moves.urllib import parse
 
 from . import exceptions
@@ -379,6 +380,10 @@ class XNATSession(object):
 
         if format is not None:
             query['format'] = format
+
+        # Sanitize unicode in query
+        if six.PY2:
+            query = {k: v.encode('utf-8', 'xmlcharrefreplace') if isinstance(v, unicode) else v for k, v in query.items()}
 
         # Create the query string
         if len(query) > 0:
