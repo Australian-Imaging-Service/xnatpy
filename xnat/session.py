@@ -93,6 +93,8 @@ class XNATSession(object):
         self.accepted_status_post = [200, 201]
         self.accepted_status_put = [200, 201]
         self.accepted_status_delete = [200]
+        self.skip_response_check = False
+        self.skip_response_content_check = False
 
         # Set the keep alive settings and spawn the keepalive thread for sending heartbeats
         if isinstance(keepalive, int) and keepalive > 0:
@@ -239,10 +241,11 @@ class XNATSession(object):
         if self.debug:
             self.logger.debug('Received response with status code: {}'.format(response.status_code))
 
-        if accepted_status is None:
-            accepted_status = [200, 201, 202, 203, 204, 205, 206]  # All successful responses of HTML
-        if response.status_code not in accepted_status or response.text.startswith(('<!DOCTYPE', '<html>')):
-            raise exceptions.XNATResponseError('Invalid response from XNATSession for url {} (status {}):\n{}'.format(uri, response.status_code, response.text))
+        if not self.skip_response_check:
+            if accepted_status is None:
+                accepted_status = [200, 201, 202, 203, 204, 205, 206]  # All successful responses of HTML
+            if response.status_code not in accepted_status or (not self.skip_response_content_check and response.text.startswith(('<!DOCTYPE', '<html>'))):
+                raise exceptions.XNATResponseError('Invalid response from XNATSession for url {} (status {}):\n{}'.format(uri, response.status_code, response.text))
 
     def get(self, path, format=None, query=None, accepted_status=None):
         """
