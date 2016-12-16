@@ -158,9 +158,10 @@ XNAT_CLASS_LOOKUP = {{
 
 
 class ClassPrototype(object):
-    def __init__(self, parser, name, field_name=None, parent_class=None, simple=False):
+    def __init__(self, parser, name, logger, field_name=None, parent_class=None, simple=False):
         self.parser = parser
         self.name = name  # This is the XSI type
+        self.logger = logger
 
         self.field_name = field_name
         self.parent_class = parent_class
@@ -206,7 +207,7 @@ class ClassPrototype(object):
 
     @property
     def class_type(self):
-        if self.base_class is not None and self.base_class.startswith('xs:'):
+        if self.simple:
             return 'Simple'
         if self.field_name is not None:
             return 'SubObject'
@@ -244,10 +245,11 @@ class ClassPrototype(object):
 
 
 class AttributePrototype(object):
-    def __init__(self, parser, name, type=None, parent_class=None, parent_property=None,
+    def __init__(self, parser, name, logger, type=None, parent_class=None, parent_property=None,
                  min_occur=None, max_occur=None):
         self.parser = parser
         self.name = name
+        self.logger = logger
         self.type = type
         self.parent_class = parent_class
         self.parent_property = parent_property
@@ -319,47 +321,6 @@ class AttributePrototype(object):
         """
         return self.writer.tostring()
 
-    # def create(self, parser):
-    #     if 'element_class' in self.data:
-    #         element_class = self.data['element_class']
-    #
-    #         if isinstance(element_class, ClassPrototype):
-    #             element_class = parser.class_list[element_class.name]
-    #
-    #         if element_class is not None and len(element_class.attributes) == 1:
-    #             element_property = element_class.attributes.values()[0]
-    #
-    #             if isinstance(element_property, AttributePrototype):
-    #                 element_property = element_property.create(parser)
-    #
-    #             if isinstance(element_property, ListingPropertyWriter):
-    #                 print("+--> Found element class: [{}]".format(element_class.name))
-    #                 print("+--> Found element property: [{}] {}".format(type(element_property).__name__,
-    #                                                                     element_property.name))
-    #
-    #                 # Reset parent to current parent
-    #                 parent_class = self.data["parent_class"]
-    #                 if parent_class is not None:
-    #                     parent_class = parser.class_list[parent_class.name]
-    #                     print("+--> Found parent class: [{}]".format(parent_class.name))
-    #                 element_property.parent_class = parent_class
-    #
-    #                 element_property.field_name = '{}/{}'.format(self.data["name"], element_property.name)
-    #                 element_property.name = self.data["name"]
-    #
-    #                 if element_class.name in parser.class_list:
-    #                     print('!!!!!!!!!!!!! REMOVING CLASS {} FROM PARSER'.format(element_class.name))
-    #                     del parser.class_list[element_class.name]
-    #
-    #                 return element_property
-    #     elif isinstance(self.data['type_'], str) and self.data['type_'].startswith('xs:') and self.cls is SubObjectPropertyWriter:
-    #         self.cls = PropertyWriter
-    #     elif self.data['type_'] is None:
-    #         self.data['type_'] = 'xs:string'
-    #         self.cls = PropertyWriter
-    #
-    #     return self.cls(parser=parser, **self.data)
-
     def __repr__(self):
         return "<AttributePrototype [{}] {}>".format(self.property_type, self.name)
 
@@ -373,6 +334,10 @@ class BaseWriter(object):
     @abstractmethod
     def tostring(self):
         """String version"""
+
+    @property
+    def logger(self):
+        return self.prototype.logger
 
 
 class BaseClassWriter(BaseWriter):
@@ -541,14 +506,9 @@ class BaseClassWriter(BaseWriter):
 
 
 class SimpleClassWriter(BaseClassWriter):
-    def __init__(self, key_name, type_, **kwargs):
-        super(SimpleClassWriter, self).__init__(**kwargs)
-        self.key_name = key_name
-        self.type = type_
-
     @property
     def base_class(self):
-        return "XNATSimpleClass"
+        return "XNATObjectMixin"
 
     def create_listing(self, field_name, secondary_lookup):
         return """
@@ -557,12 +517,14 @@ class SimpleClassWriter(BaseClassWriter):
         return XNATSimpleListing(
             parent=self,
             field_name='{field_name}',
-            secondary_lookup_field={secondary_lookup},
-            type='{type}'
+            secondary_lookup_field={secondary_lookup}
         )""".format(field_name=field_name,
                     secondary_lookup=secondary_lookup,
-                    element_class_name=self.name,
-                    type=self.type)
+                    element_class_name=self.name)
+
+    @property
+    def default_base_class(self):
+        return 'XNATObjectMixin'
 
 
 class SubObjectClassWriter(BaseClassWriter):
@@ -616,6 +578,7 @@ class NestedObjectClassWriter(BaseClassWriter):
                                                                secondary_lookup=secondary_lookup,
                                                                element_class_name=self.name,
                                                                type_=self.name)
+
 
 class ObjectClassWriter(BaseClassWriter):
     def __repr__(self):
@@ -837,7 +800,7 @@ class ListingPropertyWriter(AttributeWriter):
         return '<ListingPropertyWriter {}({})>'.format(self.name, self.type)
 
     def tostring(self):
-        print('SELF data: {}'.format(vars(self)))
+        self.logger.debug('SELF data: {}'.format(vars(self)))
 
         if self.display_identifier is not None:
             secondary_lookup = self.display_identifier
@@ -854,7 +817,7 @@ class ListingPropertyWriter(AttributeWriter):
             secondary_lookup = "'{}'".format(secondary_lookup)
 
         field_name = self.field_name or self.name
-        print('***** FIELD_NAME FOR LISTING: {}'.format(field_name))
+        self.logger.debug('FIELD_NAME FOR LISTING: {}'.format(field_name))
 
         property_base = """    @property
     @caching
@@ -866,14 +829,14 @@ class ListingPropertyWriter(AttributeWriter):
             element_class = self.parser.class_list[self.type]
             property_base += element_class.writer.create_listing(secondary_lookup=secondary_lookup, field_name=field_name)
         else:
-            print('[TODO] Skipping simple type listing')
+            self.logger.info('[TODO] Skipping simple type listing')
             property_base += "\n        # TODO: Implement simple type listing! (type: {})\n".format(self.type) + \
                              "        pass"
         return property_base
 
 
 class SchemaParser(object):
-    def __init__(self, debug=False):
+    def __init__(self, logger, debug=False):
         # Manage XML namespaces
         self.namespaces = {}
         self.namespace_prefixes = {}
@@ -889,6 +852,7 @@ class SchemaParser(object):
         self.debug = debug
         self.schemas = []
         self.class_names = collections.OrderedDict()
+        self.logger = logger
 
     def parse_schema_xmlstring(self, xml, schema_uri):
         self.current_schema = schema_uri
@@ -911,12 +875,12 @@ class SchemaParser(object):
         self.schemas.append(schema_uri)
 
         # Parse xml schema
-        print('Parsing root element: {}'.format(root.tag))
+        self.logger.info('Parsing root element: {}'.format(root.tag))
         self.parse(root, toplevel=True)
 
         if self.debug:
-            print('[DEBUG] Found {} unknown tags: {}'.format(len(self.unknown_tags),
-                                                             self.unknown_tags))
+            self.logger.debug('Found {} unknown tags: {}'.format(len(self.unknown_tags),
+                                                              self.unknown_tags))
 
         self.current_schema = None
         return True
@@ -978,13 +942,13 @@ class SchemaParser(object):
 
                 base = value.base_class
                 if base is not None and not base.startswith('xs:') and base not in visited:
-                    print("Skipping {} because of base {} is not processed".format(value.name,
-                                                                                   base))
+                    self.logger.info("Skipping {} because of base {} is not processed".format(value.name,
+                                                                                              base))
                     continue
 
                 if value.parent_class is not None and value.parent_class not in visited:
-                    print("Skipping {} because of parent {} is not processed".format(value.name,
-                                                                                     value.parent_class))
+                    self.logger.info("Skipping {} because of parent {} is not processed".format(value.name,
+                                                                                                value.parent_class))
                     continue
 
                 visited.add(key)
@@ -1052,8 +1016,8 @@ class SchemaParser(object):
                     self.logger.debug('[DEBUG] Encountered attribute without name')
                 return
 
-            new_property = AttributePrototype(self, name=name, type=type_,
-                                              parent_class=self._current_class,
+            new_property = AttributePrototype(self, name=name, logger=self.logger,
+                                              type=type_, parent_class=self._current_class,
                                               parent_property=self._current_property)
 
             self._current_class.attributes[name] = new_property
@@ -1086,6 +1050,7 @@ class SchemaParser(object):
 
         new_class = ClassPrototype(self,
                                    name=name,
+                                   logger=self.logger,
                                    field_name=field_name,
                                    parent_class=parent_class)
 
@@ -1120,8 +1085,8 @@ class SchemaParser(object):
             min_occur = element.get('minOccurs')
             max_occur = element.get('maxOccurs')
 
-            new_property = AttributePrototype(self, name=name, type=type_,
-                                              parent_class=self._current_class,
+            new_property = AttributePrototype(self, name=name, logger=self.logger,
+                                              type=type_, parent_class=self._current_class,
                                               parent_property=self._current_property,
                                               min_occur=min_occur, max_occur=max_occur)
 
@@ -1155,10 +1120,12 @@ class SchemaParser(object):
 
             new_base_class = ClassPrototype(self,
                                             name=new_base,
+                                            logger=self.logger,
                                             simple=True)
 
             new_base_class.attributes[new_prop] = AttributePrototype(self,
                                                                      name=new_prop,
+                                                                     logger=self.logger,
                                                                      type=previous_base)
             self.class_list[new_base] = new_base_class
 
@@ -1206,11 +1173,11 @@ class SchemaParser(object):
                 type_ = child.get('type')
 
                 if self.debug:
-                    print('[DEBUG] Adding {} -> {} to class name map'.format(name, type_))
+                    self.logger.debug('Adding {} -> {} to class name map'.format(name, type_))
                 self.class_names[type_] = name
             else:
                 if self.debug:
-                    print('[DEBUG] skipping non-class top-level tag {}'.format(child.tag))
+                    self.logger.debug('Skipping non-class top-level tag {}'.format(child.tag))
 
     def _parse_sequence(self, element):
         self._parse_children(element)
@@ -1237,7 +1204,7 @@ class SchemaParser(object):
                 self._current_property.display_identifier = display_identifier
 
     def _parse_sqlfield(self, element):
-        print("CLASS: {}, PROP: {}, ELEMENT: {}".format(self._current_class.name, self._current_property.name, element))
+        self.logger.debug("CLASS: {}, PROP: {}, ELEMENT: {}".format(self._current_class.name, self._current_property.name, element))
 
     PARSERS = {
         '{http://www.w3.org/2001/XMLSchema}all': _parse_all,
@@ -1276,21 +1243,12 @@ class SchemaParser(object):
                 if element_class is not None and len(element_class.attributes) == 1:
                     element_property = element_class.attributes.values()[0]
 
-                    #print('+++> Found option: {} -> {} -> {} [{}]'.format(prop, element_class, element_property, element_property.property_type))
-
                     if element_property.property_type == 'listing':
-                        #print("+--> Found element class: [{}]".format(element_class.name))
-                        #print("+--> Found element property: [{}] {}".format(type(element_property).__name__,
-                        #                                                    element_property.name))
-
                         # Reset parent to current parent
                         parent_class = prop.parent_class
 
-                        #print("+--> Found parent class: [{}]".format(parent_class.name))
-                        #print("---> Change parent class {} -> {}".format(element_property.parent_class, parent_class))
                         element_property.parent_class = parent_class
                         element_property.field_name = '{}/{}'.format(prop.name, element_property.name)
-                        #print("---> Changing name {} to {}".format(element_property.name, prop.name))
                         element_property.name = prop.name
 
                         # The new element_class has to be updated to take the place of the old element_class
@@ -1299,18 +1257,16 @@ class SchemaParser(object):
                             new_element_class.name = element_class.name
                             new_element_class.field_name = '{}/{}'.format(element_class.field_name,
                                                                           new_element_class.field_name)
-                            #print("---> Change CLS parent class {} -> {}".format(new_element_class.parent_class,
-                            #                                                     element_class.parent_class))
                             new_element_class.parent_class = element_class.parent_class
 
                         if element_class.name in self.class_list:
-                            print('!!!!!!!!!!!!! REMOVING CLASS {} FROM PARSER'.format(element_class.name))
+                            self.logger.info('REMOVING CLASS {} FROM PARSER!'.format(element_class.name))
                             del self.class_list[element_class.name]
 
                         cls.attributes[property_key] = element_property
                     else:
-                        print("Ignoring non-listing...")
-                        print("Element class: {}".format(element_class.__dict__))
+                        self.logger.info("Ignoring non-listing...")
+                        self.logger.info("Element class: {}".format(element_class.__dict__))
 
         for cls in self.class_list.values():
             for property_key, prop in cls.attributes.items():
@@ -1323,32 +1279,31 @@ class SchemaParser(object):
                     continue
 
                 if prop.element_class.simple:
-                    print('$$$ Found simple mapping {}.{} -> {}'.format(cls.name,
-                                                                    property_key,
-                                                                    prop.element_class.name))
+                    self.logger.debug('$$$ Found simple mapping {}.{} -> {}'.format(cls.name,
+                                                                                    property_key,
+                                                                                    prop.element_class.name))
 
                     if len(prop.element_class.attributes) > 2:
-                        print('!! Too many attributes')
+                        self.logger.debug('!! Too many attributes')
                         continue
                     elif len(prop.element_class.attributes) == 2:
-                        print('!! Two attributes incl name={}'.format(property_key in prop.element_class.attributes))
+                        self.logger.debug('!! Two attributes incl name={}'.format(property_key in prop.element_class.attributes))
                     elif len(prop.element_class.attributes) == 1:
-                        print('!! Single attribute')
+                        self.logger.debug('!! Single attribute')
                     else:
-                        print('!! No attribute')
+                        self.logger.debug('!! No attribute')
                 # Attempt to find listings with simple type
 
-
     def write(self, code_file):
-        print('namespaces: {}'.format(self.namespaces))
-        print('namespace prefixes: {}'.format(self.namespace_prefixes))
+        self.logger.debug('namespaces: {}'.format(self.namespaces))
+        self.logger.debug('namespace prefixes: {}'.format(self.namespace_prefixes))
 
         before = set(self.class_list.keys())
-        print('#! Classed before prune: {}'.format(before))
+        self.logger.debug('#! Classed before prune: {}'.format(before))
         self.prune_tree()
         after = set(self.class_list.keys())
-        print('#! Classed after prune: {}'.format(after))
-        print('#! Classes removed: {}'.format(before - after))
+        self.logger.debug('#! Classed after prune: {}'.format(after))
+        self.logger.debug('#! Classes removed: {}'.format(before - after))
 
         schemas = '\n'.join('# - {}'.format(s) for s in self.schemas)
         code_file.write(FILE_HEADER.format(schemas=schemas,

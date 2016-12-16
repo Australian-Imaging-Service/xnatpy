@@ -566,7 +566,7 @@ class XNATBaseListing(Mapping, Sequence):
     def xnat_session(self):
         pass
 
-    def __repr__(self):
+    def __str__(self):
         if self.secondary_lookup_field is not None:
             content = ', '.join('({}, {}): {}'.format(k, getattr(v, self.sanitize_name(self.secondary_lookup_field)), v) for k, v in self.items())
             content = '{{{}}}'.format(content)
@@ -574,6 +574,9 @@ class XNATBaseListing(Mapping, Sequence):
             content = ', '.join(str(v) for v in self.values())
             content = '[{}]'.format(content)
         return '<{} {}>'.format(type(self).__name__, content)
+
+    def __repr__(self):
+        return str(self)
 
     def __getitem__(self, item):
         if isinstance(item, (int, slice)):
