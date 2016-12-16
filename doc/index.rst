@@ -32,6 +32,8 @@ XNAT Client Documentation
     :maxdepth: 3
 
     static/introduction.rst
+    static/tutorial.rst
+    static/xnat_scripting.rst
     xnat
 
 

@@ -17,6 +17,8 @@ from __future__ import absolute_import
 from __future__ import unicode_literals
 import mimetypes
 
+from .prearchive import PrearchiveSession
+
 
 class Services(object):
     def __init__(self, xnat_session):
@@ -59,4 +61,8 @@ class Services(object):
             raise XNATResponseError('The response for uploading was ({}) {}'.format(response.status_code, response.text))
 
         # Create object, the return text should be the url, but it will have a \r\n at the end that needs to be stripped
-        return self.xnat_session.create_object(response.text.strip())
+        response_text = response.text.strip()
+        if response_text.startswith('/data/prearchive'):
+            return PrearchiveSession(response_text, self.xnat_session)
+        else:
+            return self.xnat_session.create_object(response_text)

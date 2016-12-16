@@ -933,10 +933,8 @@ class SchemaParser(object):
         self.parse_schema_xmlstring(data, schema_uri=schema_uri)
 
     def parse_schema_uri(self, requests_session, schema_uri):
-        print('[INFO] Retrieving schema from {}'.format(schema_uri))
+        self.logger.info('Retrieving schema from {}'.format(schema_uri))
 
-        if self.debug:
-            print('[DEBUG] GET SCHEMA {}'.format(schema_uri))
         resp = requests_session.get(schema_uri, headers={'Accept-Encoding': None})
         data = resp.text
 
@@ -944,19 +942,14 @@ class SchemaParser(object):
             return self.parse_schema_xmlstring(data, schema_uri=schema_uri)
         except ElementTree.ParseError as exception:
             if 'action="/j_spring_security_check"' in data:
-                print('[ERROR] You do not have access to this XNAT server, please check your credentials!')
-            elif 'Status 403 - Your password has expired' in data:
-                print('[ERROR] Your account has expired, please update your password via the website.')
-            elif 'Status 401 - Login attempt failed' in data:
-                print('[ERROR] Login failed (probably an invalid password/username provided)')
+                self.logger.error('You do not have access to this XNAT server, please check your credentials!')
             elif 'java.lang.IllegalStateException' in data:
-                print('[ERROR] The server returned an error. You probably do not'
-                      ' have access to this XNAT server, please check your credentials!')
+                self.logger.error('The server returned an error. You probably do not'
+                                  ' have access to this XNAT server, please check your credentials!')
             else:
-                print('[ERROR] Could not parse schema from {}, not valid XML found'.format(schema_uri))
+                self.logger.info('Could not parse schema from {}, not valid XML found'.format(schema_uri))
 
-                if self.debug:
-                    print('[DEBUG] XML schema request returned the following response: [{}] {}'.format(resp.status_code,
+                self.logger.debug('XML schema request returned the following response: [{}] {}'.format(resp.status_code,
                                                                                                        data))
             return False
 
@@ -1003,11 +996,11 @@ class SchemaParser(object):
         expected = len(self.class_list) + nr_previsited  # We started with two "visited" classes
         if self.debug:  # and len(visited) < len(self.class_list):
             missed = set(self.class_list) - visited
-            print('[DEBUG] Visited: {}, expected: {}'.format(len(visited), expected))
-            print('[DEBUG] Visited: {}'.format(visited))
-            print('[DEBUG] Missed: {}'.format(missed))
-            print('[DEBUG] Missed base class: {}'.format([self.class_list[x].base_class for x in missed]))
-            print('[DEBUG] Spent {} iterations'.format(tries))
+            self.logger.debug('Visited: {}, expected: {}'.format(len(visited), expected))
+            self.logger.debug('Visited: {}'.format(visited))
+            self.logger.debug('Missed: {}'.format(missed))
+            self.logger.debug('Missed base class: {}'.format([self.class_list[x].base_class for x in missed]))
+            self.logger.debug('Spent {} iterations'.format(tries))
 
     @contextlib.contextmanager
     def _descend(self, new_class=None, new_property=None, property_prefix=None):
@@ -1056,7 +1049,7 @@ class SchemaParser(object):
         if self._current_class is not None:
             if name is None:
                 if self.debug:
-                    print('[DEBUG] Encountered attribute without name')
+                    self.logger.debug('[DEBUG] Encountered attribute without name')
                 return
 
             new_property = AttributePrototype(self, name=name, type=type_,
@@ -1120,7 +1113,7 @@ class SchemaParser(object):
                 self._current_class.abstract = abstract == "true"
             else:
                 if self.debug:
-                    print('[DEBUG] Encountered attribute without name')
+                    self.logger.debug('[DEBUG] Encountered attribute without name')
             return
 
         if self._current_class is not None:

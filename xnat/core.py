@@ -89,7 +89,7 @@ class VariableMap(MutableMapping):
             self.clearcache()
 
     def __delitem__(self, key):
-        print('[WARNING] Deleting of variables is currently not supported!')
+        self.parent.logger.warning('Deleting of variables is currently not supported!')
 
     def __iter__(self):
         for key in self.data.keys():
@@ -123,6 +123,7 @@ class CustomVariableMap(VariableMap):
             self.clearcache()
 
 
+@six.python_2_unicode_compatible
 class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
     SECONDARY_LOOKUP_FIELD = None
     _HAS_FIELDS = False
@@ -146,19 +147,19 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
             elif self._CONTAINED_IN is not None:
                 parent = getattr(parent, self._CONTAINED_IN)
             else:
-                print('[TEMP] parent {}, self._CONTAINED_IN: {}'.format(parent, self._CONTAINED_IN))
+                self.logger.debug('parent {}, self._CONTAINED_IN: {}'.format(parent, self._CONTAINED_IN))
                 raise exceptions.XNATValueError('Cannot determine PUT url!')
 
             if self.SECONDARY_LOOKUP_FIELD is not None:
                 if kwargs[self.SECONDARY_LOOKUP_FIELD] is not None:
                     uri = '{}/{}'.format(parent.uri, kwargs[self.SECONDARY_LOOKUP_FIELD])
-                    print('[TEMP] PUT URI: {}'.format(uri))
+                    self.logger.debug('PUT URI: {}'.format(uri))
                     query = {
                         'xsiType': self.__xsi_type__,
                         self.SECONDARY_LOOKUP_FIELD: kwargs[self.SECONDARY_LOOKUP_FIELD],
                         'req_format': 'qa',
                     }
-                    print('[TEMP] query: {}'.format(query))
+                    self.logger.debug('query: {}'.format(query))
                     response = self.xnat_session.put(uri, query=query)
                 else:
                     raise exceptions.XNATValueError('The {} for a {} need to be specified on creation'.format(self.SECONDARY_LOOKUP_FIELD,
@@ -192,13 +193,16 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
         if datafields is not None:
             self._cache['data'] = datafields
 
-    def __repr__(self):
+    def __str__(self):
         if self.SECONDARY_LOOKUP_FIELD is None:
-            return '<{} {}>'.format(self.__class__.__name__, self.id)
+            return six.text_type('<{} {}>').format(self.__class__.__name__, self.id)
         else:
-            return '<{} {} ({})>'.format(self.__class__.__name__,
-                                         getattr(self, self.SECONDARY_LOOKUP_FIELD),
-                                         self.id)
+            return six.text_type('<{} {} ({})>').format(self.__class__.__name__,
+                                                getattr(self, self.SECONDARY_LOOKUP_FIELD),
+                                                self.id)
+
+    def __repr__(self):
+        return str(self)
 
     @abstractproperty
     def xpath(self):
@@ -210,6 +214,10 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
     @property
     def parent(self):
         return self._parent
+
+    @property
+    def logger(self):
+        return self.xnat_session.logger
 
     @property
     def fieldname(self):
@@ -465,6 +473,7 @@ class XNATSubObject(XNATBaseObject):
         self._cache.clear()
 
 
+@six.python_2_unicode_compatible
 class XNATBaseListing(Mapping, Sequence):
     def __init__(self, parent, field_name, secondary_lookup_field=None, xsi_type=None, **kwargs):
         # Cache fields

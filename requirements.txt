@@ -1,3 +1,5 @@
+sphinx_rtd_theme
+progressbar2
 isodate
 requests
 six
