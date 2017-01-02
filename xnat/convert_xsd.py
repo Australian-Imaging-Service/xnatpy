@@ -72,7 +72,7 @@ class XNATObjectMixin(XNATObject):
 
     @classmethod
     def query(cls, *constraints):
-        query = search.Query(cls._XSI_TYPE, cls.xnat_session)
+        query = search.Query(cls, cls.xnat_session)
 
         # Add in constraints immediatly
         if len(constraints) > 0:

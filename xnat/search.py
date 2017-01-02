@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from __future__ import unicode_literals
 from abc import ABCMeta, abstractmethod
 from xml.etree import ElementTree
+import csv
 import six
 
 xdat_ns = "http://nrg.wustl.edu/security"
@@ -50,10 +51,14 @@ class SearchField(object):
 
 
 class Query(object):
-    def __init__(self, xsi_type, xnat_session, constraints=None):
-        self.xsi_type = xsi_type
+    def __init__(self, queried_class, xnat_session, constraints=None):
+        self.queried_class = queried_class
         self.xnat_session = xnat_session
         self.constraints = constraints
+
+    @property
+    def xsi_type(self):
+        return self.queried_class.__xsi_type__
 
     def filter(self, *constraints):
         if len(constraints) == 0:
@@ -66,7 +71,7 @@ class Query(object):
         if self.constraints is not None:
             constraints = CompoundConstraint((self.constraints, constraints), 'AND')
 
-        return Query(self.xsi_type, self.xnat_session, constraints)
+        return Query(self.queried_class, self.xnat_session, constraints)
 
     def to_xml(self):
         # Create main elements
@@ -101,7 +106,16 @@ class Query(object):
 
     def all(self):
         result = self.xnat_session.post('/data/search', format='csv', data=self.to_string())
-        return result
+
+        # Parse returned table
+        csv_text = str(result.text)
+        csv_dialect = csv.Sniffer().sniff(csv_text)
+        data = list(csv.reader(csv_text.splitlines(), dialect=csv_dialect))
+        header = data[0]
+
+        data = [dict(zip(header, x)) for x in data[1:]]
+
+        return data
 
 
 class BaseConstraint(six.with_metaclass(ABCMeta, object)):
