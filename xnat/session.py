@@ -27,6 +27,7 @@ from . import exceptions
 from .core import XNATListing, caching
 from .inspect import Inspect
 from .prearchive import Prearchive
+from .users import Users
 from .services import Services
 
 
@@ -81,6 +82,7 @@ class XNATSession(object):
         self._source_code_file = None
         self._services = Services(xnat_session=self)
         self._prearchive = Prearchive(xnat_session=self)
+        self._users = Users(xnat_session=self)
         self._debug = debug
         self.inspect = Inspect(self)
 
@@ -592,6 +594,13 @@ class XNATSession(object):
         Representation of the prearchive on the XNAT server, see :py:mod:`xnat.prearchive`
         """
         return self._prearchive
+
+    @property
+    def users(self):
+        """
+        Representation of the users registered on the XNAT server
+        """
+        return self._users
 
     @property
     def services(self):
