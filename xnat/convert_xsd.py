@@ -1236,12 +1236,14 @@ class SchemaParser(object):
     }
 
     def prune_tree(self):
+        to_remove = set()
+
         for cls in self.class_list.values():
             for property_key, prop in cls.attributes.items():
                 element_class = prop.element_class
 
                 if element_class is not None and len(element_class.attributes) == 1:
-                    element_property = element_class.attributes.values()[0]
+                    element_property = next(iter(element_class.attributes.values()))
 
                     if element_property.property_type == 'listing':
                         # Reset parent to current parent
@@ -1261,12 +1263,15 @@ class SchemaParser(object):
 
                         if element_class.name in self.class_list:
                             self.logger.info('REMOVING CLASS {} FROM PARSER!'.format(element_class.name))
-                            del self.class_list[element_class.name]
+                            to_remove.add(element_class.name)
 
                         cls.attributes[property_key] = element_property
                     else:
                         self.logger.info("Ignoring non-listing...")
                         self.logger.info("Element class: {}".format(element_class.__dict__))
+
+        for key in to_remove:
+            del self.class_list[key]
 
         for cls in self.class_list.values():
             for property_key, prop in cls.attributes.items():
