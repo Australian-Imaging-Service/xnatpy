@@ -159,7 +159,7 @@ class ImageSessionData(XNATBaseObject):
 class DerivedData(XNATBaseObject):
     @property
     def fulluri(self):
-        return '/data/experiments/{}/assessors/{}'.format(self.imagesession_id, self.id)
+        return '/data/experiments/{}/assessors/{}'.format(self.image_session_id, self.id)
 
     @property
     @caching

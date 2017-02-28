@@ -97,13 +97,14 @@ class FileData(XNATObjectMixin):
     SECONDARY_LOOKUP_FIELD = "{file_secondary_lookup}"
     _XSI_TYPE = 'xnat:fileData'
 
-    def __init__(self, uri, xnat_session, id_=None, datafields=None, name=None, parent=None, field_name=None):
+    def __init__(self, uri=None, xnat_session=None, id_=None, datafields=None, parent=None, fieldname=None, name=None):
         super(FileData, self).__init__(uri=uri,
-                                   xnat_session=xnat_session,
-                                   id_=id_,
-                                   datafields=datafields,
-                                   parent=parent,
-                                   field_name=field_name)
+                                       xnat_session=xnat_session,
+                                       id_=id_,
+                                       datafields=datafields,
+                                       parent=parent,
+                                       fieldname=fieldname)
+
         if name is not None:
             self._name = name
 
