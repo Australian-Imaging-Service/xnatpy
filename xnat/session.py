@@ -21,6 +21,7 @@ import sys
 import threading
 
 import requests
+import six
 from six.moves.urllib import parse
 
 from . import exceptions
@@ -468,7 +469,8 @@ class XNATSession(object):
                     # File is open file handle, seek to 0
                     file_handle = file_
                     file_.seek(0)
-                elif os.path.isfile(file_):
+                # Make sure conditions are valid for os.path.isfile to function
+                elif isinstance(file_, six.string_types) and '\0' not in file_ and os.path.isfile(file_):
                     # File is str path to file
                     file_handle = open(file_, 'rb')
                     opened_file = True
