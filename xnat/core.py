@@ -156,9 +156,12 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
                     self.logger.debug('PUT URI: {}'.format(uri))
                     query = {
                         'xsiType': self.__xsi_type__,
-                        self.SECONDARY_LOOKUP_FIELD: kwargs[self.SECONDARY_LOOKUP_FIELD],
                         'req_format': 'qa',
                     }
+
+                    # Add all kwargs to query
+                    query.update(kwargs)
+
                     self.logger.debug('query: {}'.format(query))
                     response = self.xnat_session.put(uri, query=query)
                 else:
@@ -780,20 +783,88 @@ class XNATListing(XNATBaseListing):
 
 
 class XNATSimpleListing(XNATBaseListing, MutableMapping, MutableSequence):
+    def __str__(self):
+        if self.secondary_lookup_field is not None:
+            content = ', '.join('{!r}: {!r}'.format(key, value) for key, value in self.items())
+            content = '{{{}}}'.format(content)
+        else:
+            content = ', '.join(repr(v) for v in self.values())
+            content = '[{}]'.format(content)
+        return '<{} {}>'.format(type(self).__name__, content)
+
+    def __iter__(self):
+        for key in self.key_map:
+            yield key
+
     @property
     def xnat_session(self):
         return self.parent.xnat_session
 
     @property
+    def fulldata(self):
+        for child in self.parent.fulldata['children']:
+            if child['field'] == self.field_name:
+                return child['items']
+        return []
+
+    @property
     @caching
     def data_maps(self):
-        return {}, {}, set(), []
+        id_map = {}
+        key_map = {}
+        listing = []
+        non_unique_keys = set()
+
+        for index, element in enumerate(self.fulldata):
+            if self.secondary_lookup_field is not None:
+                key = element['data_fields'][self.secondary_lookup_field]
+            else:
+                key = index
+
+            try:
+                value = element['data_fields'][self.field_name.split('/')[-1]]
+            except KeyError:
+                continue
+
+            if key in key_map:
+                non_unique_keys.add(key)
+                key_map[key] = None
+            elif self.secondary_lookup_field is not None:
+                key_map[key] = value
+
+            listing.append(value)
+
+        return id_map, key_map, non_unique_keys, listing
 
     def __setitem__(self, key, value):
-        pass
+        query = {'xsiType': self.parent.__xsi_type__,
+                 '{type_}/{fieldname}[{lookup}={key}]/{fieldpart}'.format(type_=self.parent.__xsi_type__,
+                                                                          fieldname=self.field_name,
+                                                                          lookup=self.secondary_lookup_field,
+                                                                          fieldpart=self.field_name.split('/')[-1],
+                                                                          key=key): value}
+        self.xnat_session.put(self.parent.fulluri, query=query)
+
+        # Remove cache and make sure the reload the data
+        self.clearcache()
 
     def __delitem__(self, key):
-        pass
+        query = {
+            'xsiType': self.parent.__xsi_type__,
+            '{type_}/{fieldname}[{lookup}={key}]/{fieldpart}'.format(type_=self.parent.__xsi_type__,
+                                                                     fieldname=self.field_name,
+                                                                     lookup=self.secondary_lookup_field,
+                                                                     fieldpart=self.field_name.split('/')[-1],
+                                                                     key=key): 'NULL',
+            '{type_}/{fieldname}[{lookup}={key}]/{lookup}'.format(type_=self.parent.__xsi_type__,
+                                                                  fieldname=self.field_name,
+                                                                  lookup=self.secondary_lookup_field,
+                                                                  key=key): 'NULL',
+        }
+        self.xnat_session.put(self.parent.fulluri, query=query)
+
+        # Remove cache and make sure the reload the data
+        self.clearcache()
 
     def insert(self, index, value):
         pass
