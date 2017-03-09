@@ -379,7 +379,14 @@ class BaseClassWriter(BaseWriter):
 
     @property
     def display_identifier(self):
-        return self.prototype.display_identifier
+        if self.name in SECONDARY_LOOKUP_FIELDS:
+            return SECONDARY_LOOKUP_FIELDS[self.name]
+        else:
+            return self.prototype.display_identifier
+
+    @display_identifier.setter
+    def display_identifier(self, value):
+        self._display_identifier = value
 
     @property
     def abstract(self):
@@ -585,13 +592,6 @@ class ObjectClassWriter(BaseClassWriter):
     def __repr__(self):
         return '<ObjectClassWriter {}({})>'.format(self.name, self.base_class)
 
-    @property
-    def display_identifier(self):
-        if self.name in SECONDARY_LOOKUP_FIELDS:
-            return SECONDARY_LOOKUP_FIELDS[self.name]
-        else:
-            return self.prototype.display_identifier
-
     def create_listing(self, field_name, secondary_lookup):
         if secondary_lookup is None:
             secondary_lookup = self.display_identifier
@@ -610,10 +610,6 @@ class ObjectClassWriter(BaseClassWriter):
                                                          secondary_lookup=secondary_lookup,
                                                          element_class_name=self.name,
                                                          type_=self.name)
-
-    @display_identifier.setter
-    def display_identifier(self, value):
-        self._display_identifier = value
 
     @property
     def default_base_class(self):
@@ -808,7 +804,10 @@ class ListingPropertyWriter(AttributeWriter):
         elif self.type is not None:
             cls = self.parser.class_list.get(self.type)
             if cls is not None:
-                secondary_lookup = cls.display_identifier
+                if cls.name in SECONDARY_LOOKUP_FIELDS:
+                    secondary_lookup = SECONDARY_LOOKUP_FIELDS[cls.name]
+                else:
+                    secondary_lookup = cls.display_identifier
             else:
                 secondary_lookup = None
         else:
