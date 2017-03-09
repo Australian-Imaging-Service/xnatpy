@@ -30,6 +30,7 @@ from . import exceptions
 from .core import XNATListing, caching
 from .inspect import Inspect
 from .prearchive import Prearchive
+from .users import Users
 from .services import Services
 
 
@@ -84,6 +85,7 @@ class XNATSession(object):
         self._source_code_file = None
         self._services = Services(xnat_session=self)
         self._prearchive = Prearchive(xnat_session=self)
+        self._users = Users(xnat_session=self)
         self._debug = debug
         self.logger = logger
         self.inspect = Inspect(self)
@@ -508,7 +510,8 @@ class XNATSession(object):
                     # File is open file handle, seek to 0
                     file_handle = file_
                     file_.seek(0)
-                elif os.path.isfile(file_):
+                # Make sure conditions are valid for os.path.isfile to function
+                elif isinstance(file_, six.string_types) and '\0' not in file_ and os.path.isfile(file_):
                     # File is str path to file
                     file_handle = open(file_, 'rb')
                     opened_file = True
@@ -634,6 +637,13 @@ class XNATSession(object):
         Representation of the prearchive on the XNAT server, see :py:mod:`xnat.prearchive`
         """
         return self._prearchive
+
+    @property
+    def users(self):
+        """
+        Representation of the users registered on the XNAT server
+        """
+        return self._users
 
     @property
     def services(self):
