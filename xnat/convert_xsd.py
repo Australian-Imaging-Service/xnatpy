@@ -375,7 +375,7 @@ class PropertyRepresentation(object):
 
 
 class SchemaParser(object):
-    def __init__(self, debug=False):
+    def __init__(self, logger, debug=False):
         self.class_list = {}
         self.unknown_tags = set()
         self.new_class_stack = [None]
@@ -384,12 +384,11 @@ class SchemaParser(object):
         self.debug = debug
         self.schemas = []
         self.xsi_mapping = {}
+        self.logger = logger
 
     def parse_schema_uri(self, requests_session, schema_uri):
-        print('[INFO] Retrieving schema from {}'.format(schema_uri))
+        self.logger.info('Retrieving schema from {}'.format(schema_uri))
 
-        if self.debug:
-            print('[DEBUG] GET SCHEMA {}'.format(schema_uri))
         resp = requests_session.get(schema_uri, headers={'Accept-Encoding': None})
         data = resp.text
 
@@ -397,15 +396,14 @@ class SchemaParser(object):
             root = ElementTree.fromstring(data)
         except ElementTree.ParseError as exception:
             if 'action="/j_spring_security_check"' in data:
-                print('[ERROR] You do not have access to this XNAT server, please check your credentials!')
+                self.logger.error('You do not have access to this XNAT server, please check your credentials!')
             elif 'java.lang.IllegalStateException' in data:
-                print('[ERROR] The server returned an error. You probably do not'
-                      ' have access to this XNAT server, please check your credentials!')
+                self.logger.error('The server returned an error. You probably do not'
+                                  ' have access to this XNAT server, please check your credentials!')
             else:
-                print('[ERROR] Could not parse schema from {}, not valid XML found'.format(schema_uri))
+                self.logger.info('Could not parse schema from {}, not valid XML found'.format(schema_uri))
 
-                if self.debug:
-                    print('[DEBUG] XML schema request returned the following response: [{}] {}'.format(resp.status_code,
+                self.logger.debug('XML schema request returned the following response: [{}] {}'.format(resp.status_code,
                                                                                                        data))
             return False
 
@@ -415,8 +413,7 @@ class SchemaParser(object):
         # Parse xml schema
         self.parse(root, toplevel=True)
 
-        if self.debug:
-            print('[DEBUG] Found {} unknown tags: {}'.format(len(self.unknown_tags),
+        self.logger.debug('Found {} unknown tags: {}'.format(len(self.unknown_tags),
                                                              self.unknown_tags))
 
         return True
@@ -457,9 +454,9 @@ class SchemaParser(object):
             tries += 1
 
         if self.debug and len(visited) < len(self.class_list):
-            print('[DEBUG] Visited: {}, expected: {}'.format(len(visited), len(self.class_list)))
-            print('[DEBUG] Missed: {}'.format(set(self.class_list.keys()) - visited))
-            print('[DEBUG] Spent {} iterations'.format(tries))
+            self.logger.debug('Visited: {}, expected: {}'.format(len(visited), len(self.class_list)))
+            self.logger.debug('[DEBUG] Missed: {}'.format(set(self.class_list.keys()) - visited))
+            self.logger.debug('[DEBUG] Spent {} iterations'.format(tries))
 
     @contextlib.contextmanager
     def descend(self, new_class=None, new_property=None, property_prefix=None):
@@ -500,11 +497,11 @@ class SchemaParser(object):
                     type_ = child.get('type')
 
                     if self.debug:
-                        print('[DEBUG] Adding {} -> {} to XSI map'.format(name, type_))
+                        self.logger.debug('[DEBUG] Adding {} -> {} to XSI map'.format(name, type_))
                     self.xsi_mapping[name] = type_
                 else:
                     if self.debug:
-                        print('[DEBUG] skipping non-class top-level tag {}'.format(child.tag))
+                        self.logger.debug('[DEBUG] skipping non-class top-level tag {}'.format(child.tag))
 
         else:
             if element.tag in self.PARSERS:
@@ -527,7 +524,7 @@ class SchemaParser(object):
         if self.current_class is not None:
             if name is None:
                 if self.debug:
-                    print('[DEBUG] Encountered attribute without name')
+                    self.logger.debug('[DEBUG] Encountered attribute without name')
                 return
             new_property = PropertyRepresentation(self, name, type_)
             self.current_class.properties[name] = new_property
@@ -586,13 +583,13 @@ class SchemaParser(object):
                 self.current_class.abstract = abstract == "true"
             else:
                 if self.debug:
-                    print('[DEBUG] Encountered attribute without name')
+                    self.logger.debug('[DEBUG] Encountered attribute without name')
             return
 
         if element.get('maxOccurs') == 'unbounded':
             if self.current_property is None:
                 if self.debug:
-                    print('[DEBUG] Listing without parent property: {} ({})'.format(name, type_))
+                    self.logger.debug('[DEBUG] Listing without parent property: {} ({})'.format(name, type_))
             else:
                 self.current_property.is_listing = True
                 self.parse_children(element)
@@ -600,7 +597,7 @@ class SchemaParser(object):
                     self.current_property.type_ = type_
         elif self.current_class is not None:
             if self.debug:
-                print('[DEBUG] Found property {} ({})'.format(name, type_))
+                self.logger.debug('[DEBUG] Found property {} ({})'.format(name, type_))
             new_property = PropertyRepresentation(self, name, type_)
             self.current_class.properties[name] = new_property
 
@@ -608,7 +605,7 @@ class SchemaParser(object):
                 self.parse_children(element)
         else:
             if self.debug:
-                print('[DEBUG] Found XSI_MAPPING {} -> {}'.format(name, type_))
+                self.logger.debug('[DEBUG] Found XSI_MAPPING {} -> {}'.format(name, type_))
             # Top level element is xsi mapping
             self.xsi_mapping[name] = type_
 

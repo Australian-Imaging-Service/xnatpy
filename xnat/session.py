@@ -17,10 +17,13 @@ from __future__ import absolute_import
 from __future__ import unicode_literals
 import netrc
 import os
-import sys
 import threading
 
+from progressbar import DataTransferBar, NullBar
+from progressbar import AdaptiveETA, AdaptiveTransferSpeed, Bar, BouncingBar, \
+    DataSize, Percentage, ProgressBar, Timer, UnknownLength
 import requests
+import six
 from six.moves.urllib import parse
 
 from . import exceptions
@@ -71,7 +74,7 @@ class XNATSession(object):
     # Class lookup to populate
     XNAT_CLASS_LOOKUP = {}
 
-    def __init__(self, server, interface=None, user=None, password=None, keepalive=840, debug=False):
+    def __init__(self, server, logger, interface=None, user=None, password=None, keepalive=840, debug=False):
         self.classes = None
         self._interface = interface
         self._projects = None
@@ -82,7 +85,16 @@ class XNATSession(object):
         self._services = Services(xnat_session=self)
         self._prearchive = Prearchive(xnat_session=self)
         self._debug = debug
+        self.logger = logger
         self.inspect = Inspect(self)
+
+        # Accepted status
+        self.accepted_status_get = [200]
+        self.accepted_status_post = [200, 201]
+        self.accepted_status_put = [200, 201]
+        self.accepted_status_delete = [200]
+        self.skip_response_check = False
+        self.skip_response_content_check = False
 
         # Set the keep alive settings and spawn the keepalive thread for sending heartbeats
         if isinstance(keepalive, int) and keepalive > 0:
@@ -113,14 +125,14 @@ class XNATSession(object):
         if self.interface is None:
             if server is None:
                 raise ValueError('Cannot connect if no server is given')
-            print('[INFO] Connecting to server {}'.format(server))
+            self.logger.info('Connecting to server {}'.format(server))
             if self._interface is not None:
                 self.disconnect()
 
             self._server = parse.urlparse(server)
 
             if user is None and password is None:
-                print('[INFO] Retrieving login info for {}'.format(self._server.netloc))
+                self.logger.info('Retrieving login info for {}'.format(self._server.netloc))
                 try:
                     user, _, password = netrc.netrc().authenticators(self._server.netloc)
                 except TypeError:
@@ -227,12 +239,13 @@ class XNATSession(object):
 
     def _check_response(self, response, accepted_status=None, uri=None):
         if self.debug:
-            print('[DEBUG] Received response with status code: {}'.format(response.status_code))
+            self.logger.debug('Received response with status code: {}'.format(response.status_code))
 
-        if accepted_status is None:
-            accepted_status = [200, 201, 202, 203, 204, 205, 206]  # All successful responses of HTML
-        if response.status_code not in accepted_status or response.text.startswith(('<!DOCTYPE', '<html>')):
-            raise exceptions.XNATResponseError('Invalid response from XNATSession for url {} (status {}):\n{}'.format(uri, response.status_code, response.text))
+        if not self.skip_response_check:
+            if accepted_status is None:
+                accepted_status = [200, 201, 202, 203, 204, 205, 206]  # All successful responses of HTML
+            if response.status_code not in accepted_status or (not self.skip_response_content_check and response.text.startswith(('<!DOCTYPE', '<html>'))):
+                raise exceptions.XNATResponseError('Invalid response from XNATSession for url {} (status {}):\n{}'.format(uri, response.status_code, response.text))
 
     def get(self, path, format=None, query=None, accepted_status=None):
         """
@@ -246,11 +259,11 @@ class XNATSession(object):
         :returns: the requests reponse
         :rtype: requests.Response
         """
-        accepted_status = accepted_status or [200]
+        accepted_status = accepted_status or self.accepted_status_get
         uri = self._format_uri(path, format, query=query)
 
         if self.debug:
-            print('[DEBUG] GET URI {}'.format(uri))
+            self.logger.debug('GET URI {}'.format(uri))
 
         try:
             response = self.interface.get(uri)
@@ -269,11 +282,10 @@ class XNATSession(object):
         :returns: the requests reponse
         :rtype: requests.Response
         """
-        accepted_status = accepted_status or [200]
+        accepted_status = accepted_status or self.accepted_status_get
         uri = self._format_uri(path)
 
-        if self.debug:
-            print('[DEBUG] GET URI {}'.format(uri))
+        self.logger.debug('GET URI {}'.format(uri))
 
         try:
             response = self.interface.head(uri)
@@ -296,12 +308,12 @@ class XNATSession(object):
         :returns: the requests reponse
         :rtype: requests.Response
         """
-        accepted_status = accepted_status or [200, 201]
+        accepted_status = accepted_status or self.accepted_status_post
         uri = self._format_uri(path, format, query=query)
 
+        self.logger.debug('POST URI {}'.format(uri))
         if self.debug:
-            print('[DEBUG] POST URI {}'.format(uri))
-            print('[DEBUG] POST DATA {}'.format(data))
+            self.logger.debug('POST DATA {}'.format(data))
 
         try:
             response = self._interface.post(uri, data=data, json=json)
@@ -329,13 +341,13 @@ class XNATSession(object):
         :returns: the requests reponse
         :rtype: requests.Response
         """
-        accepted_status = accepted_status or [200, 201]
+        accepted_status = accepted_status or self.accepted_status_put
         uri = self._format_uri(path, format, query=query)
 
+        self.logger.debug('PUT URI {}'.format(uri))
         if self.debug:
-            print('[DEBUG] PUT URI {}'.format(uri))
-            print('[DEBUG] PUT DATA {}'.format(data))
-            print('[DEBUG] PUT FILES {}'.format(data))
+            self.logger.debug('PUT DATA {}'.format(data))
+            self.logger.debug('PUT FILES {}'.format(data))
 
         try:
             response = self._interface.put(uri, data=data, files=files, json=json)
@@ -356,12 +368,12 @@ class XNATSession(object):
         :returns: the requests reponse
         :rtype: requests.Response
         """
-        accepted_status = accepted_status or [200]
+        accepted_status = accepted_status or self.accepted_status_delete
         uri = self._format_uri(path, query=query)
 
+        self.logger.debug('DELETE URI {}'.format(uri))
         if self.debug:
-            print('[DEBUG] DELETE URI {}'.format(uri))
-            print('[DEBUG] DELETE HEADERS {}'.format(headers))
+            self.logger.debug('DELETE HEADERS {}'.format(headers))
 
         try:
             response = self.interface.delete(uri, headers=headers)
@@ -380,6 +392,10 @@ class XNATSession(object):
         if format is not None:
             query['format'] = format
 
+        # Sanitize unicode in query
+        if six.PY2:
+            query = {k: v.encode('utf-8', 'xmlcharrefreplace') if isinstance(v, unicode) else v for k, v in query.items()}
+
         # Create the query string
         if len(query) > 0:
             query_string = parse.urlencode(query)
@@ -395,7 +411,7 @@ class XNATSession(object):
 
         return parse.urlunparse(data)
 
-    def get_json(self, uri, query=None):
+    def get_json(self, uri, query=None, accepted_status=None):
         """
         Helper function that perform a GET, but sets the format to JSON and
         parses the result as JSON
@@ -404,7 +420,7 @@ class XNATSession(object):
                          the remained for the uri is constructed automatically
         :param dict query: the values to be added to the query string in the uri
         """
-        response = self.get(uri, format='json', query=query)
+        response = self.get(uri, format='json', query=query, accepted_status=accepted_status)
         try:
             return response.json()
         except ValueError:
@@ -412,28 +428,56 @@ class XNATSession(object):
 
     def download_stream(self, uri, target_stream, format=None, verbose=False, chunk_size=524288):
         uri = self._format_uri(uri, format=format)
-        if self.debug:
-            print('[DEBUG] DOWNLOAD URI {}'.format(uri))
+        self.logger.debug('DOWNLOAD STREAM {}'.format(uri))
 
         # Stream the get and write to file
         response = self.interface.get(uri, stream=True)
 
-        if response.status_code != 200:
+        if response.status_code not in self.accepted_status_get:
             raise exceptions.XNATResponseError('Invalid response from XNATSession for url {} (status {}):\n{}'.format(uri, response.status_code, response.text))
 
-        bytes_read = 0
+        # Get the content length if available
+        content_length = response.headers.get('Content-Length', UnknownLength)
+
+        if isinstance(content_length, six.string_types):
+            content_length = int(content_length)
+
+        # Create the progress bar if required
         if verbose:
-            print('Downloading {}:'.format(uri))
-        for chunk in response.iter_content(chunk_size):
-            if bytes_read == 0 and chunk[0] == '<' and chunk.startswith(('<!DOCTYPE', '<html>')):
-                raise ValueError('Invalid response from XNATSession (status {}):\n{}'.format(response.status_code, chunk))
+            if content_length is not UnknownLength:
+                widgets = [
+                    Percentage(),
+                    ' of ', DataSize('max_value'),
+                    ' ', Bar(),
+                    ' ', AdaptiveTransferSpeed(),
+                    ' ', AdaptiveETA(),
+                ]
+            else:
+                widgets = [
+                    DataSize(),
+                    ' ', BouncingBar(),
+                    ' ', AdaptiveTransferSpeed(),
+                    ' ', Timer(),
+                ]
 
-            bytes_read += len(chunk)
-            target_stream.write(chunk)
+            self.logger.info('Downloading {}:'.format(uri))
+            progress_bar = ProgressBar(widgets=widgets, max_value=content_length)
+        else:
+            progress_bar = NullBar()
 
-            if verbose:
-                sys.stdout.write('\r{:d} kb'.format(bytes_read / 1024))
-                sys.stdout.flush()
+        bytes_read = 0
+        try:
+            progress_bar.start()
+            for chunk in response.iter_content(chunk_size):
+                if bytes_read == 0 and chunk[0] == '<' and chunk.startswith(('<!DOCTYPE', '<html>')):
+                    raise ValueError('Invalid response from XNATSession (status {}):\n{}'.format(response.status_code, chunk))
+
+                bytes_read += len(chunk)
+                target_stream.write(chunk)
+
+                progress_bar.update(bytes_read)
+        finally:
+            progress_bar.finish()
 
     def download(self, uri, target, format=None, verbose=True):
         """
@@ -443,8 +487,7 @@ class XNATSession(object):
             self.download_stream(uri, out_fh, format=format, verbose=verbose)
 
         if verbose:
-            sys.stdout.write('\nSaved as {}...\n'.format(target))
-            sys.stdout.flush()
+            self.logger.info('\nSaved as {}...'.format(target))
 
     def download_zip(self, uri, target, verbose=True):
         """
@@ -454,8 +497,7 @@ class XNATSession(object):
 
     def upload(self, uri, file_, retries=1, query=None, content_type=None, method='put'):
         uri = self._format_uri(uri, query=query)
-        if self.debug:
-            print('[DEBUG] UPLOAD URI {}'.format(uri))
+        self.logger.debug('UPLOAD URI {}'.format(uri))
         attempt = 0
         file_handle = None
         opened_file = False
@@ -531,7 +573,7 @@ class XNATSession(object):
         if (uri, fieldname) not in self._cache['__objects__']:
             if type_ is None:
                 if self.xnat_session.debug:
-                    print('[DEBUG] Type unknown, fetching data to get type')
+                    self.logger.debug('Type unknown, fetching data to get type')
                 data = self.xnat_session.get_json(uri)
                 type_ = data['items'][0]['meta']['xsi:type']
                 datafields = data['items'][0]['data_fields']
@@ -539,18 +581,18 @@ class XNATSession(object):
                 datafields = None
 
             if self.xnat_session.debug:
-                print('[DEBUG] Looking up type {} [{}]'.format(type_, type(type_).__name__))
+                self.logger.debug('Looking up type {} [{}]'.format(type_, type(type_).__name__))
             if type_ not in self.XNAT_CLASS_LOOKUP:
                 raise KeyError('Type {} unknow to this XNATSession REST client (see XNAT_CLASS_LOOKUP class variable)'.format(type_))
 
             cls = self.XNAT_CLASS_LOOKUP[type_]
 
             if self.xnat_session.debug:
-                print('[DEBUG] Creating object of type {}'.format(cls))
+                self.logger.debug('Creating object of type {}'.format(cls))
 
             self._cache['__objects__'][uri, fieldname] = cls(uri, self, datafields=datafields, fieldname=fieldname, **kwargs)
         elif self.debug:
-            print('[DEBUG] Fetching object {} from cache'.format(uri))
+            self.logger.debug('Fetching object {} from cache'.format(uri))
 
         return self._cache['__objects__'][uri, fieldname]
 
