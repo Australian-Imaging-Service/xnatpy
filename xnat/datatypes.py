@@ -31,6 +31,9 @@ def to_time(value):
 
 
 def to_datetime(value):
+    # We encountered situations where the T separator was replaces by a space
+    # so make sure that is not the case
+    value = value.replace(' ', 'T')
     return isodate.parse_datetime(value)
 
 
@@ -64,7 +67,7 @@ def to_bool(value):
 
 def from_datetime(value):
     if isinstance(value, six.string_types):
-        value = isodate.parse_datetime(value)
+        to_datetime(value)  # First make sure it is a datetime
 
     if isinstance(value, datetime.datetime):
         return value.isoformat()
