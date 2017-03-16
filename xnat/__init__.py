@@ -35,12 +35,13 @@ import time
 import requests
 from six.moves.urllib import parse
 
+from . import exceptions
 from .session import XNATSession
 from .convert_xsd import SchemaParser
 
 GEN_MODULES = {}
 
-__all__ = ['connect']
+__all__ = ['connect', 'exceptions']
 
 
 def check_auth(requests_session, server, user, logger):
@@ -152,7 +153,8 @@ def parse_schemas_17(parser, requests_session, server, logger, debug=False):
                                 schema_uri=schema)
 
 
-def connect(server, user=None, password=None, verify=True, netrc_file=None, debug=False, extension_types=True, loglevel=None):
+def connect(server, user=None, password=None, verify=True, netrc_file=None, debug=False,
+            extension_types=True, loglevel=None, logger=None):
     """
     Connect to a server and generate the correct classed based on the servers xnat.xsd
     This function returns an object that can be used as a context operator. It will call
@@ -171,6 +173,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
                            a file following the netrc syntax)
     :param debug bool: Set debug information printing on
     :param str loglevel: Set the level of the logger to desired level
+    :param logging.Logger logger: A logger to reuse instead of creating an own logger
     :return: XNAT session object
     :rtype: XNATSession
 
@@ -198,24 +201,25 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     connection_id = hasher.hexdigest()
 
     # Setup the logger for this connection
-    logger = logging.getLogger('xnat-{}'.format(connection_id))
-    handler = logging.StreamHandler()
-    handler.setLevel(logging.DEBUG)
-    logger.addHandler(handler)
+    if logger is None:
+        logger = logging.getLogger('xnat-{}'.format(connection_id))
+        handler = logging.StreamHandler()
+        handler.setLevel(logging.DEBUG)
+        logger.addHandler(handler)
 
-    # create formatter
-    if debug:
-        formatter = logging.Formatter('[%(asctime)s] %(levelname)s: %(module)s:%(lineno)d >> %(message)s')
-    else:
-        formatter = logging.Formatter('[%(levelname)s] %(message)s')
-    handler.setFormatter(formatter)
+        # create formatter
+        if debug:
+            formatter = logging.Formatter('[%(asctime)s] %(levelname)s: %(module)s:%(lineno)d >> %(message)s')
+        else:
+            formatter = logging.Formatter('[%(levelname)s] %(message)s')
+        handler.setFormatter(formatter)
 
-    if debug:
-        logger.setLevel('DEBUG')
-    elif loglevel is not None:
-        logger.setLevel(loglevel)
-    else:
-        logger.setLevel('WARNING')
+        if debug:
+            logger.setLevel('DEBUG')
+        elif loglevel is not None:
+            logger.setLevel(loglevel)
+        else:
+            logger.setLevel('WARNING')
 
     # Get the login info
     parsed_server = parse.urlparse(server)
