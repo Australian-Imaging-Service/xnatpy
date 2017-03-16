@@ -170,11 +170,11 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     if version_request.status_code == 200:
         version = version_request.text
     else:
-        schemas_uri  = '{}/xapi/schemas'.format(server.rstrip('/'))
-        schemas_request = requests_session.get(schemas_uri)
+        version_uri = '{}/xapi/siteConfig/buildInfo'.format(server.rstrip('/'))
+        version_request = requests_session.get(version_uri)
 
-        if schemas_request.status_code == 200:
-            version = '1.7.0'
+        if version_request.status_code == 200:
+            version = version_request.json()['version']
         else:
             print('[ERROR] Could not retrieve version: [{}] {}'.format(version_request.status_code, version_request.text))
             raise ValueError('Cannot continue on unknown XNAT version')
