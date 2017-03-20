@@ -560,11 +560,17 @@ class XNATSession(object):
         return self.xnat_session.get_json('/data/archive/scan_types')['ResultSet']['Result']
 
     @property
+    @caching
     def xnat_version(self):
         """
         The version of the XNAT server
         """
-        return self.get('/data/version').text
+        try:
+            # XNAT SERVER 1.6.x
+            return self.get('/data/version').text
+        except exceptions.XNATResponseError:
+            # XNAT SERVER 1.7.x
+            return self.get_json('/xapi/siteConfig/buildInfo')['version']
 
     def create_object(self, uri, type_=None, fieldname=None, **kwargs):
         if (uri, fieldname) not in self._cache['__objects__']:

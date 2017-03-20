@@ -34,7 +34,20 @@ class PrearchiveSession(XNATBaseObject):
 
     @property
     def fulldata(self):
-        return self.xnat_session.get_json(self.uri)['ResultSet']['Result'][0]
+        if self.xnat_session.xnat_version.startswith('1.7'):
+            # Find the xnat prearchive project uri
+            project_uri = self.uri.rsplit('/', 2)[0]
+
+            # We need to search for session with url field without the /data start
+            target_uri = self.uri[5:] if self.uri.startswith('/data') else self.uri
+            all_sessions = self.xnat_session.get_json(project_uri)
+            for session in all_sessions['ResultSet']['Result']:
+                if session['url'] == target_uri:
+                    return session
+            else:
+                raise IndexError('Could not find specified prearchive session {}'.format(self.uri))
+        else:
+            return self.xnat_session.get_json(self.uri)['ResultSet']['Result'][0]
 
     @property
     def data(self):
