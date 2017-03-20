@@ -410,11 +410,12 @@ class BaseClassWriter(BaseWriter):
         #    name = self.parser.class_names[name]
 
         if ':' in name:
-            name = name.split(':', 1)[1]
+            name = name.split(':', 1)[-1]
 
-        parts = name.split('_')
+        parts = re.split('[\-\_\W]+', name)
         parts = [x[0].upper() + x[1:] for x in parts]
-        return ''.join(parts)
+        name = ''.join(parts)
+        return name
 
     @property
     def python_name(self):
@@ -1041,7 +1042,7 @@ class SchemaParser(object):
         field_name = None
 
         if name is None:
-            name = 'xnatpy:' + self._current_class.name.split(":", 1)[1] + self._current_property.name.capitalize()
+            name = 'xnatpy:' + self._current_class.name.split(":", 1)[-1] + self._current_property.name.capitalize()
             parent_class = self._current_class.name
             field_name = self._current_property.name
         else:
