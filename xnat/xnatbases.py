@@ -77,7 +77,7 @@ class ProjectData(XNATObject):
             subject.download_dir(project_dir, verbose=verbose)
 
         if verbose:
-            print('Downloaded subject to {}'.format(project_dir))
+            self.logger.info('Downloaded subject to {}'.format(project_dir))
 
 
 class SubjectData(XNATObject):
@@ -106,7 +106,7 @@ class SubjectData(XNATObject):
             experiment.download_dir(subject_dir, verbose=verbose)
 
         if verbose:
-            print('Downloaded subject to {}'.format(subject_dir))
+            self.logger.info('Downloaded subject to {}'.format(subject_dir))
 
 
 class ExperimentData(XNATObject):
@@ -153,7 +153,7 @@ class ImageSessionData(XNATObject):
                 zip_file.extractall(target_dir)
 
         if verbose:
-            print('\nDownloaded image session to {}'.format(target_dir))
+            self.logger.info('\nDownloaded image session to {}'.format(target_dir))
 
 
 class DerivedData(XNATObject):
@@ -231,7 +231,7 @@ class ImageScanData(XNATObject):
                 zip_file.extractall(target_dir)
 
         if verbose:
-            print('Downloaded image scan data to {}'.format(target_dir))
+            self.logger.info('Downloaded image scan data to {}'.format(target_dir))
 
 
 class AbstractResource(XNATObject):
@@ -273,7 +273,7 @@ class AbstractResource(XNATObject):
                 zip_file.extractall(target_dir)
 
         if verbose:
-            print('Downloaded resource data to {}'.format(target_dir))
+            self.logger.info('Downloaded resource data to {}'.format(target_dir))
 
     def upload(self, data, remotepath):
         uri = '{}/files/{}'.format(self.uri, remotepath)
