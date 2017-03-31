@@ -517,7 +517,7 @@ class BaseClassWriter(BaseWriter):
 class SimpleClassWriter(BaseClassWriter):
     @property
     def base_class(self):
-        return "XNATObjectMixin"
+        return "XNATSubObjectMixin"
 
     def create_listing(self, field_name, secondary_lookup):
         return """
@@ -533,7 +533,7 @@ class SimpleClassWriter(BaseClassWriter):
 
     @property
     def default_base_class(self):
-        return 'XNATObjectMixin'
+        return 'XNATSubObjectMixin'
 
 
 class SubObjectClassWriter(BaseClassWriter):
@@ -767,10 +767,12 @@ class SubObjectPropertyWriter(AttributeWriter):
     def tostring(self):
         docstring = '\n        """ {} """'.format(self.docstring) if self.docstring is not None else ''
         if self.type is None:
-            #xsi_type = self.element_class.name
-            #xsi_type_arg = ', "{}"'.format(xsi_type)
-            xsi_type = 'TO BE DETERMINED'
-            xsi_type_arg = ', "{}"'.format(xsi_type)
+            if self.element_class is not None:
+                xsi_type = self.element_class.name
+                xsi_type_arg = ', "{}"'.format(xsi_type)
+            else:
+                xsi_type = '_UNKNOWN_'
+                xsi_type_arg = ', "{}"'.format(xsi_type)
         else:
             xsi_type = '{}'.format(core.TYPE_HINTS.get(self.name, self.type))
             xsi_type_arg = ''

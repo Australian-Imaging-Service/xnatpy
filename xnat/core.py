@@ -445,7 +445,6 @@ class XNATSubObject(XNATBaseObject):
         else:
             raise TypeError('Type of parent is invalid! (Found {})'.format(type(self.parent).__name__))
 
-
     @property
     def fulldata(self):
         prefix = '{}/'.format(self.fieldname)
@@ -453,7 +452,8 @@ class XNATSubObject(XNATBaseObject):
         result = self.parent.fulldata
 
         if isinstance(result, dict):
-            result = {k[len(prefix):]: v for k, v in result.items() if k.startswith(prefix)}
+            result = {k[len(prefix):]: v for k, v in result['data_fields'].items() if k.startswith(prefix)}
+            result = {'data_fields': result}
         elif isinstance(result, list):
             try:
                 if self.parent.secondary_lookup_field is not None:
