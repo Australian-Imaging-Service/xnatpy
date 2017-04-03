@@ -1,0 +1,29 @@
+Changelog
+=========
+
+All notable changes to this project will be documented in this file.
+
+The format is based on `Keep a Changelog <http://keepachangelog.com/>`_
+and this project adheres to `Semantic Versioning <http://semver.org/>`_
+
+0.2.3 - 2017-04-03
+------------------
+
+Added
+~~~~~
+
+- xnatpy now uses the progressbar2 package to deliver fancy progress bars when downloading
+- attributes in the session that allow users to skip/alter the checking of responses
+
+
+Changed
+~~~~~~~
+
+- Logging now using a logger. You can change the log levels or supply your own logger which xnatpy will use in favour of its own
+- xnatpy now gets the version information from 1.7 xnat correctly
+
+
+Fixed
+~~~~~
+
+- A bug in XNAT 1.7 caused the prearchive routes to be wrong, added a work around that fixes the prearchive with xnatpy
