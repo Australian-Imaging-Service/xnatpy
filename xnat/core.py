@@ -197,7 +197,10 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
             self._cache['data'] = datafields
 
     def __str__(self):
-        if self.SECONDARY_LOOKUP_FIELD is None:
+        if hasattr(self, '_DISPLAY_IDENTIFIER') and self._DISPLAY_IDENTIFIER is not None:
+            di = getattr(self, self._DISPLAY_IDENTIFIER)
+            return six.text_type('<{} {}>').format(self.__class__.__name__, di)
+        elif self.SECONDARY_LOOKUP_FIELD is None:
             return six.text_type('<{} {}>').format(self.__class__.__name__, self.id)
         else:
             return six.text_type('<{} {} ({})>').format(self.__class__.__name__,
@@ -303,6 +306,8 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
             return self.data['ID']
         elif self.parent is not None:
             return '{}/{}'.format(self.parent.id, self.fieldname)
+        elif hasattr(self, '_DISPLAY_IDENTIFIER') and self._DISPLAY_IDENTIFIER is not None:
+            return getattr(self, self._DISPLAY_IDENTIFIER)
         else:
             return '#NOID#'
 

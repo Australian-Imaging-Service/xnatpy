@@ -775,7 +775,7 @@ class SubObjectPropertyWriter(AttributeWriter):
                 xsi_type_arg = ', "{}"'.format(xsi_type)
         else:
             xsi_type = '{}'.format(core.TYPE_HINTS.get(self.name, self.type))
-            xsi_type_arg = ''
+            xsi_type_arg = ', "{}"'.format(xsi_type)
 
         return \
             """    @mixedproperty
