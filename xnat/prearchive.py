@@ -26,6 +26,10 @@ from .datatypes import to_date, to_time
 class PrearchiveSession(XNATBaseObject):
     @property
     def id(self):
+        """
+        A unique ID for the session in the prearchive
+        :return:
+        """
         return '{}/{}/{}'.format(self.data['project'], self.data['timestamp'], self.data['name'])
 
     @property
@@ -118,6 +122,9 @@ class PrearchiveSession(XNATBaseObject):
 
     @property
     def uploaded(self):
+        """
+        Datetime when the session was uploaded
+        """
         uploaded_string = self.data['uploaded']
         try:
             return datetime.datetime.strptime(uploaded_string, '%Y-%m-%d %H:%M:%S.%f')
@@ -126,6 +133,9 @@ class PrearchiveSession(XNATBaseObject):
 
     @property
     def scans(self):
+        """
+        List of scans in the prearchive session
+        """
         data = self.xnat_session.get_json(self.uri + '/scans')
         # We need to prepend /data to our url (seems to be a bug?)
 
@@ -135,10 +145,30 @@ class PrearchiveSession(XNATBaseObject):
                                datafields=x) for x in data['ResultSet']['Result']]
 
     def download(self, path):
+        """
+        Method to download the zip of the prearchive session
+
+        :param str path: path to download to
+        :return: path of the downloaded zip file
+        :rtype: str
+        """
         self.xnat_session.download_zip(self.uri, path)
         return path
 
-    def archive(self, overwrite=None, quarantine=None, trigger_pipelines=None, project=None, subject=None, experiment=None):
+    def archive(self, overwrite=None, quarantine=None, trigger_pipelines=None,
+                project=None, subject=None, experiment=None):
+        """
+        Method to archive this prearchive session to the main archive
+
+        :param str overwrite: how the handle existing data (none, append, delete)
+        :param bool quarantine: flag to indicate session should be quarantined
+        :param bool trigger_pipelines: indicate that archiving should trigger pipelines
+        :param str project: the project in the archive to assign the session to
+        :param str subject: the subject in the archive to assign the session to
+        :param str experiment: the experiment in the archive to assign the session content to
+        :return: the newly created experiment
+        :rtype: ExperimentData
+        """
         query = {'src': self.uri}
 
         if overwrite is not None:
@@ -183,6 +213,12 @@ class PrearchiveSession(XNATBaseObject):
         return self.xnat_session.create_object(object_uri)
 
     def delete(self, async=None):
+        """
+        Delete the session from the prearchive
+
+        :param bool async: flag to delete asynchronously
+        :return: requests response
+        """
         query = {'src': self.uri}
 
         if async is not None:
@@ -199,6 +235,12 @@ class PrearchiveSession(XNATBaseObject):
         return response
 
     def rebuild(self, async=None):
+        """
+        Rebuilt the session in the prearchive
+
+        :param bool async: flag to rebuild asynchronously
+        :return: requests response
+        """
         query = {'src': self.uri}
 
         if async is not None:
@@ -215,6 +257,13 @@ class PrearchiveSession(XNATBaseObject):
         return response
 
     def move(self, new_project, async=None):
+        """
+        Move the session to a different project in the prearchive
+
+        :param str new_project: the id of the project to move to
+        :param bool async: flag to move asynchronously
+        :return: requests response
+        """
         query = {'src': self.uri,
                  'newProject': new_project}
 
@@ -245,10 +294,16 @@ class PrearchiveScan(XNATBaseObject):
 
     @property
     def series_description(self):
+        """
+        The series description of the scan
+        """
         return self.data['series_description']
 
     @property
     def files(self):
+        """
+        List of files contained in the scan
+        """
         data = self.xnat_session.get_json(self.uri + '/resources/DICOM/files')
 
         return [PrearchiveFile(x['URI'],
@@ -257,6 +312,13 @@ class PrearchiveScan(XNATBaseObject):
                                datafields=x) for x in data['ResultSet']['Result']]
 
     def download(self, path):
+        """
+        Download the scan as a zip
+
+        :param str path: the path to download to
+        :return: the path of the downloaded file
+        :rtype: str
+        """
         self.xnat_session.download_zip(self.uri, path)
         return path
 
@@ -286,10 +348,16 @@ class PrearchiveFile(XNATBaseObject):
 
     @property
     def name(self):
+        """
+        The name of the file
+        """
         return self.data['Name']
 
     @property
     def size(self):
+        """
+        The size of the file
+        """
         return self.data['Size']
 
     @property
@@ -297,6 +365,13 @@ class PrearchiveFile(XNATBaseObject):
         return "xnatpy:prearchiveFile"
 
     def download(self, path):
+        """
+        Download the file
+
+        :param str path: the path to download to
+        :return: the path of the downloaded file
+        :rtype: str
+        """
         self.xnat_session.download_zip(self.uri, path)
         return path
 
@@ -310,6 +385,14 @@ class Prearchive(object):
         return self._xnat_session
 
     def sessions(self, project=None):
+        """
+        Get the session in the prearchive, optionally filtered by project. This
+        function is not cached and returns the results of a query at each call.
+
+        :param str project: the project to filter on
+        :return: list of prearchive session found
+        :rtype: list
+        """
         if project is None:
             uri = '/data/prearchive/projects'
         else:
