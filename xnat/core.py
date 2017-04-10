@@ -241,7 +241,7 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
 
     def get_object(self, fieldname, type_=None):
         try:
-            data = next(x for x in self.fulldata['children'] if x['field'] == fieldname)['items'][0]
+            data = next(x for x in self.fulldata.get('children', []) if x['field'] == fieldname)['items'][0]
             type_ = data['meta']['xsi:type']
         except StopIteration:
             if type_ is None:
