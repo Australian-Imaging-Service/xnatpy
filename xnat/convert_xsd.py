@@ -28,6 +28,7 @@ from xml.etree import ElementTree
 from . import core
 from . import xnatbases
 from .constants import SECONDARY_LOOKUP_FIELDS, FIELD_HINTS, CORE_REST_OBJECTS
+from .utils import pythonize_class_name, pythonize_attribute_name
 
 
 FILE_HEADER = '''
@@ -268,22 +269,7 @@ class AttributePrototype(object):
 
     @property
     def clean_name(self):
-        name = re.sub('[^0-9a-zA-Z]+', '_', self.name)
-
-        # Change CamelCaseString to camel_case_string
-        # Note that addID would become add_id
-        name = re.sub("[A-Z]+", lambda x: '_' + x.group(0).lower(), name)
-        if name[0] == '_':
-            name = name[1:]
-
-        # Avoid multiple underscores (replace them by single underscore)
-        name = re.sub("__+", '_', name)
-
-        # Avoid overwriting keywords TODO: Do we want this, as a property it is not a huge problem?
-        if keyword.iskeyword(name):
-            name += '_'
-
-        return name
+        return pythonize_attribute_name(self.name)
 
     @property
     def property_type(self):
@@ -406,28 +392,19 @@ class BaseClassWriter(BaseWriter):
             return getattr(xnatbases, self.python_name)
 
     def _pythonize_name(self, name):
-        #if name in self.parser.class_names:
-        #    name = self.parser.class_names[name]
-
-        if ':' in name:
-            name = name.split(':', 1)[-1]
-
-        parts = re.split('[\-\_\W]+', name)
-        parts = [x[0].upper() + x[1:] for x in parts]
-        name = ''.join(parts)
-        return name
+        return pythonize_class_name(name)
 
     @property
     def python_name(self):
-        return self._pythonize_name(self.name)
+        return pythonize_class_name(self.name)
 
     @property
     def python_base_class(self):
-        return self._pythonize_name(self.base_class)
+        return pythonize_class_name(self.base_class)
 
     @property
     def python_parent_class(self):
-        return self._pythonize_name(self.parent_class)
+        return pythonize_class_name(self.parent_class)
 
     def hasattr(self, name):
         base = self.get_base_template()
@@ -579,7 +556,7 @@ class NestedObjectClassWriter(BaseClassWriter):
         return """
         # Automatically generated PropertyListing, by {element_class_name} (NestedObjectClassWriter)
         # Secondary lookup: '{secondary_lookup}'
-        return XNATNestedListing(uri=self.fulluri + '/{field_name}',
+        return XNATSubListing(uri=self.fulluri + '/{field_name}',
                                  parent=self,
                                  field_name='{field_name}',
                                  secondary_lookup_field={secondary_lookup},

@@ -25,7 +25,7 @@ import textwrap
 from . import exceptions
 from .datatypes import convert_from, convert_to
 from .constants import TYPE_HINTS
-from .utils import mixedproperty
+from .utils import mixedproperty, pythonize_attribute_name
 import six
 
 
@@ -198,7 +198,8 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
 
     def __str__(self):
         if hasattr(self, '_DISPLAY_IDENTIFIER') and self._DISPLAY_IDENTIFIER is not None:
-            di = getattr(self, self._DISPLAY_IDENTIFIER)
+            attribute = pythonize_attribute_name(self._DISPLAY_IDENTIFIER)
+            di = getattr(self, attribute)
             return six.text_type('<{} {}>').format(self.__class__.__name__, di)
         elif self.SECONDARY_LOOKUP_FIELD is None:
             return six.text_type('<{} {}>').format(self.__class__.__name__, self.id)
@@ -239,18 +240,21 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
         return value
 
     def get_object(self, fieldname, type_=None):
-        if type_ is None:
-            try:
-                data = next(x for x in self.fulldata['children'] if x['field'] == fieldname)['items'][0]
-                type_ = data['meta']['xsi:type']
-            except StopIteration:
-                type_ = TYPE_HINTS.get(fieldname)
+        try:
+            data = next(x for x in self.fulldata['children'] if x['field'] == fieldname)['items'][0]
+            type_ = data['meta']['xsi:type']
+        except StopIteration:
             if type_ is None:
-                raise exceptions.XNATValueError('Cannot determine type of field {}!'.format(fieldname))
+                type_ = TYPE_HINTS.get(fieldname, None)
+
+        if type_ is None:
+            raise exceptions.XNATValueError('Cannot determine type of field {}!'.format(fieldname))
 
         cls = self.xnat_session.XNAT_CLASS_LOOKUP[type_]
+
         if not issubclass(cls, (XNATSubObject, XNATNestedObject)):
             raise ValueError('{} is not a subobject type!'.format(cls))
+
         return self.xnat_session.create_object(self.uri, type_=type_, parent=self, fieldname=fieldname)
 
     @property
@@ -389,7 +393,11 @@ class XNATNestedObject(XNATBaseObject):
             if isinstance(self.parent.fulldata, dict):
                 data = next(x for x in self.parent.fulldata['children'] if x['field'] == self.fieldname)['items'][0]
             elif isinstance(self.parent.fulldata, list):
-                data = next(x for x in self.parent.fulldata if x['data_fields'][self.parent.secondary_lookup_field] == self.fieldname)
+                if self.parent.secondary_lookup_field is not None:
+                    data = next(x for x in self.parent.fulldata if x['data_fields'][self.parent.secondary_lookup_field] == self.fieldname)
+                else:
+                    # Just simply select the index
+                    data = self.parent.fulldata[self.fieldname]
             else:
                 raise ValueError("Found unexpected data in parent! ({})".format(self.parent.fulldata))
 
@@ -604,7 +612,7 @@ class XNATBaseListing(Mapping, Sequence):
 
     def __iter__(self):
         for index, item in enumerate(self.listing):
-            if hasattr(item, 'id'):
+            if hasattr(item, 'id') and item.id in self.data:
                 yield item.id
             elif self.secondary_lookup_field is not None and hasattr(item, self.secondary_lookup_field):
                 yield getattr(item, self.secondary_lookup_field)
@@ -612,7 +620,7 @@ class XNATBaseListing(Mapping, Sequence):
                 yield index
 
     def __len__(self):
-        return len(self.data)
+        return len(self.listing)
 
     @property
     def uri(self):
@@ -891,7 +899,7 @@ class XNATSubListing(XNATBaseListing, MutableMapping, MutableSequence):
     @property
     def fulldata(self):
         for child in self.parent.fulldata['children']:
-            if child['field'] == self.field_name:
+            if child['field'] == self.field_name or child['field'].startswith(self.field_name + '/'):
                 return child['items']
         return []
 
@@ -917,8 +925,23 @@ class XNATSubListing(XNATBaseListing, MutableMapping, MutableSequence):
             else:
                 key = index
 
-            cls = self.xnat_session.XNAT_CLASS_LOOKUP[self._xsi_type]
-            object = cls(uri=self.parent.uri, id_=key, datafields=element['data_fields'], parent=self, fieldname=key)
+            try:
+                xsi_type = element['meta']['xsi:type']
+            except KeyError:
+                xsi_type = self._xsi_type
+
+            # XNAT seems to like to sometimes give a non-defined XSI type back
+            #  (e.g. 'xnat:fieldDefinitionGroup_field'), make sure the XNAT
+            # reply contains a valid XSI
+            if xsi_type not in self.xnat_session.XNAT_CLASS_LOOKUP:
+                xsi_type = self._xsi_type
+
+            cls = self.xnat_session.XNAT_CLASS_LOOKUP[xsi_type]
+            object = cls(uri=self.parent.uri,
+                         id_=key,
+                         datafields=element['data_fields'],
+                         parent=self,
+                         fieldname=key)
 
             if key in key_map:
                 non_unique_keys.add(key)
@@ -932,7 +955,7 @@ class XNATSubListing(XNATBaseListing, MutableMapping, MutableSequence):
 
     @property
     def __xsi_type__(self):
-        return self.parent.__xsi_type__
+        return self._xsi_type
 
     @property
     def xpath(self):
@@ -957,9 +980,10 @@ class XNATSubListing(XNATBaseListing, MutableMapping, MutableSequence):
         else:
             xsi_type = self.__xsi_type__
 
-        query = {'xsiType': xsi_type}
-
-        query[xpath] = 'NULL'
+        query = {
+            'xsiType': xsi_type,
+            xpath: 'NULL'
+        }
 
         self.xnat_session.put(self.fulluri, query=query)
         self.clearcache()
