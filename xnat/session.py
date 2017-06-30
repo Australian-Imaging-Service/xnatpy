@@ -497,7 +497,12 @@ class XNATSession(object):
         """
         self.download(uri, target, format='zip', verbose=verbose)
 
-    def upload(self, uri, file_, retries=1, query=None, content_type=None, method='put'):
+    def upload(self, uri, file_, retries=1, query=None, content_type=None, method='put', overwrite=False):
+        if overwrite:
+            if query is None:
+                query = {}
+            query['overwrite'] = 'true'
+
         uri = self._format_uri(uri, query=query)
         self.logger.debug('UPLOAD URI {}'.format(uri))
         attempt = 0

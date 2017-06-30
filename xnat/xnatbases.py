@@ -275,9 +275,9 @@ class AbstractResource(XNATObject):
         if verbose:
             self.logger.info('Downloaded resource data to {}'.format(target_dir))
 
-    def upload(self, data, remotepath):
-        uri = '{}/files/{}'.format(self.uri, remotepath)
-        self.xnat_session.upload(uri, data)
+    def upload(self, data, remotepath, overwrite=False):
+        uri = '{}/files/{}'.format(self.uri, remotepath.lstrip('/'))
+        self.xnat_session.upload(uri, data, overwrite=overwrite)
 
 
 class File(XNATObject):
