@@ -1131,7 +1131,7 @@ class SchemaParser(object):
         old_type = self._current_property.type
         new_type = element.get('base')
 
-        if old_type is not None:
+        if old_type is not None and old_type != new_type:
             raise ValueError('Trying to override a type from a restriction!? (from {} to {})'.format(old_type, new_type))
 
         self._current_property.type = new_type

@@ -66,7 +66,7 @@ def check_auth(requests_session, server, user, logger):
         logger.warning('Simple test requests did not return a 200 code! Server might not be functional!')
 
     if user is not None:
-        match = re.search(r'<span id="user_info">Logged in as: &nbsp;<a href="[^"]+">(?P<username>[^<]+)</a>',
+        match = re.search(r'<span id="user_info">Logged in as: &nbsp;<a (id="[^"]+" )?href="[^"]+">(?P<username>[^<]+)</a>',
                           test_auth_request.text)
 
         if match is None:
