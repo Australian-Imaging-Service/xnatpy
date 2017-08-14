@@ -16,6 +16,7 @@
 from __future__ import absolute_import
 from __future__ import unicode_literals
 import datetime
+import re
 
 import isodate
 
@@ -38,7 +39,9 @@ class PrearchiveSession(XNATBaseObject):
 
     @property
     def fulldata(self):
-        if self.xnat_session.xnat_version.startswith('1.7'):
+        # There is a bug in 1.7.0-1.7.2 that misses a route in the REST API
+        # this should be fixed from 1.7.3 onward
+        if re.match('^1\.7\.[0-2]', self.xnat_session.xnat_version):
             # Find the xnat prearchive project uri
             project_uri = self.uri.rsplit('/', 2)[0]
 
