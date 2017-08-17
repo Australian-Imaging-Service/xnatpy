@@ -20,11 +20,13 @@ import xnat
 import argparse
 import re
 
+
 def get_sessions(session, project, subject):
     xnat_project = session.projects[project]
     xnat_subject = xnat_project.subjects[subject]
     sessions = [x.label for x in xnat_subject.experiments.values()]
     return sessions
+
 
 def filter_sessions(session,regex):
     for label in xnat_sessions:

@@ -33,10 +33,10 @@ def get_files(connection, project, subject, session, scan):
 def filter_files(xnat_files, regex):
     filtered_files = []
     regex = re.compile(regex)
-    for file in xnat_files:
-        found = regex.match(file.name)
+    for file_ in xnat_files:
+        found = regex.match(file_.name)
         if found:
-            filtered_files.append(file)
+            filtered_files.append(file_)
     return filtered_files
 
 
