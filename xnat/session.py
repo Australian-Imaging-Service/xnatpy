@@ -47,6 +47,7 @@ class XNATSession(object):
     * :py:meth:`XNATSession.experiments <xnat.XNATSession.experiments>`
     * :py:meth:`XNATSession.prearchive <xnat.XNATSession.prearchive>`
     * :py:meth:`XNATSession.services <xnat.XNATSession.services>`
+    * :py:meth:`XNATSession.users <xnat.XNATSession.users>`
 
     .. note:: Some methods create listing that are using the :py:class:`xnat.XNATListing`
               class. They allow for indexing with both XNATSession ID and a secondary key (often the
@@ -498,6 +499,21 @@ class XNATSession(object):
         self.download(uri, target, format='zip', verbose=verbose)
 
     def upload(self, uri, file_, retries=1, query=None, content_type=None, method='put', overwrite=False):
+        """
+        Upload data or a file to XNAT
+
+        :param str uri: uri to upload to
+        :param file_: the file handle, path to a file or a string of data
+                      (which should not be the path to an existing file!)
+        :param int retries: amount of times xnatpy should retry in case of
+                            failure
+        :param dict query: extra query string content
+        :param content_type: the content type of the file, if not given it will
+                             default to ``application/octet-stream``
+        :param str method: either ``put`` (default) or ``post``
+        :param bool overwrite: indicate if previous data should be overwritten
+        :return:
+        """
         if overwrite:
             if query is None:
                 query = {}

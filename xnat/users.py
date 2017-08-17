@@ -18,6 +18,9 @@ from .core import caching
 
 
 class Users(Mapping):
+    """
+    Listing of the users on the connected XNAT installation
+    """
     def __init__(self, xnat_session):
         # cache fields
         self._cache = {}
@@ -51,6 +54,9 @@ class Users(Mapping):
 
 
 class User(object):
+    """
+    Representation of a user on the connected XNAT systen
+    """
     def __init__(self, data):
         self._fulldata = data
 
@@ -63,20 +69,35 @@ class User(object):
 
     @property
     def id(self):
+        """
+        The id of the user
+        """
         return self.data['xdat_user_id']
 
     @property
     def login(self):
+        """
+        The login name of the user
+        """
         return self.data['login']
 
     @property
     def email(self):
+        """
+        The email of the user
+        """
         return self.data['email']
 
     @property
     def first_name(self):
+        """
+        The first name of the user
+        """
         return self.data['firstname']
 
     @property
     def last_name(self):
+        """
+        The last name of the user
+        """
         return self.data['lastname']
