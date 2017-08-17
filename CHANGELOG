@@ -19,6 +19,7 @@ Added
 - Listings can be indexed with integers to get their n-th element, the order
   is the order given by XNAT.
 - Allow overwriting of files on upload
+- Support for listing users via /data/users REST endpoint in the session.users
 
 Changed
 ~~~~~~~
