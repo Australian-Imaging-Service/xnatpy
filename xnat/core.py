@@ -15,16 +15,17 @@
 
 from __future__ import absolute_import
 from __future__ import unicode_literals
-from abc import ABCMeta
-from collections import MutableMapping, Mapping, namedtuple
+from abc import ABCMeta, abstractproperty
+from collections import MutableMapping, MutableSequence, Mapping, Sequence, namedtuple
 import fnmatch
+import keyword
 import re
 import textwrap
 
 from . import exceptions
 from .datatypes import convert_from, convert_to
 from .constants import TYPE_HINTS
-from .utils import mixedproperty
+from .utils import mixedproperty, pythonize_attribute_name
 import six
 
 
@@ -76,10 +77,10 @@ class VariableMap(MutableMapping):
         return self.data[item]
 
     def __setitem__(self, key, value):
-        query = {'xsiType': self.parent.xsi_type,
-                 '{parent_type_}/{field}[@xsi_type={type}]/{key}'.format(parent_type_=self.parent.xsi_type,
+        query = {'xsiType': self.parent.__xsi_type__,
+                 '{parent_type_}/{field}[@xsi_type={type}]/{key}'.format(parent_type_=self.parent.__xsi_type__,
                                                                          field=self.field,
-                                                                         type=self.parent.xsi_type,
+                                                                         type=self.parent.__xsi_type__,
                                                                          key=key): value}
         self.xnat.put(self.parent.fulluri, query=query)
 
@@ -112,8 +113,8 @@ class VariableMap(MutableMapping):
 
 class CustomVariableMap(VariableMap):
     def __setitem__(self, key, value):
-        query = {'xsiType': self.parent.xsi_type,
-                 '{type_}/fields/field[name={key}]/field'.format(type_=self.parent.xsi_type,
+        query = {'xsiType': self.parent.__xsi_type__,
+                 '{type_}/fields/field[name={key}]/field'.format(type_=self.parent.__xsi_type__,
                                                                  key=key): value}
         self.xnat.put(self.parent.fulluri, query=query)
 
@@ -123,7 +124,7 @@ class CustomVariableMap(VariableMap):
 
 
 @six.python_2_unicode_compatible
-class XNATObject(six.with_metaclass(ABCMeta, object)):
+class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
     SECONDARY_LOOKUP_FIELD = None
     _HAS_FIELDS = False
     _CONTAINED_IN = None
@@ -154,15 +155,18 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
                     uri = '{}/{}'.format(parent.uri, kwargs[self.SECONDARY_LOOKUP_FIELD])
                     self.logger.debug('PUT URI: {}'.format(uri))
                     query = {
-                        'xsiType': self.xsi_type,
-                        self.SECONDARY_LOOKUP_FIELD: kwargs[self.SECONDARY_LOOKUP_FIELD],
+                        'xsiType': self.__xsi_type__,
                         'req_format': 'qa',
                     }
+
+                    # Add all kwargs to query
+                    query.update(kwargs)
+
                     self.logger.debug('query: {}'.format(query))
                     response = self.xnat_session.put(uri, query=query)
                 else:
                     raise exceptions.XNATValueError('The {} for a {} need to be specified on creation'.format(self.SECONDARY_LOOKUP_FIELD,
-                                                                                                              self.xsi_type))
+                                                                                                              self.__xsi_type__))
             else:
                 raise exceptions.XNATValueError('The secondary look up is None, creation currently not supported!')
             print('[TEMP] RESPONE: ({}) {}'.format(response.status_code, response.text))
@@ -193,7 +197,11 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
             self._cache['data'] = datafields
 
     def __str__(self):
-        if self.SECONDARY_LOOKUP_FIELD is None:
+        if hasattr(self, '_DISPLAY_IDENTIFIER') and self._DISPLAY_IDENTIFIER is not None:
+            attribute = pythonize_attribute_name(self._DISPLAY_IDENTIFIER)
+            di = getattr(self, attribute)
+            return six.text_type('<{} {}>').format(self.__class__.__name__, di)
+        elif self.SECONDARY_LOOKUP_FIELD is None:
             return six.text_type('<{} {}>').format(self.__class__.__name__, self.id)
         else:
             return six.text_type('<{} {} ({})>').format(self.__class__.__name__,
@@ -202,6 +210,13 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
 
     def __repr__(self):
         return str(self)
+
+    @abstractproperty
+    def xpath(self):
+        """
+        The xpath of the object as seen from the root of the data. Used for
+        setting fields in the object.
+        """
 
     @property
     def parent(self):
@@ -225,21 +240,53 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
         return value
 
     def get_object(self, fieldname, type_=None):
-        if type_ is None:
-            try:
-                data = next(x for x in self.fulldata['children'] if x['field'] == fieldname)['items'][0]
-                type_ = data['meta']['xsi:type']
-            except StopIteration:
-                type_ = TYPE_HINTS.get(fieldname)
+        try:
+            data = next(x for x in self.fulldata.get('children', []) if x['field'] == fieldname)['items'][0]
+            type_ = data['meta']['xsi:type']
+        except StopIteration:
             if type_ is None:
-                raise exceptions.XNATValueError('Cannot determine type of field {}!'.format(fieldname))
+                type_ = TYPE_HINTS.get(fieldname, None)
+
+        if type_ is None:
+            raise exceptions.XNATValueError('Cannot determine type of field {}!'.format(fieldname))
+
+        cls = self.xnat_session.XNAT_CLASS_LOOKUP[type_]
+
+        if not issubclass(cls, (XNATSubObject, XNATNestedObject)):
+            raise ValueError('{} is not a subobject type!'.format(cls))
+
         return self.xnat_session.create_object(self.uri, type_=type_, parent=self, fieldname=fieldname)
 
     @property
     def fulluri(self):
         return self.uri
 
+    def mset(self, values=None, **kwargs):
+        if not isinstance(values, dict):
+            values = kwargs
+
+        if self.parent is not None:
+            xsi_type = self.parent.__xsi_type__
+        else:
+            xsi_type = self.__xsi_type__
+
+        # Add xpaths to query
+        query = {'xsiType': xsi_type}
+        for name, value in values.items():
+            xpath = '{}/{}'.format(self.xpath, name)
+            query[xpath] = value
+
+        self.xnat_session.put(self.fulluri, query=query)
+        self.parent.clearcache()
+
     def set(self, name, value, type_=None):
+        """
+        Set a field in the current object
+
+        :param str name: name of the field
+        :param value:  value to set
+        :param type_: type of the field
+        """
         if type_ is not None:
             if isinstance(type_, six.string_types):
                 # Make sure we have a valid string here that is properly casted
@@ -247,22 +294,13 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
             else:
                 value = type_(value)
 
-        if self.parent is None:
-            query = {'xsiType': self.xsi_type,
-                    '{xsitype}/{name}'.format(xsitype=self.xsi_type, name=name): value}
-            self.xnat_session.put(self.fulluri, query=query)
-            self.clearcache()
-        else:
-            query = {'xsiType': self.parent.xsi_type,
-                     '{parent_type}/{fieldname}[@xsi:type={xsitype}]/{name}'.format(parent_type=self.parent.xsi_type,
-                                                                                    fieldname=self.fieldname,
-                                                                                    xsitype=self.xsi_type,
-                                                                                    name=name): value}
-            self.xnat_session.put(self.parent.fulluri, query=query)
-            self.parent.clearcache()
+        self.mset({name: value})
+
+    def del_(self, name):
+        self.mset({name: 'NULL'})
 
     @mixedproperty
-    def xsi_type(self):
+    def __xsi_type__(self):
         return self._XSI_TYPE
 
     @property
@@ -272,24 +310,22 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
             return self.data['ID']
         elif self.parent is not None:
             return '{}/{}'.format(self.parent.id, self.fieldname)
+        elif hasattr(self, '_DISPLAY_IDENTIFIER') and self._DISPLAY_IDENTIFIER is not None:
+            return getattr(self, self._DISPLAY_IDENTIFIER)
         else:
             return '#NOID#'
 
-    @property
-    @caching
-    def fulldata(self):
-        return self.xnat_session.get_json(self.uri)['items'][0]
-
-    @property
+    @abstractproperty
     def data(self):
-        if self.parent is None:
-            return self.fulldata['data_fields']
-        else:
-            try:
-                data = next(x for x in self.parent.fulldata['children'] if x['field'] == self.fieldname)['items'][0]['data_fields']
-            except StopIteration:
-                data = {}
-            return data
+        """
+        The data of the current object (data fields only)
+        """
+
+    @abstractproperty
+    def fulldata(self):
+        """
+        The full data of the current object (incl children, meta etc)
+        """
 
     @property
     def xnat_session(self):
@@ -335,30 +371,127 @@ class XNATObject(six.with_metaclass(ABCMeta, object)):
         self.clearcache()
 
 
-class XNATSubObject(XNATObject):
-    _PARENT_CLASS = None
-
+class XNATObject(XNATBaseObject):
     @property
-    def xsi_type(self):
-        return self.parent.xsi_type
+    @caching
+    def fulldata(self):
+        return self.xnat_session.get_json(self.uri)['items'][0]
 
     @property
     def data(self):
+        return self.fulldata['data_fields']
+
+    @property
+    def xpath(self):
+        return '{}'.format(self.__xsi_type__)
+
+
+class XNATNestedObject(XNATBaseObject):
+    @property
+    def fulldata(self):
+        try:
+            if isinstance(self.parent.fulldata, dict):
+                data = next(x for x in self.parent.fulldata['children'] if x['field'] == self.fieldname)['items'][0]
+            elif isinstance(self.parent.fulldata, list):
+                if self.parent.secondary_lookup_field is not None:
+                    data = next(x for x in self.parent.fulldata if x['data_fields'][self.parent.secondary_lookup_field] == self.fieldname)
+                else:
+                    # Just simply select the index
+                    data = self.parent.fulldata[self.fieldname]
+            else:
+                raise ValueError("Found unexpected data in parent! ({})".format(self.parent.fulldata))
+
+        except StopIteration:
+            data = {'data_fields': {}}
+
+        return data
+
+    @property
+    def data(self):
+        return self.fulldata['data_fields']
+
+    @property
+    def uri(self):
+        return self.parent.uri
+
+    @property
+    def xpath(self):
+        if isinstance(self.parent, XNATBaseObject):
+            return '{}/{}[@xsi:type={}]'.format(self.parent.xpath,
+                                                self.fieldname,
+                                                self.__xsi_type__)
+        else:
+            return '{}[{}={}]'.format(self.parent.xpath,
+                                      self.parent.secondary_lookup_field,
+                                      self.fieldname)
+
+    def clearcache(self):
+        self.parent.clearcache()
+        self._cache.clear()
+
+
+class XNATSubObject(XNATBaseObject):
+    _PARENT_CLASS = None
+
+    @property
+    def uri(self):
+        return self.parent.fulluri
+
+    @property
+    def __xsi_type__(self):
+        return self.parent.__xsi_type__
+
+    @property
+    def xpath(self):
+        if isinstance(self.parent, XNATBaseObject):
+            # XPath is this plus fieldname
+            return '{}/{}'.format(self.parent.xpath, self.fieldname)
+        elif isinstance(self.parent, XNATBaseListing):
+            # XPath is an index in a list
+            if isinstance(self.fieldname, int):
+                return '{}[{}]'.format(self.parent.xpath,
+                                       self.fieldname)
+            else:
+                return '{}[{}={}]'.format(self.parent.xpath,
+                                          self.parent.secondary_lookup_field,
+                                          self.fieldname)
+        else:
+            raise TypeError('Type of parent is invalid! (Found {})'.format(type(self.parent).__name__))
+
+    @property
+    def fulldata(self):
         prefix = '{}/'.format(self.fieldname)
 
-        result = self.parent.data
-        result = {k[len(prefix):]: v for k, v in result.items() if k.startswith(prefix)}
+        result = self.parent.fulldata
+
+        if isinstance(result, dict):
+            result = {k[len(prefix):]: v for k, v in result['data_fields'].items() if k.startswith(prefix)}
+            result = {'data_fields': result}
+        elif isinstance(result, list):
+            try:
+                if self.parent.secondary_lookup_field is not None:
+                    result = next(x for x in result if x['data_fields'][self.parent.secondary_lookup_field] == self.fieldname)
+                else:
+                    result = result[self.fieldname]
+            except (IndexError, KeyError):
+                return {'data_fields': {}}
+        else:
+            raise ValueError("Found unexpected data in parent! ({})".format(result))
 
         return result
 
-    def set(self, name, value, type_=None):
-        name = '{}/{}'.format(self.fieldname, name)
-        self.parent.set(name, value, type_)
+    @property
+    def data(self):
+        return self.fulldata['data_fields']
+
+    def clearcache(self):
+        self.parent.clearcache()
+        self._cache.clear()
 
 
 @six.python_2_unicode_compatible
-class XNATListing(Mapping):
-    def __init__(self, uri, xnat_session, parent, field_name, secondary_lookup_field=None, xsi_type=None, filter=None):
+class XNATBaseListing(Mapping, Sequence):
+    def __init__(self, parent, field_name, secondary_lookup_field=None, xsi_type=None, **kwargs):
         # Cache fields
         self._cache = {}
         self.caching = True
@@ -367,14 +500,13 @@ class XNATListing(Mapping):
         self.parent = parent
         self.field_name = field_name
 
-        # Important for communication
-        self._xnat_session = xnat_session
-        self._uri = uri
+        # Copy parent xnat session for future use
+        self._xnat_session = parent.xnat_session
 
         # Get the lookup field before type hints, they can ruin it for abstract types
         if secondary_lookup_field is None:
             if xsi_type is not None:
-                secondary_lookup_field = xnat_session.XNAT_CLASS_LOOKUP.get(xsi_type).SECONDARY_LOOKUP_FIELD
+                secondary_lookup_field = self.xnat_session.XNAT_CLASS_LOOKUP.get(xsi_type).SECONDARY_LOOKUP_FIELD
 
         # Make it possible to override the xsi_type for the contents
         if self.field_name not in TYPE_HINTS:
@@ -384,9 +516,133 @@ class XNATListing(Mapping):
 
         # If Needed, try again
         if secondary_lookup_field is None:
-            secondary_lookup_field = xnat_session.XNAT_CLASS_LOOKUP.get(self._xsi_type).SECONDARY_LOOKUP_FIELD
+            secondary_lookup_field = self.xnat_session.XNAT_CLASS_LOOKUP.get(self._xsi_type).SECONDARY_LOOKUP_FIELD
 
         self.secondary_lookup_field = secondary_lookup_field
+
+    def sanitize_name(self, name):
+        name = re.sub('[^0-9a-zA-Z]+', '_', name)
+
+        # Change CamelCaseString to camel_case_string
+        # Note that addID would become add_id
+        name = re.sub("[A-Z]+", lambda x: '_' + x.group(0).lower(), name)
+        if name[0] == '_':
+            name = name[1:]
+
+        # Avoid multiple underscores (replace them by single underscore)
+        name = re.sub("__+", '_', name)
+
+        # Avoid overwriting keywords TODO: Do we want this, as a property it is not a huge problem?
+        if keyword.iskeyword(name):
+            name += '_'
+
+        return name
+
+    @property
+    def xnat_session(self):
+        return self._xnat_session
+
+    @abstractproperty
+    def data_maps(self):
+        """
+        The generator function (should be cached) of all the data access
+        properties. They are all generated from the same data, so their
+        caching is shared.
+        """
+
+    @property
+    def data(self):
+        """
+        The data mapping using the primary key
+        """
+        return self.data_maps[0]
+
+    @property
+    def key_map(self):
+        """
+        The data mapping using the secondary key
+        """
+        return self.data_maps[1]
+
+    @property
+    def non_unique_keys(self):
+        """
+        Set of non_unique keys
+        """
+        return self.data_maps[2]
+
+    @property
+    def listing(self):
+        """
+        The listing view of the data
+        """
+        return self.data_maps[3]
+
+    @abstractproperty
+    def xnat_session(self):
+        pass
+
+    def __str__(self):
+        if self.secondary_lookup_field is not None:
+            content = ', '.join('({}, {}): {}'.format(k, getattr(v, self.sanitize_name(self.secondary_lookup_field)), v) for k, v in self.items())
+            content = '{{{}}}'.format(content)
+        else:
+            content = ', '.join(str(v) for v in self.values())
+            content = '[{}]'.format(content)
+        return '<{} {}>'.format(type(self).__name__, content)
+
+    def __repr__(self):
+        return str(self)
+
+    def __getitem__(self, item):
+        if isinstance(item, (int, slice)):
+            return self.listing[item]
+
+        try:
+            return self.data[item]
+        except KeyError:
+            try:
+                if item in self.non_unique_keys:
+                    raise KeyError('There are multiple items with that key in'
+                                   ' this collection! To avoid problem you need'
+                                   ' to use the ID.')
+                return self.key_map[item]
+            except KeyError:
+                raise KeyError('Could not find ID/label {} in collection!'.format(item))
+
+    def __iter__(self):
+        for index, item in enumerate(self.listing):
+            if hasattr(item, 'id') and item.id in self.data:
+                yield item.id
+            elif self.secondary_lookup_field is not None and hasattr(item, self.secondary_lookup_field):
+                yield getattr(item, self.secondary_lookup_field)
+            else:
+                yield index
+
+    def __len__(self):
+        return len(self.listing)
+
+    @property
+    def uri(self):
+        return self._uri
+
+    @property
+    def xnat_session(self):
+        return self._xnat_session
+
+    def clearcache(self):
+        self.parent.clearcache()
+        self._cache.clear()
+
+
+class XNATListing(XNATBaseListing):
+    def __init__(self, uri, filter=None, **kwargs):
+        # Important for communication, needed before superclass is called
+        self._uri = uri
+
+        super(XNATListing, self).__init__(**kwargs)
+
+        # Manager the filters
         self._used_filters = filter or {}
 
     @property
@@ -427,6 +683,7 @@ class XNATListing(Mapping):
         # Create object dictionaries
         id_map = {}
         key_map = {}
+        listing = []
         non_unique = {None}
         for x in result:
             # HACK: xsi_type of resources is called element_name... yay!
@@ -443,49 +700,11 @@ class XNATListing(Mapping):
                 new_object = self.xnat_session.create_object(x['URI'],
                                                              type_=x.get('xsiType', x.get('element_name', self._xsi_type)),
                                                              id_=x['ID'])
+
+            listing.append(new_object)
             id_map[x['ID']] = new_object
 
-        return id_map, key_map, non_unique
-
-    @property
-    def data(self):
-        return self.data_maps[0]
-
-    @property
-    def key_map(self):
-        return self.data_maps[1]
-
-    @property
-    def non_unique_keys(self):
-        return self.data_maps[2]
-
-    def __str__(self):
-        content = ', '.join(six.text_type('({}, {}): {}').format(k,
-                                                                 getattr(v, self.secondary_lookup_field),
-                                                                 six.text_type(v)) for k, v in self.items())
-        return six.text_type('<XNATListing {}>').format(content)
-
-    def __repr__(self):
-        return str(self)
-
-    def __getitem__(self, item):
-        try:
-            return self.data[item]
-        except KeyError:
-            try:
-                if item in self.non_unique_keys:
-                    raise KeyError('There are multiple items with that key in'
-                                   ' this collection! To avoid problem you need'
-                                   ' to use the ID.')
-                return self.key_map[item]
-            except StopIteration:
-                raise KeyError('Could not find ID/label {} in collection!'.format(item))
-
-    def __iter__(self):
-        return iter(self.data)
-
-    def __len__(self):
-        return len(self.data)
+        return id_map, key_map, non_unique, listing
 
     def tabulate(self, columns=None, filter=None):
         """
@@ -575,13 +794,199 @@ class XNATListing(Mapping):
                            xsi_type=self._xsi_type,
                            filter=new_filters)
 
-    @property
-    def uri(self):
-        return self._uri
+
+class XNATSimpleListing(XNATBaseListing, MutableMapping, MutableSequence):
+    def __str__(self):
+        if self.secondary_lookup_field is not None:
+            content = ', '.join('{!r}: {!r}'.format(key, value) for key, value in self.items())
+            content = '{{{}}}'.format(content)
+        else:
+            content = ', '.join(repr(v) for v in self.values())
+            content = '[{}]'.format(content)
+        return '<{} {}>'.format(type(self).__name__, content)
+
+    def __iter__(self):
+        for key in self.key_map:
+            yield key
 
     @property
     def xnat_session(self):
-        return self._xnat_session
+        return self.parent.xnat_session
 
-    def clearcache(self):
-        self._cache.clear()
+    @property
+    def fulldata(self):
+        for child in self.parent.fulldata['children']:
+            if child['field'] == self.field_name:
+                return child['items']
+        return []
+
+    @property
+    @caching
+    def data_maps(self):
+        id_map = {}
+        key_map = {}
+        listing = []
+        non_unique_keys = set()
+
+        for index, element in enumerate(self.fulldata):
+            if self.secondary_lookup_field is not None:
+                key = element['data_fields'][self.secondary_lookup_field]
+            else:
+                key = index
+
+            try:
+                value = element['data_fields'][self.field_name.split('/')[-1]]
+            except KeyError:
+                continue
+
+            if key in key_map:
+                non_unique_keys.add(key)
+                key_map[key] = None
+            elif self.secondary_lookup_field is not None:
+                key_map[key] = value
+
+            listing.append(value)
+
+        return id_map, key_map, non_unique_keys, listing
+
+    def __setitem__(self, key, value):
+        query = {'xsiType': self.parent.__xsi_type__,
+                 '{type_}/{fieldname}[{lookup}={key}]/{fieldpart}'.format(type_=self.parent.__xsi_type__,
+                                                                          fieldname=self.field_name,
+                                                                          lookup=self.secondary_lookup_field,
+                                                                          fieldpart=self.field_name.split('/')[-1],
+                                                                          key=key): value}
+        self.xnat_session.put(self.parent.fulluri, query=query)
+
+        # Remove cache and make sure the reload the data
+        self.clearcache()
+
+    def __delitem__(self, key):
+        query = {
+            'xsiType': self.parent.__xsi_type__,
+            '{type_}/{fieldname}[{lookup}={key}]/{fieldpart}'.format(type_=self.parent.__xsi_type__,
+                                                                     fieldname=self.field_name,
+                                                                     lookup=self.secondary_lookup_field,
+                                                                     fieldpart=self.field_name.split('/')[-1],
+                                                                     key=key): 'NULL',
+            '{type_}/{fieldname}[{lookup}={key}]/{lookup}'.format(type_=self.parent.__xsi_type__,
+                                                                  fieldname=self.field_name,
+                                                                  lookup=self.secondary_lookup_field,
+                                                                  key=key): 'NULL',
+        }
+        self.xnat_session.put(self.parent.fulluri, query=query)
+
+        # Remove cache and make sure the reload the data
+        self.clearcache()
+
+    def insert(self, index, value):
+        pass
+
+
+class XNATSubListing(XNATBaseListing, MutableMapping, MutableSequence):
+    def __getitem__(self, item):
+        try:
+            return super(XNATSubListing, self).__getitem__(item)
+        except (IndexError, KeyError):
+            cls = self.xnat_session.XNAT_CLASS_LOOKUP[self._xsi_type]
+            object = cls(uri=self.parent.uri, id_=item, datafields={}, parent=self, fieldname=item)
+            return object
+
+    @property
+    def xnat_session(self):
+        return self.parent.xnat_session
+
+    @property
+    def fulldata(self):
+        for child in self.parent.fulldata['children']:
+            if child['field'] == self.field_name or child['field'].startswith(self.field_name + '/'):
+                return child['items']
+        return []
+
+    @property
+    def uri(self):
+        return self.parent.fulluri
+
+    @property
+    def fulluri(self):
+        return self.parent.fulluri
+
+    @property
+    @caching
+    def data_maps(self):
+        id_map = {}
+        key_map = {}
+        listing = []
+        non_unique_keys = set()
+
+        for index, element in enumerate(self.fulldata):
+            if self.secondary_lookup_field is not None:
+                key = element['data_fields'][self.secondary_lookup_field]
+            else:
+                key = index
+
+            try:
+                xsi_type = element['meta']['xsi:type']
+            except KeyError:
+                xsi_type = self._xsi_type
+
+            # XNAT seems to like to sometimes give a non-defined XSI type back
+            #  (e.g. 'xnat:fieldDefinitionGroup_field'), make sure the XNAT
+            # reply contains a valid XSI
+            if xsi_type not in self.xnat_session.XNAT_CLASS_LOOKUP:
+                xsi_type = self._xsi_type
+
+            cls = self.xnat_session.XNAT_CLASS_LOOKUP[xsi_type]
+            object = cls(uri=self.parent.uri,
+                         id_=key,
+                         datafields=element['data_fields'],
+                         parent=self,
+                         fieldname=key)
+
+            if key in key_map:
+                non_unique_keys.add(key)
+                key_map[key] = None
+            elif self.secondary_lookup_field is not None:
+                key_map[key] = object
+
+            listing.append(object)
+
+        return id_map, key_map, non_unique_keys, listing
+
+    @property
+    def __xsi_type__(self):
+        return self._xsi_type
+
+    @property
+    def xpath(self):
+        return '{}/{}'.format(self.parent.xpath, self.field_name)
+
+    def __setitem__(self, key, value):
+        pass
+
+    def __delitem__(self, key):
+        # Determine XPATH of item to remove
+        if isinstance(key, int):
+            xpath = '{}[{}]'.format(self.xpath,
+                                   key)
+        else:
+            xpath = '{}[{}={}]'.format(self.xpath,
+                                      self.secondary_lookup_field,
+                                      key)
+
+        # Get correct xsi type
+        if self.parent is not None:
+            xsi_type = self.parent.__xsi_type__
+        else:
+            xsi_type = self.__xsi_type__
+
+        query = {
+            'xsiType': xsi_type,
+            xpath: 'NULL'
+        }
+
+        self.xnat_session.put(self.fulluri, query=query)
+        self.clearcache()
+
+    def insert(self, index, value):
+        pass

@@ -16,6 +16,9 @@
 from __future__ import absolute_import
 from __future__ import unicode_literals
 
+import re
+import keyword
+
 
 class mixedproperty(object):
     """
@@ -71,3 +74,46 @@ class mixedproperty(object):
         return type(self)(self.fcget, self.fget, self.fset, fdel, self.__doc__)
 
 
+def pythonize_class_name(name):
+    """
+    Turns string into a valid PEP8 class name, meaning camel cased
+    (e.g. someValue -> SomeValue)
+
+    :param str name: the name to convert to a PEP8 valid version
+    :return: the PEP8 valid class name
+    :rtype: str
+    """
+    if ':' in name:
+        name = name.split(':', 1)[-1]
+
+    parts = re.split('[\-\_\W]+', name)
+    parts = [x[0].upper() + x[1:] for x in parts]
+    name = ''.join(parts)
+    return name
+
+
+def pythonize_attribute_name(name):
+    """
+    Turns string into a valid PEP8 class name, meaning lower case with
+    underscores when needed (e.g. someValue -> some_value)
+
+    :param str name: the name to convert to a PEP8 valid version
+    :return: the PEP8 valid attribute name
+    :rtype: str
+    """
+    name = re.sub('[^0-9a-zA-Z]+', '_', name)
+
+    # Change CamelCaseString to camel_case_string
+    # Note that addID would become add_id
+    name = re.sub("[A-Z]+", lambda x: '_' + x.group(0).lower(), name)
+    if name[0] == '_':
+        name = name[1:]
+
+    # Avoid multiple underscores (replace them by single underscore)
+    name = re.sub("__+", '_', name)
+
+    # Avoid overwriting keywords TODO: Do we want this, as a property it is not a huge problem?
+    if keyword.iskeyword(name):
+        name += '_'
+
+    return name
