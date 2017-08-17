@@ -73,10 +73,11 @@ class XNATSession(object):
                  be created by :py:func:`xnat.connect <xnat.connect>`.
     """
 
-    # Class lookup to populate
-    XNAT_CLASS_LOOKUP = {}
-
     def __init__(self, server, logger, interface=None, user=None, password=None, keepalive=840, debug=False):
+        # Class lookup to populate (session specific, as all session have their
+        # own classes based on the server xsd)
+        self.XNAT_CLASS_LOOKUP = {}
+
         self.classes = None
         self._interface = interface
         self._projects = None

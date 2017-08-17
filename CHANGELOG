@@ -31,6 +31,8 @@ Fixed
 ~~~~~
 
 - Support for XNAT 1.7.3
+- Fixed a bug where opening a second session would ruin the first one, it
+  should now be possible to have multiple sessions open concurently.
 
 
 0.2.3 - 2017-04-03
