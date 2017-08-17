@@ -19,10 +19,10 @@ import os
 import tempfile
 from zipfile import ZipFile
 
-from .core import caching, XNATObject, XNATListing
+from .core import caching, XNATBaseObject, XNATListing
 
 
-class ProjectData(XNATObject):
+class ProjectData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'name'
 
     @property
@@ -80,7 +80,7 @@ class ProjectData(XNATObject):
             self.logger.info('Downloaded subject to {}'.format(project_dir))
 
 
-class SubjectData(XNATObject):
+class SubjectData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'label'
 
     @property
@@ -109,21 +109,21 @@ class SubjectData(XNATObject):
             self.logger.info('Downloaded subject to {}'.format(subject_dir))
 
 
-class ExperimentData(XNATObject):
+class ExperimentData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'label'
 
 
-class SubjectAssessorData(XNATObject):
+class SubjectAssessorData(XNATBaseObject):
+    @property
+    def fulluri(self):
+        return '/data/archive/projects/{}/subjects/{}/experiments/{}'.format(self.project, self.subject_id, self.id)
+
     @property
     def subject(self):
         return self.xnat_session.subjects[self.subject_id]
 
 
-class ImageSessionData(XNATObject):
-    @property
-    def fulluri(self):
-        return '/data/archive/projects/{}/subjects/{}/experiments/{}'.format(self.project, self.subject_id, self.id)
-
+class ImageSessionData(XNATBaseObject):
     @property
     @caching
     def files(self):
@@ -156,10 +156,10 @@ class ImageSessionData(XNATObject):
             self.logger.info('\nDownloaded image session to {}'.format(target_dir))
 
 
-class DerivedData(XNATObject):
+class DerivedData(XNATBaseObject):
     @property
     def fulluri(self):
-        return '/data/experiments/{}/assessors/{}'.format(self.imagesession_id, self.id)
+        return '/data/experiments/{}/assessors/{}'.format(self.image_session_id, self.id)
 
     @property
     @caching
@@ -191,7 +191,7 @@ class DerivedData(XNATObject):
         self.xnat_session.download_zip(self.uri + '/files', path, verbose=verbose)
 
 
-class ImageScanData(XNATObject):
+class ImageScanData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'type'
 
     @property
@@ -234,7 +234,7 @@ class ImageScanData(XNATObject):
             self.logger.info('Downloaded image scan data to {}'.format(target_dir))
 
 
-class AbstractResource(XNATObject):
+class AbstractResource(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'label'
 
     @property
@@ -275,12 +275,12 @@ class AbstractResource(XNATObject):
         if verbose:
             self.logger.info('Downloaded resource data to {}'.format(target_dir))
 
-    def upload(self, data, remotepath):
-        uri = '{}/files/{}'.format(self.uri, remotepath)
-        self.xnat_session.upload(uri, data)
+    def upload(self, data, remotepath, overwrite=False):
+        uri = '{}/files/{}'.format(self.uri, remotepath.lstrip('/'))
+        self.xnat_session.upload(uri, data, overwrite=overwrite)
 
 
-class File(XNATObject):
+class File(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'name'
 
     def __init__(self, uri, xnat_session, id_=None, datafields=None, name=None, parent=None, fieldname=None):
@@ -309,7 +309,7 @@ class File(XNATObject):
         return self.data['name']
 
     @property
-    def xsi_type(self):
+    def __xsi_type__(self):
         return 'xnat:fileData'  # FIXME: is this correct?
 
     def download(self, path, verbose=True):

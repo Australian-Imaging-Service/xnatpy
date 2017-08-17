@@ -28,7 +28,25 @@ class Services(object):
     def xnat_session(self):
         return self._xnat_session
 
-    def import_(self, path, overwrite=None, quarantine=False, destination=None, project=None, subject=None, experiment=None, content_type=None):
+    def import_(self, path, overwrite=None, quarantine=False, destination=None,
+                trigger_pipelines=None, project=None, subject=None,
+                experiment=None, content_type=None):
+        """
+        Import a file into XNAT using the import service. See the
+        `XNAT wiki <https://wiki.xnat.org/pages/viewpage.action?pageId=6226268>`_
+        for a detailed explanation.
+
+        :param str path: local path of the file to upload and import
+        :param str overwrite: how the handle existing data (none, append, delete)
+        :param bool quarantine: flag to indicate session should be quarantined
+        :param bool trigger_pipelines: indicate that archiving should trigger pipelines
+        :param str destination: the destination to upload the scan to
+        :param str project: the project in the archive to assign the session to
+        :param str subject: the subject in the archive to assign the session to
+        :param str experiment: the experiment in the archive to assign the session content to
+        :param str content_type: overwite the content_type (by the mimetype will be guessed)
+        :return:
+        """
         query = {}
         if overwrite is not None:
             if overwrite not in ['none', 'append', 'delete']:
@@ -37,6 +55,15 @@ class Services(object):
 
         if quarantine:
             query['quarantine'] = 'true'
+
+        if trigger_pipelines is not None:
+            if isinstance(trigger_pipelines, bool):
+                if trigger_pipelines:
+                    query['triggerPipelines'] = 'true'
+                else:
+                    query['triggerPipelines'] = 'false'
+            else:
+                raise TypeError('trigger_pipelines should be a boolean')
 
         if destination is not None:
             query['dest'] = destination

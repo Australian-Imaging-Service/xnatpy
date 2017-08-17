@@ -10,14 +10,14 @@ Code reference
     :show-inheritance:
 
 :mod:`session` Module
--------------------
+---------------------
 
 .. automodule:: xnat.session
     :members:
     :show-inheritance:
 
 :mod:`inspect` Module
--------------------
+---------------------
 
 .. automodule:: xnat.inspect
     :members:
@@ -25,7 +25,7 @@ Code reference
     :show-inheritance:
 
 :mod:`prearchive` Module
--------------------
+------------------------
 
 .. automodule:: xnat.prearchive
     :members:
@@ -33,9 +33,17 @@ Code reference
     :show-inheritance:
 
 :mod:`services` Module
--------------------
+----------------------
 
 .. automodule:: xnat.services
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+:mod:`users` Module
+-------------------
+
+.. automodule:: xnat.users
     :members:
     :undoc-members:
     :show-inheritance:

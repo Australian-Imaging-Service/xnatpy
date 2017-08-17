@@ -42,12 +42,12 @@ FIELD_HINTS = {
     'xnat:fileData': 'files',
 }
 
-# The following xsi_types have a listing of objects with own REST paths the
+# The following xsi_types are objects with their own REST paths, the
 # other are nested in the xml of their parent.
-OBJECT_LISTINGS = {
+CORE_REST_OBJECTS = {
     'xnat:projectData',
     'xnat:subjectData',
-    'xnat:subjectAssessorData',
+    'xnat:experimentData',
     'xnat:reconstructedImageData',
     'xnat:imageAssessorData',
     'xnat:imageScanData',
@@ -55,11 +55,14 @@ OBJECT_LISTINGS = {
     'xnat:fileData',
 }
 
+# Override base class for some types
+OVERRIDE_BASE = {
+#    'xnat:demographicData': 'XNATNestedObjectMixin',
+}
+
+# These are additions to the DisplayIdentifier set in the xsd files
 SECONDARY_LOOKUP_FIELDS = {
     'xnat:projectData': 'name',
-    'xnat:subjectData': 'label',
-    'xnat:experimentData': 'label',
     'xnat:imageScanData': 'type',
-    'xnat:abstractResource': 'label',
-    'xnat:fileData': 'name'
+    'xnat:fileData': 'name',
 }

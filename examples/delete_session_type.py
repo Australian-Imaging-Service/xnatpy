@@ -28,7 +28,7 @@ def delete_xnat_session_type(connection, projectid, session_to_be_removed, dryru
             if xsiType == session_to_be_removed:
                 if dryrun:
                     print('{},{},{}'.format(subject, experiment, xsiType))
-                    print('Remove session: {}'.format(session.projects[projectid].subjects[subject].experiments[experiment]))
+                    print('Remove session: {}'.format(connection.projects[projectid].subjects[subject].experiments[experiment]))
                 else:
                     connection.projects[projectid].subjects[subject].experiments[experiment].delete(remove_files=True)
 

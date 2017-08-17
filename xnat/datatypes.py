@@ -31,6 +31,9 @@ def to_time(value):
 
 
 def to_datetime(value):
+    # We encountered situations where the T separator was replaces by a space
+    # so make sure that is not the case
+    value = value.replace(' ', 'T')
     return isodate.parse_datetime(value)
 
 
@@ -64,12 +67,14 @@ def to_bool(value):
 
 def from_datetime(value):
     if isinstance(value, six.string_types):
-        value = isodate.parse_datetime(value)
+        to_datetime(value)  # First make sure it is a datetime
 
     if isinstance(value, datetime.datetime):
         return value.isoformat()
     else:
-        raise ValueError('To create a proper string representation for a datetime, either a datetime.datetime or str has to be supplied!')
+        raise ValueError('To create a proper string representation for a'
+                         ' datetime, either a datetime.datetime or str has'
+                         ' to be supplied!')
 
 
 def from_date(value):
@@ -79,7 +84,8 @@ def from_date(value):
     if isinstance(value, datetime.date):
         return value.isoformat()
     else:
-        raise ValueError('To create a proper string representation for a date, either a datetime.date or str has to be supplied!')
+        raise ValueError('To create a proper string representation for a date,'
+                         ' either a datetime.date or str has to be supplied!')
 
 
 def from_time(value):
@@ -89,7 +95,8 @@ def from_time(value):
     if isinstance(value, datetime.time):
         return value.isoformat()
     else:
-        raise ValueError('To create a proper string representation for a time, either a datetime.time or str has to be supplied!')
+        raise ValueError('To create a proper string representation for a time,'
+                         ' either a datetime.time or str has to be supplied!')
 
 
 def from_timedelta(value):
@@ -103,7 +110,8 @@ def from_timedelta(value):
     if isinstance(value, isodate.duration.Duration):
         return isodate.duration_isoformat(value)
     else:
-        raise ValueError('To create a proper string representation for a duration, either a isodate.duration.Duration or str has to be supplied!')
+        raise ValueError('To create a proper string representation for a duration,'
+                         ' either a isodate.duration.Duration or str has to be supplied!')
 
 
 def from_bool(value):
@@ -115,7 +123,8 @@ def from_bool(value):
     elif isinstance(value, bool):
         return 'true' if value else 'false'
     else:
-        raise TypeError('To create a proper string presentation for a bool, either a bool or str has to be supplied!')
+        raise TypeError('To create a proper string presentation for a bool,'
+                        ' either a bool or str has to be supplied!')
 
 
 def from_int(value):

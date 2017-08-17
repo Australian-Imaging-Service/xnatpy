@@ -22,8 +22,7 @@ import os
 
 
 def download_xnat_session_type(connection, projectid, session, outputdir):
-    #should use path.append
-    output_path = os.path.join('outputdir',connection.projects[projectid].experiments[session].label)
+    output_path = os.path.join('outputdir', connection.projects[projectid].experiments[session].label)
     connection.projects[projectid].experiments[session].download(output_path)
 
 

@@ -32,8 +32,8 @@ def upload_data(session, project, subject, experiment, assessment, resource, dat
     xnat_assessment = session.classes.QcAssessmentData(parent=xnat_experiment, label=assessment)
     # Will Create new Resource of none with label exists
     resource = session.classes.ResourceCatalog(parent=xnat_assessment, label=resource)
-    for file in data:
-        resource.upload(file, os.path.basename(file))
+    for file_ in data:
+        resource.upload(file_, os.path.basename(file_))
     pass
 
 

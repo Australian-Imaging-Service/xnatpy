@@ -30,6 +30,7 @@ from . import exceptions
 from .core import XNATListing, caching
 from .inspect import Inspect
 from .prearchive import Prearchive
+from .users import Users
 from .services import Services
 
 
@@ -46,6 +47,7 @@ class XNATSession(object):
     * :py:meth:`XNATSession.experiments <xnat.XNATSession.experiments>`
     * :py:meth:`XNATSession.prearchive <xnat.XNATSession.prearchive>`
     * :py:meth:`XNATSession.services <xnat.XNATSession.services>`
+    * :py:meth:`XNATSession.users <xnat.XNATSession.users>`
 
     .. note:: Some methods create listing that are using the :py:class:`xnat.XNATListing`
               class. They allow for indexing with both XNATSession ID and a secondary key (often the
@@ -84,6 +86,7 @@ class XNATSession(object):
         self._source_code_file = None
         self._services = Services(xnat_session=self)
         self._prearchive = Prearchive(xnat_session=self)
+        self._users = Users(xnat_session=self)
         self._debug = debug
         self.logger = logger
         self.inspect = Inspect(self)
@@ -495,7 +498,27 @@ class XNATSession(object):
         """
         self.download(uri, target, format='zip', verbose=verbose)
 
-    def upload(self, uri, file_, retries=1, query=None, content_type=None, method='put'):
+    def upload(self, uri, file_, retries=1, query=None, content_type=None, method='put', overwrite=False):
+        """
+        Upload data or a file to XNAT
+
+        :param str uri: uri to upload to
+        :param file_: the file handle, path to a file or a string of data
+                      (which should not be the path to an existing file!)
+        :param int retries: amount of times xnatpy should retry in case of
+                            failure
+        :param dict query: extra query string content
+        :param content_type: the content type of the file, if not given it will
+                             default to ``application/octet-stream``
+        :param str method: either ``put`` (default) or ``post``
+        :param bool overwrite: indicate if previous data should be overwritten
+        :return:
+        """
+        if overwrite:
+            if query is None:
+                query = {}
+            query['overwrite'] = 'true'
+
         uri = self._format_uri(uri, query=query)
         self.logger.debug('UPLOAD URI {}'.format(uri))
         attempt = 0
@@ -508,7 +531,8 @@ class XNATSession(object):
                     # File is open file handle, seek to 0
                     file_handle = file_
                     file_.seek(0)
-                elif os.path.isfile(file_):
+                # Make sure conditions are valid for os.path.isfile to function
+                elif isinstance(file_, six.string_types) and '\0' not in file_ and os.path.isfile(file_):
                     # File is str path to file
                     file_handle = open(file_, 'rb')
                     opened_file = True
@@ -640,6 +664,13 @@ class XNATSession(object):
         Representation of the prearchive on the XNAT server, see :py:mod:`xnat.prearchive`
         """
         return self._prearchive
+
+    @property
+    def users(self):
+        """
+        Representation of the users registered on the XNAT server
+        """
+        return self._users
 
     @property
     def services(self):

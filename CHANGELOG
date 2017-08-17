@@ -6,6 +6,33 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <http://keepachangelog.com/>`_
 and this project adheres to `Semantic Versioning <http://semver.org/>`_
 
+0.3.0 - 2017-08-17
+------------------
+
+Added
+~~~~~
+
+- Better support for complex data structures, especially data types that
+  include lists in their data.
+- Support for extension types, xnatpy automatically searches for all extension
+  xsd files and will create Python classes for those as well.
+- Listings can be indexed with integers to get their n-th element, the order
+  is the order given by XNAT.
+- Allow overwriting of files on upload
+- Support for listing users via /data/users REST endpoint in the session.users
+
+Changed
+~~~~~~~
+
+- xsd schema parsing is completely rewritten, allows more support for complex
+  data structures
+
+Fixed
+~~~~~
+
+- Support for XNAT 1.7.3
+
+
 0.2.3 - 2017-04-03
 ------------------
 
@@ -13,7 +40,7 @@ Added
 ~~~~~
 
 - xnatpy now uses the progressbar2 package to deliver fancy progress bars when downloading
-- attributes in the session that allow users to skip/alter the checking of responses
+- Attributes in the session that allow users to skip/alter the checking of responses
 
 
 Changed

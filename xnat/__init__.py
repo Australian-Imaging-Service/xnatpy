@@ -28,18 +28,73 @@ import imp
 import logging
 import os
 import netrc
+import re
 import tempfile
 import time
 
 import requests
 from six.moves.urllib import parse
 
+from . import exceptions
 from .session import XNATSession
 from .convert_xsd import SchemaParser
 
 GEN_MODULES = {}
 
-__all__ = ['connect']
+__all__ = ['connect', 'exceptions']
+
+
+def check_auth(requests_session, server, user, logger):
+    """
+    Try to figure out of the requests session is properly logged in as the desired user
+
+    :param requests.Session requests_session: requests session
+    :param str server: server test
+    :param str user: desired user (None for guest)
+    :raises ValueError: Raises a ValueError if the login failed
+    """
+    logger.debug('Getting {} to test auth'.format(server))
+    test_auth_request = requests_session.get(server)
+    logger.debug('Status: {}'.format(test_auth_request.status_code))
+
+    if test_auth_request.status_code == 401 or 'Login attempt failed. Please try again.' in test_auth_request.text:
+        message = 'Login attempt failed, please make sure your credentials for user {} are correct!'.format(user)
+        logger.critical(message)
+        raise ValueError(message)
+
+    if test_auth_request.status_code != 200:
+        logger.warning('Simple test requests did not return a 200 code! Server might not be functional!')
+
+    if user is not None:
+        match = re.search(r'<span id="user_info">Logged in as: &nbsp;<a (id="[^"]+" )?href="[^"]+">(?P<username>[^<]+)</a>',
+                          test_auth_request.text)
+
+        if match is None:
+            match = re.search(r'<span id="user_info">Logged in as: <span style="color:red;">Guest</span>',
+                              test_auth_request.text)
+            if match is None:
+                message = 'Could not determine if login was successful!'
+            else:
+                message = 'Login failed (in guest mode)!'
+
+            logger.error(message)
+            raise ValueError(message)
+        elif match.group('username') != user:
+            message = 'Attempted to login as {} but found user {}!'.format(user,
+                                                                                   match.group('username'))
+            logger.error(message)
+            raise ValueError(message)
+        else:
+            logger.info('Logged in successfully as {}'.format(match.group('username')))
+    else:
+        match = re.search(r'<span id="user_info">Logged in as: <span style="color:red;">Guest</span>',
+                          test_auth_request.text)
+        if match is None:
+            message = 'Could not determine if login was successful!'
+            logger.error(message)
+            raise ValueError(message)
+        else:
+            logger.info('Logged in as guest successfully')
 
 
 def parse_schemas_16(parser, requests_session, server, logger, extension_types=True, debug=False):
@@ -98,7 +153,8 @@ def parse_schemas_17(parser, requests_session, server, logger, debug=False):
                                 schema_uri=schema)
 
 
-def connect(server, user=None, password=None, verify=True, netrc_file=None, debug=False, extension_types=True, loglevel=None):
+def connect(server, user=None, password=None, verify=True, netrc_file=None, debug=False,
+            extension_types=True, loglevel=None, logger=None):
     """
     Connect to a server and generate the correct classed based on the servers xnat.xsd
     This function returns an object that can be used as a context operator. It will call
@@ -117,6 +173,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
                            a file following the netrc syntax)
     :param debug bool: Set debug information printing on
     :param str loglevel: Set the level of the logger to desired level
+    :param logging.Logger logger: A logger to reuse instead of creating an own logger
     :return: XNAT session object
     :rtype: XNATSession
 
@@ -144,24 +201,25 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     connection_id = hasher.hexdigest()
 
     # Setup the logger for this connection
-    logger = logging.getLogger('xnat-{}'.format(connection_id))
-    handler = logging.StreamHandler()
-    handler.setLevel(logging.DEBUG)
-    logger.addHandler(handler)
+    if logger is None:
+        logger = logging.getLogger('xnat-{}'.format(connection_id))
+        handler = logging.StreamHandler()
+        handler.setLevel(logging.DEBUG)
+        logger.addHandler(handler)
 
-    # create formatter
-    if debug:
-        formatter = logging.Formatter('[%(asctime)s] %(levelname)s: %(module)s:%(lineno)d >> %(message)s')
-    else:
-        formatter = logging.Formatter('[%(levelname)s] %(message)s')
-    handler.setFormatter(formatter)
+        # create formatter
+        if debug:
+            formatter = logging.Formatter('[%(asctime)s] %(levelname)s: %(module)s:%(lineno)d >> %(message)s')
+        else:
+            formatter = logging.Formatter('[%(levelname)s] %(message)s')
+        handler.setFormatter(formatter)
 
-    if debug:
-        logger.setLevel('DEBUG')
-    elif loglevel is not None:
-        logger.setLevel(loglevel)
-    else:
-        logger.setLevel('WARNING')
+        if debug:
+            logger.setLevel('DEBUG')
+        elif loglevel is not None:
+            logger.setLevel(loglevel)
+        else:
+            logger.setLevel('WARNING')
 
     # Get the login info
     parsed_server = parse.urlparse(server)
@@ -191,7 +249,10 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     # Generate module
     parser = SchemaParser(debug=debug, logger=logger)
 
-    # Parse schemas
+    # Check if login is successful
+    check_auth(requests_session, server=server, user=user, logger=logger)
+
+    # Parse schemas, start with determining XNAT version
     version_uri = '{}/data/version'.format(server.rstrip('/'))
     version_request = requests_session.get(version_uri)
     if version_request.status_code == 200:
@@ -230,20 +291,18 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     logger.debug('Loaded generated module')
 
     # Register all types parsed
-    for cls in parser:
-        if not (cls.name is None or cls.baseclass.startswith('xs:')):
-            xnat_module.XNAT_CLASS_LOOKUP[cls.xsi_type] = getattr(xnat_module, cls.python_name)
+    for cls in parser.class_list.values():
+        if not (cls.name is None or (cls.base_class is not None and cls.base_class.startswith('xs:'))):
+            getattr(xnat_module, cls.writer.python_name).__register__(xnat_module.XNAT_CLASS_LOOKUP)
 
     # Create the XNAT connection
-    session = XNATSession(server=server, logger=logger, interface=requests_session, debug=debug)
+    xnat_session = XNATSession(server=server, logger=logger,
+                               interface=requests_session, debug=debug)
+    xnat_module.SESSION = xnat_session
 
-    # FIXME: is this a good idea, it makes things simple, but I suppose we
-    # FIXME: can no longer re-use the modules between sessions?
-    xnat_module.SESSION = session
+    # Add the required information from the module into the xnat_session object
+    xnat_session.XNAT_CLASS_LOOKUP.update(xnat_module.XNAT_CLASS_LOOKUP)
+    xnat_session.classes = xnat_module
+    xnat_session._source_code_file = code_file.name
 
-    # Add the required information from the module into the session object
-    session.XNAT_CLASS_LOOKUP.update(xnat_module.XNAT_CLASS_LOOKUP)
-    session.classes = xnat_module
-    session._source_code_file = xnat_module._SOURCE_CODE_FILE
-
-    return session
+    return xnat_session
