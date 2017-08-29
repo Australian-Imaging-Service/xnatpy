@@ -16,6 +16,12 @@ Changed
   path relative from the resource. This makes working with subdirectories in
   resources possible.
 
+Fixed
+~~~~~
+
+- Resources could loose track of their ID when the cache was cleared
+- Resources did not invalidate cache after uploading files
+
 
 0.3.0 - 2017-08-17
 ------------------
