@@ -64,5 +64,5 @@ OVERRIDE_BASE = {
 SECONDARY_LOOKUP_FIELDS = {
     'xnat:projectData': 'name',
     'xnat:imageScanData': 'type',
-    'xnat:fileData': 'name',
+    'xnat:fileData': 'path',
 }

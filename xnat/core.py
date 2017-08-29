@@ -674,8 +674,8 @@ class XNATListing(XNATBaseListing):
             # HACK: This is a File and it misses an ID field and has Name (let's fix that)
             for entry in result:
                 if 'ID' not in entry:
-                    entry['ID'] = '{}/files/{}'.format(entry['cat_ID'], entry['Name'])
-                    entry['name'] = entry['Name']
+                    entry['ID'] = entry['Name']
+                    entry['path'] = re.sub(r'^.*/resources/{}/files/'.format(self.parent.id), '/', entry['URI'], 1)
 
         # Post filter result if server side query did not work
         result = [x for x in result if all(fnmatch.fnmatch(x.get(k), v) for k, v in self.used_filters.items())]

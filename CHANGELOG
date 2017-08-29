@@ -9,6 +9,12 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 Unreleased version
 ------------------
 
+Changed
+~~~~~~~
+
+- FileData now has an id and path, the id is the filename and the path is the
+  path relative from the resource. This makes working with subdirectories in
+  resources possible.
 
 
 0.3.0 - 2017-08-17
