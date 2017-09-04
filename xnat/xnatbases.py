@@ -243,10 +243,14 @@ class AbstractResource(XNATBaseObject):
         # FIXME: ugly hack because direct query fails
         uri, label = self.uri.rsplit('/', 1)
         data = self.xnat_session.get_json(uri)['ResultSet']['Result']
+
         try:
-            return next(x for x in data if x['label'] == label)
+            data = next(x for x in data if x['label'] == label)
         except StopIteration:
             raise ValueError('Cannot find full data!')
+
+        data['ID'] = data['xnat_abstractresource_id']  # Make sure the ID is present
+        return data
 
     @property
     def data(self):
@@ -259,7 +263,7 @@ class AbstractResource(XNATBaseObject):
                            xnat_session=self.xnat_session,
                            parent=self,
                            field_name='files',
-                           secondary_lookup_field='name',
+                           secondary_lookup_field='path',
                            xsi_type='xnat:fileData')
 
     def download(self, path, verbose=True):
@@ -278,44 +282,4 @@ class AbstractResource(XNATBaseObject):
     def upload(self, data, remotepath, overwrite=False):
         uri = '{}/files/{}'.format(self.uri, remotepath.lstrip('/'))
         self.xnat_session.upload(uri, data, overwrite=overwrite)
-
-
-class File(XNATBaseObject):
-    SECONDARY_LOOKUP_FIELD = 'name'
-
-    def __init__(self, uri, xnat_session, id_=None, datafields=None, name=None, parent=None, fieldname=None):
-        super(File, self).__init__(uri=uri,
-                                   xnat_session=xnat_session,
-                                   id_=id_,
-                                   datafields=datafields,
-                                   parent=parent,
-                                   fieldname=fieldname)
-
-        # Store in object
-        self._id = id_
-        self._name = name
-
-        if name is not None:
-            self._cache['name'] = name
-
-    @property
-    def fulldata(self):
-        # Make sure not to try to GET, it will download the entire file!
-        return {'data_fields': {'ID': self._id, 'name': self._name}}
-
-    @property
-    @caching
-    def name(self):
-        return self.data['name']
-
-    @property
-    def __xsi_type__(self):
-        return 'xnat:fileData'  # FIXME: is this correct?
-
-    def download(self, path, verbose=True):
-        self.xnat_session.download(self.uri, path, verbose=verbose)
-
-    @caching
-    def size(self):
-        response = self.xnat_session.head(self.uri)
-        return response.headers['Content-Length']
+        self.files.clearcache()
