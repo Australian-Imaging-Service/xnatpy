@@ -19,6 +19,7 @@ Changed
 Fixed
 ~~~~~
 
+- Bug where history of XNAT was misinterpreted and an old version of an object could be loaded
 - Resources could loose track of their ID when the cache was cleared
 - Resources did not invalidate cache after uploading files
 
