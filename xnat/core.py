@@ -241,7 +241,8 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
 
     def get_object(self, fieldname, type_=None):
         try:
-            data = next(x for x in self.fulldata.get('children', []) if x['field'] == fieldname)['items'][0]
+            data = next(x for x in self.fulldata.get('children', []) if x['field'] == fieldname)['items']
+            data = next(x for x in data if not data['meta']['isHistory'])  # Filter out the non-history item
             type_ = data['meta']['xsi:type']
         except StopIteration:
             if type_ is None:
@@ -375,7 +376,7 @@ class XNATObject(XNATBaseObject):
     @property
     @caching
     def fulldata(self):
-        return self.xnat_session.get_json(self.uri)['items'][0]
+        return next(x for x in self.xnat_session.get_json(self.uri)['items'] if not x['meta']['isHistory'])
 
     @property
     def data(self):
@@ -391,7 +392,8 @@ class XNATNestedObject(XNATBaseObject):
     def fulldata(self):
         try:
             if isinstance(self.parent.fulldata, dict):
-                data = next(x for x in self.parent.fulldata['children'] if x['field'] == self.fieldname)['items'][0]
+                data = next(x for x in self.parent.fulldata['children'] if x['field'] == self.fieldname)['items']
+                data = next(x for x in data if not x['meta']['isHistory'])
             elif isinstance(self.parent.fulldata, list):
                 if self.parent.secondary_lookup_field is not None:
                     data = next(x for x in self.parent.fulldata if x['data_fields'][self.parent.secondary_lookup_field] == self.fieldname)
