@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <http://keepachangelog.com/>`_
 and this project adheres to `Semantic Versioning <http://semver.org/>`_
 
+0.3.2 - 2017-10-15
+------------------
+
+Fixed
+~~~~~
+
+- Bug in the the create_object function in the selection of the non-history object
+- Bug in the setting of project properties (due to the lack of a parent)
+
 0.3.1 - 2017-09-04
 ------------------
 
