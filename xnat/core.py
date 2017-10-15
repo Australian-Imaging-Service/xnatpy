@@ -242,7 +242,7 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
     def get_object(self, fieldname, type_=None):
         try:
             data = next(x for x in self.fulldata.get('children', []) if x['field'] == fieldname)['items']
-            data = next(x for x in data if not data['meta']['isHistory'])  # Filter out the non-history item
+            data = next(x for x in data if not x['meta']['isHistory'])  # Filter out the non-history item
             type_ = data['meta']['xsi:type']
         except StopIteration:
             if type_ is None:
@@ -278,7 +278,9 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
             query[xpath] = value
 
         self.xnat_session.put(self.fulluri, query=query)
-        self.parent.clearcache()
+        self.clearcache()
+        if hasattr(self.parent, 'clearcache'):
+            self.parent.clearcache()
 
     def set(self, name, value, type_=None):
         """
