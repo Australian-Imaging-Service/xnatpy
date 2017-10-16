@@ -12,6 +12,15 @@ UNRELEASED VERSION
 Fixed
 ~~~~~
 
+- Bug in upload for Python3
+
+
+0.3.2 - 2017-10-15
+------------------
+
+Fixed
+~~~~~
+
 - Bug in the the create_object function in the selection of the non-history object
 - Bug in the setting of project properties (due to the lack of a parent)
 
