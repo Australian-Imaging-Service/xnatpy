@@ -15,6 +15,7 @@
 
 from __future__ import absolute_import
 from __future__ import unicode_literals
+import io
 import netrc
 import os
 import threading
@@ -32,6 +33,12 @@ from .inspect import Inspect
 from .prearchive import Prearchive
 from .users import Users
 from .services import Services
+
+
+try:
+    FILE_TYPES = (file, io.IOBase)
+except NameError:
+    FILE_TYPES = io.IOBase
 
 
 class XNATSession(object):
@@ -528,7 +535,7 @@ class XNATSession(object):
 
         try:
             while attempt < retries:
-                if isinstance(file_, file):
+                if isinstance(file_, FILE_TYPES):
                     # File is open file handle, seek to 0
                     file_handle = file_
                     file_.seek(0)
