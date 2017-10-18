@@ -430,7 +430,8 @@ class XNATSession(object):
         except ValueError:
             raise ValueError('Could not decode JSON from [{}] {}'.format(uri, response.text))
 
-    def download_stream(self, uri, target_stream, format=None, verbose=False, chunk_size=524288):
+    def download_stream(self, uri, target_stream, format=None, verbose=False, chunk_size=524288, update_func=None):
+
         uri = self._format_uri(uri, format=format)
         self.logger.debug('DOWNLOAD STREAM {}'.format(uri))
 
@@ -441,37 +442,22 @@ class XNATSession(object):
             raise exceptions.XNATResponseError('Invalid response from XNATSession for url {} (status {}):\n{}'.format(uri, response.status_code, response.text))
 
         # Get the content length if available
-        content_length = response.headers.get('Content-Length', UnknownLength)
+        content_length = response.headers.get('Content-Length', None)
 
         if isinstance(content_length, six.string_types):
             content_length = int(content_length)
 
-        # Create the progress bar if required
-        if verbose:
-            if content_length is not UnknownLength:
-                widgets = [
-                    Percentage(),
-                    ' of ', DataSize('max_value'),
-                    ' ', Bar(),
-                    ' ', AdaptiveTransferSpeed(),
-                    ' ', AdaptiveETA(),
-                ]
-            else:
-                widgets = [
-                    DataSize(),
-                    ' ', BouncingBar(),
-                    ' ', AdaptiveTransferSpeed(),
-                    ' ', Timer(),
-                ]
+        if verbose and update_func is None:
+            update_func = default_update_func(content_length)
+        if update_func is None:
+            update_func = lambda *args: None
 
+        if verbose:
             self.logger.info('Downloading {}:'.format(uri))
-            progress_bar = ProgressBar(widgets=widgets, max_value=content_length)
-        else:
-            progress_bar = NullBar()
 
         bytes_read = 0
         try:
-            progress_bar.start()
+            update_func(0, content_length, False)
             for chunk in response.iter_content(chunk_size):
                 if bytes_read == 0 and chunk[0] == '<' and chunk.startswith(('<!DOCTYPE', '<html>')):
                     raise ValueError('Invalid response from XNATSession (status {}):\n{}'.format(response.status_code, chunk))
@@ -479,9 +465,9 @@ class XNATSession(object):
                 bytes_read += len(chunk)
                 target_stream.write(chunk)
 
-                progress_bar.update(bytes_read)
+                update_func(bytes_read, content_length, False)
         finally:
-            progress_bar.finish()
+            update_func(bytes_read, content_length, True)
 
     def download(self, uri, target, format=None, verbose=True):
         """
@@ -686,3 +672,36 @@ class XNATSession(object):
         """
         self._cache.clear()
         self._cache['__objects__'] = {}
+
+
+def default_update_func(total):
+
+    if total is not None:
+        widgets = [
+            Percentage(),
+            ' of ', DataSize('max_value'),
+            ' ', Bar(),
+            ' ', AdaptiveTransferSpeed(),
+            ' ', AdaptiveETA(),
+        ]
+    else:
+        total = UnknownLength
+        widgets = [
+            DataSize(),
+            ' ', BouncingBar(),
+            ' ', AdaptiveTransferSpeed(),
+            ' ', Timer(),
+        ]
+
+    progress_bar = ProgressBar(widgets=widgets, max_value=total)
+
+    def do_update(nbytes, total, finished, progress_bar=progress_bar):
+
+        if nbytes == 0:
+            progress_bar.start()
+        elif finished:
+            progress_bar.finish()
+        else:
+            progress_bar.update(nbytes)
+
+    return do_update
