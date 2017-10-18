@@ -14,6 +14,7 @@ Fixed
 
 - Bug in upload for Python3
 - Bug with getting the file size when there are redirects (issue #8)
+- Bug with getting files from a project/subject/experiment/scan directly instead of via resource (issue #5)
 
 
 0.3.2 - 2017-10-15

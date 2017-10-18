@@ -55,7 +55,7 @@ class ProjectData(XNATBaseObject):
                            xnat_session=self.xnat_session,
                            parent=self,
                            field_name='files',
-                           secondary_lookup_field='name',
+                           secondary_lookup_field='path',
                            xsi_type='xnat:fileData')
 
     @property
@@ -94,7 +94,7 @@ class SubjectData(XNATBaseObject):
                            xnat_session=self.xnat_session,
                            parent=self,
                            field_name='files',
-                           secondary_lookup_field='name',
+                           secondary_lookup_field='path',
                            xsi_type='xnat:fileData')
 
     def download_dir(self, target_dir, verbose=True):
@@ -131,7 +131,7 @@ class ImageSessionData(XNATBaseObject):
                            xnat_session=self.xnat_session,
                            parent=self,
                            field_name='files',
-                           secondary_lookup_field='name',
+                           secondary_lookup_field='path',
                            xsi_type='xnat:fileData')
 
     def create_assessor(self, label, type_='xnat:mrAssessorData'):
@@ -168,7 +168,7 @@ class DerivedData(XNATBaseObject):
                            xnat_session=self.xnat_session,
                            parent=self,
                            field_name='files',
-                           secondary_lookup_field='name',
+                           secondary_lookup_field='path',
                            xsi_type='xnat:fileData')
 
     @property
@@ -201,7 +201,7 @@ class ImageScanData(XNATBaseObject):
                            xnat_session=self.xnat_session,
                            parent=self,
                            field_name='files',
-                           secondary_lookup_field='name',
+                           secondary_lookup_field='path',
                            xsi_type='xnat:fileData')
 
     @property
