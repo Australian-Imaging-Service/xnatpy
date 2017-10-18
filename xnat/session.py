@@ -19,7 +19,6 @@ import netrc
 import os
 import threading
 
-from progressbar import DataTransferBar, NullBar
 from progressbar import AdaptiveETA, AdaptiveTransferSpeed, Bar, BouncingBar, \
     DataSize, Percentage, ProgressBar, Timer, UnknownLength
 import requests
@@ -431,6 +430,28 @@ class XNATSession(object):
             raise ValueError('Could not decode JSON from [{}] {}'.format(uri, response.text))
 
     def download_stream(self, uri, target_stream, format=None, verbose=False, chunk_size=524288, update_func=None):
+        """
+        Download the given ``uri`` to the given ``target_stream``.
+
+        :param str uri:            Path of the uri to retrieve.
+        :param file target_stream: A writable file-like object to save the
+                                   stream to.
+        :param str format:         Request format
+        :param bool verbose:       If ``True``, and an ``update_func`` is not
+                                   specified, a progress bar is shown on
+                                   stdout.
+        :param int chunk_size:     Download this many bytes at a time
+        :param func update_func:   If provided, will be called every
+                                   ``chunk_size`` bytes. Must accept three
+                                   parameters:
+
+                                     - the number of bytes downloaded so far
+                                     - the total number of bytse to be
+                                       downloaded (might be ``None``),
+                                     - A boolean flag which is ``False`` during
+                                       the download, and ``True`` when the
+                                       download has completed (or failed)
+        """
 
         uri = self._format_uri(uri, format=format)
         self.logger.debug('DOWNLOAD STREAM {}'.format(uri))
@@ -675,6 +696,18 @@ class XNATSession(object):
 
 
 def default_update_func(total):
+    """
+    Set up a default update function to be used by the
+    :class:`Session.download_stream` method. This function configures a
+    ``progressbar.ProgressBar`` object which displays progress as a file
+    is downloaded.
+
+    :param int total: Total number of bytes to be downloaded (might be
+                      ``None``)
+
+    :returns: A function to be used as the ``update_func`` by the
+              ``Session.download_stream`` method.
+    """
 
     if total is not None:
         widgets = [
@@ -695,6 +728,7 @@ def default_update_func(total):
 
     progress_bar = ProgressBar(widgets=widgets, max_value=total)
 
+    # The real update function which gets called by download_stream
     def do_update(nbytes, total, finished, progress_bar=progress_bar):
 
         if nbytes == 0:
