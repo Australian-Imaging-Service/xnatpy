@@ -1,5 +1,5 @@
-sphinx_rtd_theme
-progressbar2
-isodate
-requests
-six
+sphinx_rtd_theme>=0.1.9
+progressbar2>=3.11.0
+isodate>=0.5.4
+requests>=2.10.0
+six>=1.9.0

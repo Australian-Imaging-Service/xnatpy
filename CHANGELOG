@@ -12,6 +12,7 @@ UNRELEASED VERSION
 Fixed
 ~~~~~
 
+- Set proper minimal versions for requirements (e.g. six can be too old)
 - Bug in upload for Python3
 - Bug with getting the file size when there are redirects (issue #8)
 - Bug with getting files from a project/subject/experiment/scan directly instead of via resource (issue #5)
