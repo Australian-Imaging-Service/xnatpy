@@ -679,10 +679,15 @@ class XNATListing(XNATBaseListing):
             for entry in result:
                 if 'ID' not in entry:
                     entry['ID'] = entry['Name']
-                    entry['path'] = re.sub(r'^.*/resources/{}/files/'.format(self.parent.id), '/', entry['URI'], 1)
+                    entry['fieldname'] = type(self.parent).__name__
+                    if entry['URI'].startswith(self.parent.uri):
+                        entry['path'] = entry['URI'].replace(self.parent.uri, '', 1)
+                    else:
+                        entry['path'] = re.sub(r'^.*/resources/{}/files/'.format(self.parent.id), '/', entry['URI'], 1)
 
         # Post filter result if server side query did not work
-        result = [x for x in result if all(fnmatch.fnmatch(x.get(k), v) for k, v in self.used_filters.items())]
+        if self.used_filters:
+            result = [x for x in result if all(fnmatch.fnmatch(x[k], v) for k, v in self.used_filters.items() if k in x)]
 
         # Create object dictionaries
         id_map = {}
@@ -696,6 +701,7 @@ class XNATListing(XNATBaseListing):
                 new_object = self.xnat_session.create_object(x['URI'],
                                                              type_=x.get('xsiType', x.get('element_name', self._xsi_type)),
                                                              id_=x['ID'],
+                                                             fieldname=x.get('fieldname'),
                                                              **{self.secondary_lookup_field: secondary_lookup_value})
                 if secondary_lookup_value in key_map:
                     non_unique.add(secondary_lookup_value)
@@ -703,7 +709,8 @@ class XNATListing(XNATBaseListing):
             else:
                 new_object = self.xnat_session.create_object(x['URI'],
                                                              type_=x.get('xsiType', x.get('element_name', self._xsi_type)),
-                                                             id_=x['ID'])
+                                                             id_=x['ID'],
+                                                             fieldname=x.get('fieldname'))
 
             listing.append(new_object)
             id_map[x['ID']] = new_object
@@ -747,7 +754,7 @@ class XNATListing(XNATBaseListing):
             rowtype = namedtuple('TableRow', list(result_columns.values()))
 
             # Replace all non-alphanumeric characters in each key of the keyword dictionary
-            return tuple(rowtype(**{result_columns[k]: v for k, v in x.items()}) for x in result['ResultSet']['Result'])
+            return tuple(rowtype(**{result_columns[k]: v for k, v in x.items() if k in result_columns}) for x in result['ResultSet']['Result'])
         else:
             return ()
 

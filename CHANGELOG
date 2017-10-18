@@ -6,6 +6,23 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <http://keepachangelog.com/>`_
 and this project adheres to `Semantic Versioning <http://semver.org/>`_
 
+0.3.3 - 2017-10-18
+------------------
+
+Changed
+~~~~~~~
+
+- Abstracted the progress bar for downloading to allow other progress hooks (e.g. GUI)
+
+Fixed
+~~~~~
+
+- Set proper minimal versions for requirements (e.g. six can be too old)
+- Bug in upload for Python3
+- Bug with getting the file size when there are redirects (issue #8)
+- Bug with getting files from a project/subject/experiment/scan directly instead of via resource (issue #5)
+
+
 0.3.2 - 2017-10-15
 ------------------
 

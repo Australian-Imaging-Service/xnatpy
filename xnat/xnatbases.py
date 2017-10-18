@@ -55,7 +55,7 @@ class ProjectData(XNATBaseObject):
                            xnat_session=self.xnat_session,
                            parent=self,
                            field_name='files',
-                           secondary_lookup_field='name',
+                           secondary_lookup_field='path',
                            xsi_type='xnat:fileData')
 
     @property
@@ -94,7 +94,7 @@ class SubjectData(XNATBaseObject):
                            xnat_session=self.xnat_session,
                            parent=self,
                            field_name='files',
-                           secondary_lookup_field='name',
+                           secondary_lookup_field='path',
                            xsi_type='xnat:fileData')
 
     def download_dir(self, target_dir, verbose=True):
@@ -131,7 +131,7 @@ class ImageSessionData(XNATBaseObject):
                            xnat_session=self.xnat_session,
                            parent=self,
                            field_name='files',
-                           secondary_lookup_field='name',
+                           secondary_lookup_field='path',
                            xsi_type='xnat:fileData')
 
     def create_assessor(self, label, type_='xnat:mrAssessorData'):
@@ -168,7 +168,7 @@ class DerivedData(XNATBaseObject):
                            xnat_session=self.xnat_session,
                            parent=self,
                            field_name='files',
-                           secondary_lookup_field='name',
+                           secondary_lookup_field='path',
                            xsi_type='xnat:fileData')
 
     @property
@@ -201,7 +201,7 @@ class ImageScanData(XNATBaseObject):
                            xnat_session=self.xnat_session,
                            parent=self,
                            field_name='files',
-                           secondary_lookup_field='name',
+                           secondary_lookup_field='path',
                            xsi_type='xnat:fileData')
 
     @property
@@ -255,6 +255,22 @@ class AbstractResource(XNATBaseObject):
     @property
     def data(self):
         return self.fulldata
+
+    @property
+    def file_size(self):
+        file_size = self.data['file_size']
+        if file_size.strip() == '':
+            return 0
+        else:
+            return int(file_size)
+
+    @property
+    def file_count(self):
+        file_count = self.data['file_count']
+        if file_count.strip() == '':
+            return 0
+        else:
+            return int(file_count)
 
     @property
     @caching
