@@ -116,11 +116,11 @@ class FileData(XNATObjectMixin):
     def delete(self):
         self.xnat_session.delete(self.uri)
 
-    def download(self, path, verbose=True):
-        self.xnat_session.download(self.uri, path, verbose=verbose)
+    def download(self, *args, **kwargs):
+        self.xnat_session.download(self.uri, *args, **kwargs)
 
-    def download_stream(self, target_stream, verbose=False):
-        self.xnat_session.download_stream(self.uri, target_stream, verbose=verbose)
+    def download_stream(self, *args, **kwargs):
+        self.xnat_session.download_stream(self.uri, *args, **kwargs)
 
     @property
     @caching
