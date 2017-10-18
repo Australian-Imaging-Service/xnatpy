@@ -9,6 +9,11 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Changed
+~~~~~~~
+
+- Abstracted the progress bar for downloading to allow other progress hooks (e.g. GUI)
+
 Fixed
 ~~~~~
 
