@@ -686,7 +686,8 @@ class XNATListing(XNATBaseListing):
                         entry['path'] = re.sub(r'^.*/resources/{}/files/'.format(self.parent.id), '/', entry['URI'], 1)
 
         # Post filter result if server side query did not work
-        result = [x for x in result if all(fnmatch.fnmatch(x.get(k), v) for k, v in self.used_filters.items())]
+        if self.used_filters:
+            result = [x for x in result if all(fnmatch.fnmatch(x[k], v) for k, v in self.used_filters.items() if k in x)]
 
         # Create object dictionaries
         id_map = {}
@@ -753,7 +754,7 @@ class XNATListing(XNATBaseListing):
             rowtype = namedtuple('TableRow', list(result_columns.values()))
 
             # Replace all non-alphanumeric characters in each key of the keyword dictionary
-            return tuple(rowtype(**{result_columns[k]: v for k, v in x.items()}) for x in result['ResultSet']['Result'])
+            return tuple(rowtype(**{result_columns[k]: v for k, v in x.items() if k in result_columns}) for x in result['ResultSet']['Result'])
         else:
             return ()
 
