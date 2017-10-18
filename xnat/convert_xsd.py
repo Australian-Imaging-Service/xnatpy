@@ -125,7 +125,7 @@ class FileData(XNATObjectMixin):
     @property
     @caching
     def size(self):
-        response = self.xnat_session.head(self.uri)
+        response = self.xnat_session.head(self.uri, allow_redirects=True)
         return response.headers['Content-Length']
 
 

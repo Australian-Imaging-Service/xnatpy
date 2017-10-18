@@ -283,7 +283,7 @@ class XNATSession(object):
         self._check_response(response, accepted_status=accepted_status, uri=uri)  # Allow OK, as we want to get data
         return response
 
-    def head(self, path, accepted_status=None):
+    def head(self, path, accepted_status=None, allow_redirects=False):
         """
         Retrieve the header for a http request of a given REST directory.
 
@@ -299,7 +299,7 @@ class XNATSession(object):
         self.logger.debug('GET URI {}'.format(uri))
 
         try:
-            response = self.interface.head(uri)
+            response = self.interface.head(uri, allow_redirects=False)
         except requests.exceptions.SSLError:
             raise exceptions.XNATSSLError('Encountered a problem with the SSL connection, are you sure the server is offering https?')
         self._check_response(response, accepted_status=accepted_status, uri=uri)  # Allow OK, as we want to get data
