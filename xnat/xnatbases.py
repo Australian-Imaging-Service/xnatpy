@@ -257,6 +257,22 @@ class AbstractResource(XNATBaseObject):
         return self.fulldata
 
     @property
+    def file_size(self):
+        file_size = self.data['file_size']
+        if file_size.strip() == '':
+            return 0
+        else:
+            return int(file_size)
+
+    @property
+    def file_count(self):
+        file_count = self.data['file_count']
+        if file_count.strip() == '':
+            return 0
+        else:
+            return int(file_count)
+
+    @property
     @caching
     def files(self):
         return XNATListing(self.uri + '/files',
