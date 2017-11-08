@@ -9,7 +9,10 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Fixed
+~~~~~
 
+- Files in assessors would have a path prefixed with a / in some cases (which should never happen)
 
 0.3.3 - 2017-10-18
 ------------------
