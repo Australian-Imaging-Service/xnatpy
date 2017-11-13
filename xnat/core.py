@@ -683,7 +683,7 @@ class XNATListing(XNATBaseListing):
                     if entry['URI'].startswith(self.parent.uri):
                         entry['path'] = entry['URI'].replace(self.parent.uri, '', 1)
                     else:
-                        entry['path'] = re.sub(r'^.*/resources/{}/files/'.format(self.parent.id), '/', entry['URI'], 1)
+                        entry['path'] = re.sub(r'^.*/resources/{}/files/'.format(self.parent.id), '', entry['URI'], 1)
 
         # Post filter result if server side query did not work
         if self.used_filters:
