@@ -327,7 +327,7 @@ class PrearchiveScan(XNATBaseObject):
 
     @property
     def data(self):
-        return self.fulldata
+        return self.fulldata['data_fields']
 
     @property
     def fulldata(self):
