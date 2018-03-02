@@ -81,10 +81,13 @@ def check_auth(requests_session, server, user, logger):
             logger.error(message)
             raise ValueError(message)
         elif match.group('username') != user:
-            message = 'Attempted to login as {} but found user {}!'.format(user,
-                                                                                   match.group('username'))
-            logger.error(message)
-            raise ValueError(message)
+            if re.match(r'^[a-f0-9\-]{36}$', user):
+                logger.info('Logged in using token as user {}'.format(match.group('username')))
+            else:
+                message = 'Attempted to login as {} but found user {}!'.format(user,
+                                                                               match.group('username'))
+                logger.error(message)
+                raise ValueError(message)
         else:
             logger.info('Logged in successfully as {}'.format(match.group('username')))
     else:
