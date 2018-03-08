@@ -74,11 +74,16 @@ def check_auth(requests_session, server, user, logger):
             match = re.search(r'<span id="user_info">Logged in as: <span style="color:red;">Guest</span>',
                               test_auth_request.text)
             if match is None:
-                message = 'Could not determine if login was successful!'
+                match = re.search('Your password has expired', test_auth_request.text)
+                if match:
+                    message = 'Your password has expired. Please try again after updating your password on XNAT.'
+                else:
+                    message = 'Could not determine if login was successful!'
             else:
                 message = 'Login failed (in guest mode)!'
 
             logger.error(message)
+            logger.debug(test_auth_request.text)
             raise ValueError(message)
         elif match.group('username') != user:
             # Check if the requested username was a UUID token
