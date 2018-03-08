@@ -176,7 +176,11 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
                         potentially dangerous, but required for self-signed certificates.
     :param str netrc_file: alternative location to use for the netrc file (path pointing to
                            a file following the netrc syntax)
-    :param debug bool: Set debug information printing on
+    :param debug bool: Set debug information printing on and print extra debug information.
+                       This is meant for xnatpy developers and not for normal users. If you
+                       want to debug your code using xnatpy, just set the loglevel to DEBUG
+                       which will show you all requests being made, but spare you the
+                       xnatpy internals.
     :param str loglevel: Set the level of the logger to desired level
     :param logging.Logger logger: A logger to reuse instead of creating an own logger
     :return: XNAT session object

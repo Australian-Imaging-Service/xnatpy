@@ -272,8 +272,7 @@ class XNATSession(object):
         accepted_status = accepted_status or self.accepted_status_get
         uri = self._format_uri(path, format, query=query)
 
-        if self.debug:
-            self.logger.debug('GET URI {}'.format(uri))
+        self.logger.debug('GET URI {}'.format(uri))
 
         try:
             response = self.interface.get(uri)
