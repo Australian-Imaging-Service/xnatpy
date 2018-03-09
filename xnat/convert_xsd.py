@@ -777,8 +777,6 @@ class ListingPropertyWriter(AttributeWriter):
         return '<ListingPropertyWriter {}({})>'.format(self.name, self.type)
 
     def tostring(self):
-        self.logger.debug('SELF data: {}'.format(vars(self)))
-
         if self.display_identifier is not None:
             secondary_lookup = self.display_identifier
         elif self.type is not None:
@@ -797,7 +795,6 @@ class ListingPropertyWriter(AttributeWriter):
             secondary_lookup = "'{}'".format(secondary_lookup)
 
         field_name = self.field_name or self.name
-        self.logger.debug('FIELD_NAME FOR LISTING: {}'.format(field_name))
 
         property_base = """    @property
     @caching
@@ -809,7 +806,6 @@ class ListingPropertyWriter(AttributeWriter):
             element_class = self.parser.class_list[self.type]
             property_base += element_class.writer.create_listing(secondary_lookup=secondary_lookup, field_name=field_name)
         else:
-            self.logger.info('[TODO] Skipping simple type listing')
             property_base += "\n        # TODO: Implement simple type listing! (type: {})\n".format(self.type) + \
                              "        pass"
         return property_base
@@ -855,7 +851,6 @@ class SchemaParser(object):
         self.schemas.append(schema_uri)
 
         # Parse xml schema
-        self.logger.info('Parsing root element: {}'.format(root.tag))
         self.parse(root, toplevel=True)
 
         if self.debug:
@@ -891,10 +886,11 @@ class SchemaParser(object):
                 self.logger.error('The server returned an error. You probably do not'
                                   ' have access to this XNAT server, please check your credentials!')
             else:
-                self.logger.info('Could not parse schema from {}, not valid XML found'.format(schema_uri))
+                self.logger.info('Could not parse schema from {}, no valid XML found'.format(schema_uri))
 
-                self.logger.debug('XML schema request returned the following response: [{}] {}'.format(resp.status_code,
-                                                                                                       data))
+                if self.debug:
+                    self.logger.debug('XML schema request returned the following response: [{}] {}'.format(resp.status_code,
+                                                                                                           data))
             return False
 
     @staticmethod
@@ -922,13 +918,15 @@ class SchemaParser(object):
 
                 base = value.base_class
                 if base is not None and not base.startswith('xs:') and base not in visited:
-                    self.logger.info("Skipping {} because of base {} is not processed".format(value.name,
-                                                                                              base))
+                    if self.debug:
+                        self.logger.info("Skipping {} because of base {} is not processed".format(value.name,
+                                                                                                  base))
                     continue
 
                 if value.parent_class is not None and value.parent_class not in visited:
-                    self.logger.info("Skipping {} because of parent {} is not processed".format(value.name,
-                                                                                                value.parent_class))
+                    if self.debug:
+                        self.logger.info("Skipping {} because of parent {} is not processed".format(value.name,
+                                                                                                    value.parent_class))
                     continue
 
                 visited.add(key)
@@ -940,11 +938,12 @@ class SchemaParser(object):
         expected = len(self.class_list) + nr_previsited  # We started with two "visited" classes
         if self.debug:  # and len(visited) < len(self.class_list):
             missed = set(self.class_list) - visited
-            self.logger.debug('Visited: {}, expected: {}'.format(len(visited), expected))
-            self.logger.debug('Visited: {}'.format(visited))
-            self.logger.debug('Missed: {}'.format(missed))
-            self.logger.debug('Missed base class: {}'.format([self.class_list[x].base_class for x in missed]))
-            self.logger.debug('Spent {} iterations'.format(tries))
+            if self.debug:
+                self.logger.debug('Visited: {}, expected: {}'.format(len(visited), expected))
+                self.logger.debug('Visited: {}'.format(visited))
+                self.logger.debug('Missed: {}'.format(missed))
+                self.logger.debug('Missed base class: {}'.format([self.class_list[x].base_class for x in missed]))
+                self.logger.debug('Spent {} iterations'.format(tries))
 
     @contextlib.contextmanager
     def _descend(self, new_class=None, new_property=None, property_prefix=None):
@@ -1184,7 +1183,8 @@ class SchemaParser(object):
                 self._current_property.display_identifier = display_identifier
 
     def _parse_sqlfield(self, element):
-        self.logger.debug("CLASS: {}, PROP: {}, ELEMENT: {}".format(self._current_class.name, self._current_property.name, element))
+        if self.debug:
+            self.logger.debug("CLASS: {}, PROP: {}, ELEMENT: {}".format(self._current_class.name, self._current_property.name, element))
 
     PARSERS = {
         '{http://www.w3.org/2001/XMLSchema}all': _parse_all,
@@ -1242,11 +1242,12 @@ class SchemaParser(object):
                             new_element_class.parent_class = element_class.parent_class
 
                         if element_class.name in self.class_list:
-                            self.logger.info('REMOVING CLASS {} FROM PARSER!'.format(element_class.name))
+                            if self.debug:
+                                self.logger.info('REMOVING CLASS {} FROM PARSER!'.format(element_class.name))
                             to_remove.add(element_class.name)
 
                         cls.attributes[property_key] = element_property
-                    else:
+                    elif self.debug:
                         self.logger.info("Ignoring non-listing...")
                         self.logger.info("Element class: {}".format(element_class.__dict__))
 
@@ -1264,31 +1265,30 @@ class SchemaParser(object):
                     continue
 
                 if prop.element_class.simple:
-                    self.logger.debug('$$$ Found simple mapping {}.{} -> {}'.format(cls.name,
-                                                                                    property_key,
-                                                                                    prop.element_class.name))
+                    if self.debug:
+                        self.logger.debug('$$$ Found simple mapping {}.{} -> {}'.format(cls.name,
+                                                                                        property_key,
+                                                                                        prop.element_class.name))
 
                     if len(prop.element_class.attributes) > 2:
-                        self.logger.debug('!! Too many attributes')
+                        if self.debug:
+                            self.logger.debug('!! Too many attributes')
                         continue
-                    elif len(prop.element_class.attributes) == 2:
-                        self.logger.debug('!! Two attributes incl name={}'.format(property_key in prop.element_class.attributes))
-                    elif len(prop.element_class.attributes) == 1:
-                        self.logger.debug('!! Single attribute')
-                    else:
-                        self.logger.debug('!! No attribute')
                 # Attempt to find listings with simple type
 
     def write(self, code_file):
-        self.logger.debug('namespaces: {}'.format(self.namespaces))
-        self.logger.debug('namespace prefixes: {}'.format(self.namespace_prefixes))
+        if self.debug:
+            self.logger.debug('namespaces: {}'.format(self.namespaces))
+            self.logger.debug('namespace prefixes: {}'.format(self.namespace_prefixes))
 
         before = set(self.class_list.keys())
-        self.logger.debug('#! Classed before prune: {}'.format(before))
+        if self.debug:
+            self.logger.debug('#! Classed before prune: {}'.format(before))
         self.prune_tree()
         after = set(self.class_list.keys())
-        self.logger.debug('#! Classed after prune: {}'.format(after))
-        self.logger.debug('#! Classes removed: {}'.format(before - after))
+        if self.debug:
+            self.logger.debug('#! Classed after prune: {}'.format(after))
+            self.logger.debug('#! Classes removed: {}'.format(before - after))
 
         schemas = '\n'.join('# - {}'.format(s) for s in self.schemas)
         code_file.write(FILE_HEADER.format(schemas=schemas,

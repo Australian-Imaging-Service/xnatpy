@@ -16,8 +16,11 @@
 from __future__ import absolute_import
 from __future__ import unicode_literals
 import mimetypes
+import collections
 
 from .prearchive import PrearchiveSession
+
+TokenResult = collections.namedtuple('TokenResult', ('alias', 'secret'))
 
 
 class Services(object):
@@ -93,3 +96,20 @@ class Services(object):
             return PrearchiveSession(response_text, self.xnat_session)
         else:
             return self.xnat_session.create_object(response_text)
+
+    def issue_token(self, user=None):
+        """
+        Issue a login token, by default for the current logged in user. If
+        username is given, for that user. To issue tokens for other users
+        you must be an admin.
+
+        :param str user: User to issue token for, default is current user
+        :return: Token in a named tuple (alias, secret)
+        """
+        uri = '/data/services/tokens/issue'
+        if user:
+            uri += '/user/{}'.format(user)
+
+        result = self.xnat_session.get_json(uri)
+
+        return TokenResult(**result)

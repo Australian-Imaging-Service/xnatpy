@@ -272,8 +272,7 @@ class XNATSession(object):
         accepted_status = accepted_status or self.accepted_status_get
         uri = self._format_uri(path, format, query=query)
 
-        if self.debug:
-            self.logger.debug('GET URI {}'.format(uri))
+        self.logger.debug('GET URI {}'.format(uri))
 
         try:
             response = self.interface.get(uri)
@@ -314,7 +313,7 @@ class XNATSession(object):
         :param json: json data to send in the body of the :class:`Request`.
         :param str format: the format of the request, this will add the format= to the query string
         :param dict query: the values to be added to the query string in the uri
-        :param list accepted_status: a list of the valid values for the return code, default [200]
+        :param list accepted_status: a list of the valid values for the return code, default [200, 201]
         :returns: the requests reponse
         :rtype: requests.Response
         """
@@ -347,7 +346,7 @@ class XNATSession(object):
                       to add for the file.
         :param str format: the format of the request, this will add the format= to the query string
         :param dict query: the values to be added to the query string in the uri
-        :param list accepted_status: a list of the valid values for the return code, default [200]
+        :param list accepted_status: a list of the valid values for the return code, default [200, 201]
         :returns: the requests reponse
         :rtype: requests.Response
         """

@@ -6,6 +6,25 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <http://keepachangelog.com/>`_
 and this project adheres to `Semantic Versioning <http://semver.org/>`_
 
+UNRELEASED VERSION
+------------------
+
+Added
+~~~~~
+
+- Support for issues tokens in the service module
+
+Fixed
+~~~~~
+
+- Allow user to login using a token (the username check will catch this an allow it)
+
+Changed
+~~~~~~~
+
+- Improved the logging by reducing spam at the INFO/DEBUG levels. The debug parameter
+  on connect can now be used to enable the logging of xnatpy internals.
+
 0.3.5 - 2018-01-02
 ------------------
 

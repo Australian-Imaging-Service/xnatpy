@@ -41,7 +41,7 @@ from .convert_xsd import SchemaParser
 
 GEN_MODULES = {}
 
-__version__ = '0.3.5'
+__version__ = '0.3.6'
 __all__ = ['connect', 'exceptions']
 
 
@@ -74,17 +74,26 @@ def check_auth(requests_session, server, user, logger):
             match = re.search(r'<span id="user_info">Logged in as: <span style="color:red;">Guest</span>',
                               test_auth_request.text)
             if match is None:
-                message = 'Could not determine if login was successful!'
+                match = re.search('Your password has expired', test_auth_request.text)
+                if match:
+                    message = 'Your password has expired. Please try again after updating your password on XNAT.'
+                else:
+                    message = 'Could not determine if login was successful!'
             else:
                 message = 'Login failed (in guest mode)!'
 
             logger.error(message)
+            logger.debug(test_auth_request.text)
             raise ValueError(message)
         elif match.group('username') != user:
-            message = 'Attempted to login as {} but found user {}!'.format(user,
-                                                                                   match.group('username'))
-            logger.error(message)
-            raise ValueError(message)
+            # Check if the requested username was a UUID token
+            if re.match(r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$', user):
+                logger.info('Logged in using token as user {}'.format(match.group('username')))
+            else:
+                message = 'Attempted to login as {} but found user {}!'.format(user,
+                                                                               match.group('username'))
+                logger.error(message)
+                raise ValueError(message)
         else:
             logger.info('Logged in successfully as {}'.format(match.group('username')))
     else:
@@ -172,7 +181,11 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
                         potentially dangerous, but required for self-signed certificates.
     :param str netrc_file: alternative location to use for the netrc file (path pointing to
                            a file following the netrc syntax)
-    :param debug bool: Set debug information printing on
+    :param debug bool: Set debug information printing on and print extra debug information.
+                       This is meant for xnatpy developers and not for normal users. If you
+                       want to debug your code using xnatpy, just set the loglevel to DEBUG
+                       which will show you all requests being made, but spare you the
+                       xnatpy internals.
     :param str loglevel: Set the level of the logger to desired level
     :param logging.Logger logger: A logger to reuse instead of creating an own logger
     :return: XNAT session object
