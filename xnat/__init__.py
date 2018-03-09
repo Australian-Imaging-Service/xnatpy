@@ -107,7 +107,16 @@ def check_auth(requests_session, server, user, logger):
             logger.info('Logged in as guest successfully')
 
 
-def parse_schemas_16(parser, requests_session, server, logger, extension_types=True, debug=False):
+def parse_schemas_16(parser, requests_session, server, logger, extension_types=True):
+    """
+    Retrieve and parse schemas for an XNAT version 1.6.x
+
+    :param parser: The parser to use for the parsing
+    :param requests_session: the requests session used for the communication
+    :param str server: URI of the XNAT server
+    :param logger: logger to use for the logging
+    :param bool extension_types: flag to enabled/disable scanning for extension types
+    """
     # Retrieve schema from XNAT server
     schema_uri = '{}/schemas/xnat/xnat.xsd'.format(server.rstrip('/'))
 
@@ -147,17 +156,28 @@ def parse_schemas_16(parser, requests_session, server, logger, extension_types=T
                                     schema_uri=schema)
 
 
-def parse_schemas_17(parser, requests_session, server, logger, debug=False):
-    schemas_uri  = '{}/xapi/schemas'.format(server.rstrip('/'))
+def parse_schemas_17(parser, requests_session, server, logger):
+    """
+    Retrieve and parse schemas for an XNAT version 1.7.x
+
+    :param parser: The parser to use for the parsing
+    :param requests_session: the requests session used for the communication
+    :param str server: URI of the XNAT server
+    :param logger: logger to use for the logging
+    """
+    schemas_uri = '{}/xapi/schemas'.format(server.rstrip('/'))
     schemas_request = requests_session.get(schemas_uri)
 
     if schemas_request.status_code != 200:
-        logger.critical('Problem retrieving schemas list: [{}] {}'.format(schemas_request.status_code, schemas_request.text))
-        raise ValueError('Problem retrieving schemas list: [{}] {}'.format(schemas_request.status_code, schemas_request.text))
+        message = 'Problem retrieving schemas list: [{}] {}'.format(
+            schemas_request.status_code, schemas_request.text
+        )
+        logger.critical(message)
+        raise ValueError(message)
 
     schema_list = schemas_request.json()
     schema_list = ['{server}/xapi/schemas/{schema}'.format(server=server.rstrip('/'), schema=x) for x in schema_list]
-    
+
     for schema in schema_list:
         parser.parse_schema_uri(requests_session=requests_session,
                                 schema_uri=schema)
@@ -283,10 +303,10 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
 
     if version.startswith('1.6'):
         logger.info('Found an 1.6 version ({})'.format(version))
-        parse_schemas_16(parser, requests_session, server, logger, extension_types=extension_types, debug=debug)
+        parse_schemas_16(parser, requests_session, server, logger, extension_types=extension_types)
     elif version.startswith('1.7'):
         logger.info('Found an 1.7 version ({})'.format(version))
-        parse_schemas_17(parser, requests_session, server, logger, debug=debug)
+        parse_schemas_17(parser, requests_session, server, logger)
     else:
         logger.critical('Found an unsupported version ({})'.format(version))
         raise ValueError('Cannot continue on unsupported XNAT version')

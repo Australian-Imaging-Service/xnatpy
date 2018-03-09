@@ -19,11 +19,16 @@ import mimetypes
 import collections
 
 from .prearchive import PrearchiveSession
+from .exceptions import XNATResponseError
 
 TokenResult = collections.namedtuple('TokenResult', ('alias', 'secret'))
 
 
 class Services(object):
+    """
+    The class representing all service functions in XNAT found in the
+    /data/services REST directory
+    """
     def __init__(self, xnat_session):
         self._xnat_session = xnat_session
 
@@ -82,7 +87,7 @@ class Services(object):
 
         # Get mimetype of file
         if content_type is None:
-            content_type, transfer_encoding = mimetypes.guess_type(path)
+            content_type, _ = mimetypes.guess_type(path)
 
         uri = '/data/services/import'
         response = self.xnat_session.upload(uri=uri, file_=path, query=query, content_type=content_type, method='post')
@@ -94,8 +99,8 @@ class Services(object):
         response_text = response.text.strip()
         if response_text.startswith('/data/prearchive'):
             return PrearchiveSession(response_text, self.xnat_session)
-        else:
-            return self.xnat_session.create_object(response_text)
+
+        return self.xnat_session.create_object(response_text)
 
     def issue_token(self, user=None):
         """
