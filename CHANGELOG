@@ -6,13 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <http://keepachangelog.com/>`_
 and this project adheres to `Semantic Versioning <http://semver.org/>`_
 
-UNRELEASED VERSION
+0.3.6 - 2018-03-09
 ------------------
 
 Added
 ~~~~~
 
-- Support for issues tokens in the service module
+- Support for issuing tokens in the service module
 
 Fixed
 ~~~~~
@@ -24,6 +24,7 @@ Changed
 
 - Improved the logging by reducing spam at the INFO/DEBUG levels. The debug parameter
   on connect can now be used to enable the logging of xnatpy internals.
+- Give a specific error if the XNAt password is outdated and requires an update.
 
 0.3.5 - 2018-01-02
 ------------------
