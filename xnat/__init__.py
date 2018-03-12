@@ -255,6 +255,13 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
         else:
             logger.setLevel('WARNING')
 
+    # If verify is False, disable urllib3 warning and give a one time warning!
+    if not verify:
+        logger.warning('Verify is disabled, this will NOT verify the certificate of SSL connections!')
+        logger.warning('Warnings about invalid certificates will be HIDDEN to avoid spam, but this')
+        logger.warning('means that your connection can be potentially unsafe!')
+        requests.packages.urllib3.disable_warnings()
+
     # Get the login info
     parsed_server = parse.urlparse(server)
 
