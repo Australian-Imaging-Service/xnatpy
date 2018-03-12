@@ -6,6 +6,20 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <http://keepachangelog.com/>`_
 and this project adheres to `Semantic Versioning <http://semver.org/>`_
 
+0.3.7 - 2018-03-12
+------------------
+
+Fixed
+~~~~~
+
+- Fixed a bug where the prompt for the password on Windows would not work
+
+Changed
+~~~~~~~
+
+- Hide certificate warnings if verify=False, just give a one time warning that
+  things might not be safe, but no spam at every single request
+
 0.3.6 - 2018-03-09
 ------------------
 
