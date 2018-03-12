@@ -276,7 +276,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
             logger.warning('Could not find login for {}, continuing without login'.format(parsed_server.netloc))
 
     if user is not None and password is None:
-        password = getpass.getpass(prompt="Please enter the password for user '{}':".format(user))
+        password = getpass.getpass(prompt=str("Please enter the password for user '{}':".format(user)))
 
     # Create the correct requests session
     requests_session = requests.Session()

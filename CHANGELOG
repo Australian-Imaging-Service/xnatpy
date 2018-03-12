@@ -9,6 +9,16 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Fixed
+~~~~~
+
+- Fixed a bug where the prompt for the password on Windows would not work
+
+Changed
+~~~~~~~
+
+- Hide certificate warnings if verify=False, just give a one time warning that
+  things might not be safe, but no spam at every single request
 
 0.3.6 - 2018-03-09
 ------------------
