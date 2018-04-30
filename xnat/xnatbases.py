@@ -233,6 +233,15 @@ class ImageScanData(XNATBaseObject):
         if verbose:
             self.logger.info('Downloaded image scan data to {}'.format(target_dir))
 
+    def dicom_dump(self):
+        # FIXME: This is slow, but we have to lookup the project :-/
+        uri = '/archive/projects/{}/experiments/{}/scans/{}'.format(
+            self.xnat_session.experiments[self.image_session_id].project,
+            self.image_session_id,
+            self.id,
+        )
+        return self.xnat_session.services.dicom_dump(src=uri)
+
 
 class AbstractResource(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'label'
