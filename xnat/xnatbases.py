@@ -234,9 +234,16 @@ class ImageScanData(XNATBaseObject):
             self.logger.info('Downloaded image scan data to {}'.format(target_dir))
 
     def dicom_dump(self):
-        # FIXME: This is slow, but we have to lookup the project :-/
+        """
+        Retrieve a dicom dump as a JSON data structure
+
+        :return: JSON object (dict) representation of DICOM header
+        :rtype: dict
+        """
+        experiment = self.xnat_session.create_object('/data/experiments/{}'.format(self.image_session_id))
+
         uri = '/archive/projects/{}/experiments/{}/scans/{}'.format(
-            self.xnat_session.experiments[self.image_session_id].project,
+            experiment.project,
             self.image_session_id,
             self.id,
         )
