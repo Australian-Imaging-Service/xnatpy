@@ -120,4 +120,4 @@ class Services(object):
 
         result = self.xnat_session.get_json(uri)
 
-        return TokenResult(**result)
+        return TokenResult(result['alias'], result['secret'])

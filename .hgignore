@@ -7,3 +7,9 @@ dist/**
 xnat.iml
 xnat/version.py
 doc/_build/**
+
+syntax: regexp
+^toms-test$
+syntax: regexp
+^\.project$
+^\.pydevproject$
