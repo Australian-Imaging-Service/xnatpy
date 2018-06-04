@@ -10,6 +10,19 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Added
+~~~~~
+
+- Methods to retrieve the DICOM header dump using the dcmdump service. This
+  can be used via services.dicom_dump(uri) or experiment.dicom_dump to get the
+  dump of the specific experiment
+
+Fixed
+~~~~~
+
+- Strict username checking after login disabled to avoid problems with OIDC
+- Fix a bug where token result would contain extra data
+
 0.3.7 - 2018-03-12
 ------------------
 
