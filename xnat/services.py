@@ -36,6 +36,9 @@ class Services(object):
     def xnat_session(self):
         return self._xnat_session
 
+    def dicom_dump(self, src):
+        return self.xnat_session.get_json('/data/services/dicomdump', query={'src': src})['ResultSet']['Result']
+
     def import_(self, path, overwrite=None, quarantine=False, destination=None,
                 trigger_pipelines=None, project=None, subject=None,
                 experiment=None, content_type=None):
