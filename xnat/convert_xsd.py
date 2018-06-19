@@ -51,7 +51,10 @@ from __future__ import absolute_import
 from __future__ import unicode_literals
 import os
 import tempfile  # Needed by generated code
+from gzip import GzipFile  # Needed by generated code
+from tarfile import TarFile  # Needed by generated code
 from zipfile import ZipFile  # Needed by generated code
+from six import BytesIO  # Needed by generated code
 
 from xnat import search
 from xnat.core import XNATObject, XNATNestedObject, XNATSubObject, XNATListing, XNATSimpleListing, XNATSubListing, caching

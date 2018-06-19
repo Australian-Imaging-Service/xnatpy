@@ -10,6 +10,14 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Added
+~~~~~
+
+- resource.upload now takes an ``extract`` parameter indicating data should be
+  extracted into files after upload
+- resource.upload_dir to upload an entire directory to a resource, the directory
+  will be added into the resources so that e.g. directory/a.txt becomes resource/a.txt
+
 0.3.8 - 2018-06-04
 ------------------
 

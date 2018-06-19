@@ -156,7 +156,7 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
                     self.logger.debug('PUT URI: {}'.format(uri))
                     query = {
                         'xsiType': self.__xsi_type__,
-                        'req_format': 'qa',
+                        'req_format': 'qs',
                     }
 
                     # Add all kwargs to query
@@ -169,7 +169,6 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
                                                                                                               self.__xsi_type__))
             else:
                 raise exceptions.XNATValueError('The secondary look up is None, creation currently not supported!')
-            print('[TEMP] RESPONE: ({}) {}'.format(response.status_code, response.text))
 
             # Clear parent cache
             parent.clearcache()
