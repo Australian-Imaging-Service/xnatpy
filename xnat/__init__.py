@@ -174,8 +174,43 @@ def parse_schemas_17(parser, requests_session, server, logger):
                                 schema_uri=schema)
 
 
+def detect_redirection(server, session, logger):
+    """
+    Check if there is a redirect going on
+    :param str server: server url
+    :param session: requests session to use for the connection
+    :param logger:
+    :return: the server url to use later
+    """
+    server = server.rstrip('/')
+    response = session.get(server + '/data/projects')
+    response_url = response.url[:-14]
+    if response_url != server:
+        logger.warning('Detected a redirect from {0} to {1}, using {1} from now on'.format(server, response_url))
+        return response_url
+    return server
+
+
+def query_netrc(server, netrc_file, logger):
+    # Get the login info
+    parsed_server = parse.urlparse(server)
+
+    logger.info('Retrieving login info for {}'.format(parsed_server.netloc))
+    try:
+        if netrc_file is None:
+            netrc_file = os.path.join('~', '_netrc' if os.name == 'nt' else '.netrc')
+            netrc_file = os.path.expanduser(netrc_file)
+        user, _, password = netrc.netrc(netrc_file).authenticators(parsed_server.netloc)
+        logger.info('Found login for {}'.format(parsed_server.netloc))
+    except (TypeError, IOError):
+        logger.info('Could not find login for {}, continuing without login'.format(parsed_server.netloc))
+        user = password = None
+
+    return user, password
+
+
 def connect(server, user=None, password=None, verify=True, netrc_file=None, debug=False,
-            extension_types=True, loglevel=None, logger=None):
+            extension_types=True, loglevel=None, logger=None, detect_redirect=True):
     """
     Connect to a server and generate the correct classed based on the servers xnat.xsd
     This function returns an object that can be used as a context operator. It will call
@@ -199,6 +234,8 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
                        xnatpy internals.
     :param str loglevel: Set the level of the logger to desired level
     :param logging.Logger logger: A logger to reuse instead of creating an own logger
+    :param bool detect_redirect: Try to detect a redirect (via a 302 response) and short-cut
+                                 for subsequent requests
     :return: XNAT session object
     :rtype: XNATSession
 
@@ -253,18 +290,8 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
         logger.warning('means that your connection can be potentially unsafe!')
         requests.packages.urllib3.disable_warnings()
 
-    # Get the login info
-    parsed_server = parse.urlparse(server)
-
     if user is None and password is None:
-        logger.info('Retrieving login info for {}'.format(parsed_server.netloc))
-        try:
-            if netrc_file is None:
-                netrc_file = os.path.join('~', '_netrc' if os.name == 'nt' else '.netrc')
-                netrc_file = os.path.expanduser(netrc_file)
-            user, _, password = netrc.netrc(netrc_file).authenticators(parsed_server.netloc)
-        except (TypeError, IOError):
-            logger.warning('Could not find login for {}, continuing without login'.format(parsed_server.netloc))
+        user, password = query_netrc(server, netrc_file, logger)
 
     if user is not None and password is None:
         password = getpass.getpass(prompt=str("Please enter the password for user '{}':".format(user)))
@@ -277,6 +304,13 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
 
     if not verify:
         requests_session.verify = False
+
+    # Check for redirects
+    server = detect_redirection(server, requests_session, logger)
+
+    # If no login was found, check if the new server has a known login as a backup
+    if user is None and password is None:
+        user, password = query_netrc(server, netrc_file, logger)
 
     # Generate module
     parser = SchemaParser(debug=debug, logger=logger)
