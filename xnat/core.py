@@ -130,7 +130,7 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
     _CONTAINED_IN = None
     _XSI_TYPE = 'xnat:baseObject'
 
-    def __init__(self, uri=None, xnat_session=None, id_=None, datafields=None, parent=None, fieldname=None, **kwargs):
+    def __init__(self, uri=None, xnat_session=None, id_=None, datafields=None, parent=None, fieldname=None, overwrites=None, **kwargs):
         if (uri is None or xnat_session is None) and parent is None:
             raise exceptions.XNATValueError('Either the uri and xnat session have to be given, or the parent object')
 
@@ -195,6 +195,8 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
         if datafields is not None:
             self._cache['data'] = datafields
 
+        self._overwrites = overwrites or {}
+
     def __str__(self):
         if hasattr(self, '_DISPLAY_IDENTIFIER') and self._DISPLAY_IDENTIFIER is not None:
             attribute = pythonize_attribute_name(self._DISPLAY_IDENTIFIER)
@@ -230,7 +232,11 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
         return self._fieldname
 
     def get(self, name, type_=None):
-        value = self.data.get(name)
+        try:
+            value = self._overwrites[name]
+        except KeyError:
+            value = self.data.get(name)
+
         if type_ is not None and value is not None:
             if isinstance(type_, six.string_types):
                 value = convert_to(value, type_)
@@ -660,29 +666,27 @@ class XNATListing(XNATBaseListing):
         query = dict(self.used_filters)
         query['columns'] = columns
         result = self.xnat_session.get_json(self.uri, query=query)
+
         try:
             result = result['ResultSet']['Result']
         except KeyError:
             raise exceptions.XNATValueError('Query GET from {} returned invalid data: {}'.format(self.uri, result))
 
-        if not all('URI' in x for x in result):
-            # HACK: This is a Resource, that misses the URI and ID field (let's fix that)
-            for entry in result:
-                if 'URI' not in entry:
-                    entry['URI'] = '{}/{}'.format(self.uri, entry['label'])
-                if 'ID' not in entry:
-                    entry['ID'] = entry['xnat_abstractresource_id']
-
-        elif not all('ID' in x for x in result):
-            # HACK: This is a File and it misses an ID field and has Name (let's fix that)
-            for entry in result:
-                if 'ID' not in entry:
-                    entry['ID'] = entry['Name']
-                    entry['fieldname'] = type(self.parent).__name__
-                    if entry['URI'].startswith(self.parent.uri):
-                        entry['path'] = entry['URI'].replace(self.parent.uri, '', 1)
-                    else:
-                        entry['path'] = re.sub(r'^.*/resources/{}/files/'.format(self.parent.id), '', entry['URI'], 1)
+        for entry in result:
+            if 'URI' not in entry and 'ID' not in entry:
+                # HACK: This is a Resource, that misses the URI and ID field (let's fix that)
+                entry['ID'] = entry['xnat_abstractresource_id']
+                entry['URI'] = '{}/{}'.format(self.uri, entry['label'])
+            elif 'ID' not in entry:
+                # HACK: This is a File and it misses an ID field and has Name (let's fix that)
+                entry['ID'] = entry['Name']
+                entry['fieldname'] = type(self.parent).__name__
+                if entry['URI'].startswith(self.parent.uri):
+                    entry['path'] = entry['URI'].replace(self.parent.uri, '', 1)
+                else:
+                    entry['path'] = re.sub(r'^.*/resources/{}/files/'.format(self.parent.id), '', entry['URI'], 1)
+            else:
+                entry['URI'] = '{}/{}'.format(self.uri, entry['ID'])
 
         # Post filter result if server side query did not work
         if self.used_filters:

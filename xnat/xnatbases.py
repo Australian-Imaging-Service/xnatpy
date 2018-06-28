@@ -92,6 +92,15 @@ class SubjectData(XNATBaseObject):
         return '{}/projects/{}/subjects/{}'.format(self.xnat_session.fulluri, self.project, self.id)
 
     @property
+    def label(self):
+        try:
+            sharing = next(x for x in self.fulldata['children'] if x['field'] == 'sharing/share')
+            share_info = next(x for x in sharing['items'] if x['data_fields']['project'] == self.project)
+            return share_info['data_fields']['label']
+        except (KeyError, StopIteration):
+            return self.get('label', type_=str)
+
+    @property
     @caching
     def files(self):
         return XNATListing(self.uri + '/files',
@@ -112,9 +121,30 @@ class SubjectData(XNATBaseObject):
         if verbose:
             self.logger.info('Downloaded subject to {}'.format(subject_dir))
 
+    def share(self, project, label=None):
+        # Create the uri for sharing
+        share_uri = '{}/projects/{}'.format(self.fulluri , project)
+
+        # Add label if needed
+        query = {}
+        if label is not None:
+            query['label'] = label
+
+        self.xnat_session.put(share_uri, query=query)
+        self.clearcache()
+
 
 class ExperimentData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'label'
+
+    @property
+    def label(self):
+        try:
+            sharing = next(x for x in self.fulldata['children'] if x['field'] == 'sharing/share')
+            share_info = next(x for x in sharing['items'] if x['data_fields']['project'] == self.project)
+            return share_info['data_fields']['label']
+        except (KeyError, StopIteration):
+            return self.get('label', type_=str)
 
 
 class SubjectAssessorData(XNATBaseObject):
@@ -158,6 +188,18 @@ class ImageSessionData(XNATBaseObject):
 
         if verbose:
             self.logger.info('\nDownloaded image session to {}'.format(target_dir))
+
+    def share(self, project, label=None):
+        # Create the uri for sharing
+        share_uri = '{}/projects/{}'.format(self.fulluri , project)
+
+        # Add label if needed
+        query = {}
+        if label is not None:
+            query['label'] = label
+
+        self.xnat_session.put(share_uri, query=query)
+        self.clearcache()
 
 
 class DerivedData(XNATBaseObject):

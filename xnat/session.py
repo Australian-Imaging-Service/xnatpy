@@ -18,6 +18,7 @@ from __future__ import unicode_literals
 import io
 import netrc
 import os
+import re
 import threading
 
 from progressbar import AdaptiveETA, AdaptiveTransferSpeed, Bar, BouncingBar, \
@@ -628,7 +629,19 @@ class XNATSession(object):
             if self.xnat_session.debug:
                 self.logger.debug('Creating object of type {}'.format(cls))
 
-            self._cache['__objects__'][uri, fieldname] = cls(uri, self, datafields=datafields, fieldname=fieldname, **kwargs)
+            # Add project post-hoc hook for fixing some problems with shared
+            # resources, the .+? is the non greedy version of .+
+            match = re.search('/data(?:/archive)?/projects/(.+?)/', uri)
+
+            if match:
+                # Set overwrite field
+                overwrites = {'project': match.group(1)}
+            else:
+                overwrites = None
+
+            obj = cls(uri, self, datafields=datafields, fieldname=fieldname, overwrites=overwrites, **kwargs)
+
+            self._cache['__objects__'][uri, fieldname] = obj
         elif self.debug:
             self.logger.debug('Fetching object {} from cache'.format(uri))
 
