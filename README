@@ -2,13 +2,18 @@
 XNATPY
 ======
 A new XNAT client that exposes XNAT objects/functions as python
-objects/functions.
+objects/functions. The aim is to abstract as much of the REST API
+away as possible and make xnatpy feel like native Python code. This
+reduces the need for the user to know the details of the REST API.
+Low level functionality can still be accessed via the connection object
+which has `get`, `head`, `put`, `post`, `delete` methods for more
+directly calling the REST API.
 
 Disclaimer
 ----------
 
-This is NOT pyxnat, but a new module which is not as mature but uses a
-different philisophy for the user interface. Pyxnat is located at:
+This is NOT pyxnat, but a new module which uses a
+different philosophy for the user interface. Pyxnat is located at:
 `https://pythonhosted.org/pyxnat/ <https://pythonhosted.org/pyxnat/>`_
 
 Getting started

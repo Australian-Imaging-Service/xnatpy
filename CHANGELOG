@@ -10,6 +10,14 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Fixed
+~~~~~
+
+- xnatpy had issues with shared subjects and sessions as the REST API would
+  return the original object (with sharing information in it). Now xnatpy
+  check the requested uri and makes sure the information of the correct project
+  is used. Now shared objects can be used properly in xnatpy.
+
 Added
 ~~~~~
 
