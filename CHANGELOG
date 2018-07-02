@@ -7,6 +7,27 @@ The format is based on `Keep a Changelog <http://keepachangelog.com/>`_
 and this project adheres to `Semantic Versioning <http://semver.org/>`_
 
 
+0.3.9 - 2018-07-02
+------------------
+
+Fixed
+~~~~~
+
+- xnatpy had issues with shared subjects and sessions as the REST API would
+  return the original object (with sharing information in it). Now xnatpy
+  check the requested uri and makes sure the information of the correct project
+  is used. Now shared objects can be used properly in xnatpy.
+
+Added
+~~~~~
+
+- resource.upload now takes an ``extract`` parameter indicating data should be
+  extracted into files after upload
+- resource.upload_dir to upload an entire directory to a resource, the directory
+  will be added into the resources so that e.g. directory/a.txt becomes resource/a.txt
+- redirection detections, if the server has moved and is being redirected (e.g. using 
+  a 302 or 301 response), xnatpy will detect that and use the new url instead.
+
 0.3.8 - 2018-06-04
 ------------------
 

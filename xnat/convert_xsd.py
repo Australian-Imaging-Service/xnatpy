@@ -51,7 +51,10 @@ from __future__ import absolute_import
 from __future__ import unicode_literals
 import os
 import tempfile  # Needed by generated code
+from gzip import GzipFile  # Needed by generated code
+from tarfile import TarFile  # Needed by generated code
 from zipfile import ZipFile  # Needed by generated code
+from six import BytesIO  # Needed by generated code
 
 from xnat import search
 from xnat.core import XNATObject, XNATNestedObject, XNATSubObject, XNATListing, XNATSimpleListing, XNATSubListing, caching
@@ -98,13 +101,14 @@ class FileData(XNATObjectMixin):
     SECONDARY_LOOKUP_FIELD = "{file_secondary_lookup}"
     _XSI_TYPE = 'xnat:fileData'
 
-    def __init__(self, uri=None, xnat_session=None, id_=None, datafields=None, parent=None, fieldname=None, path=None):
+    def __init__(self, uri=None, xnat_session=None, id_=None, datafields=None, parent=None, fieldname=None, overwrites=None, path=None):
         super(FileData, self).__init__(uri=uri,
                                        xnat_session=xnat_session,
                                        id_=id_,
                                        datafields=datafields,
                                        parent=parent,
-                                       fieldname=fieldname)
+                                       fieldname=fieldname,
+                                       overwrites=overwrites)
 
         if path is not None:
             self._path = path

@@ -17,7 +17,11 @@ from __future__ import absolute_import
 from __future__ import unicode_literals
 import os
 import tempfile
+from gzip import GzipFile
 from zipfile import ZipFile
+from tarfile import TarFile
+
+from six import BytesIO
 
 from .core import caching, XNATBaseObject, XNATListing
 
@@ -88,6 +92,15 @@ class SubjectData(XNATBaseObject):
         return '{}/projects/{}/subjects/{}'.format(self.xnat_session.fulluri, self.project, self.id)
 
     @property
+    def label(self):
+        try:
+            sharing = next(x for x in self.fulldata['children'] if x['field'] == 'sharing/share')
+            share_info = next(x for x in sharing['items'] if x['data_fields']['project'] == self.project)
+            return share_info['data_fields']['label']
+        except (KeyError, StopIteration):
+            return self.get('label', type_=str)
+
+    @property
     @caching
     def files(self):
         return XNATListing(self.uri + '/files',
@@ -108,9 +121,30 @@ class SubjectData(XNATBaseObject):
         if verbose:
             self.logger.info('Downloaded subject to {}'.format(subject_dir))
 
+    def share(self, project, label=None):
+        # Create the uri for sharing
+        share_uri = '{}/projects/{}'.format(self.fulluri , project)
+
+        # Add label if needed
+        query = {}
+        if label is not None:
+            query['label'] = label
+
+        self.xnat_session.put(share_uri, query=query)
+        self.clearcache()
+
 
 class ExperimentData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'label'
+
+    @property
+    def label(self):
+        try:
+            sharing = next(x for x in self.fulldata['children'] if x['field'] == 'sharing/share')
+            share_info = next(x for x in sharing['items'] if x['data_fields']['project'] == self.project)
+            return share_info['data_fields']['label']
+        except (KeyError, StopIteration):
+            return self.get('label', type_=str)
 
 
 class SubjectAssessorData(XNATBaseObject):
@@ -154,6 +188,18 @@ class ImageSessionData(XNATBaseObject):
 
         if verbose:
             self.logger.info('\nDownloaded image session to {}'.format(target_dir))
+
+    def share(self, project, label=None):
+        # Create the uri for sharing
+        share_uri = '{}/projects/{}'.format(self.fulluri , project)
+
+        # Add label if needed
+        query = {}
+        if label is not None:
+            query['label'] = label
+
+        self.xnat_session.put(share_uri, query=query)
+        self.clearcache()
 
 
 class DerivedData(XNATBaseObject):
@@ -311,7 +357,76 @@ class AbstractResource(XNATBaseObject):
         if verbose:
             self.logger.info('Downloaded resource data to {}'.format(target_dir))
 
-    def upload(self, data, remotepath, overwrite=False):
+    def upload(self, data, remotepath, overwrite=False, extract=False):
         uri = '{}/files/{}'.format(self.uri, remotepath.lstrip('/'))
-        self.xnat_session.upload(uri, data, overwrite=overwrite)
+        query = {}
+        if extract:
+            query['extract'] = 'true'
+        self.xnat_session.upload(uri, data, overwrite=overwrite, query=query)
         self.files.clearcache()
+
+    def upload_dir(self, directory, overwrite=False, method='tgz_file'):
+        """
+        Upload a directory to an XNAT resource. This means that if you do
+        resource.upload_dir(directory) that if there is a file directory/a.txt
+        it will be uploaded to resource/files/a.txt
+
+        The method has 5 options, default is tgz_file:
+
+        1. ``per_file``: Scans the directory and uploads file by file
+        2. ``tar_memory``: Create a tar archive in memory and upload it in one go
+        3. ``tgz_memory``: Create a gzipped tar file in memory and upload that
+        4. ``tar_file``: Create a temporary tar file and upload that
+        4. ``tgz_file``: Create a temporary gzipped tar file and upload that
+
+        The considerations are that sometimes you can fit things in memory so
+        you can save disk IO by putting it in memory. The per file does not
+        create additional archives, but has one request per file so might be
+        slow when uploading many files.
+
+        :param str directory: The directory to upload
+        :param bool overwrite: Flag to force overwriting of files
+        :param str method: The method to use
+        """
+        if method == 'per_file':
+            for root, _, files in os.walk(directory):
+                for filename in files:
+                    file_path = os.path.join(root, filename)
+                    if os.path.getsize(file_path) == 0:
+                        continue
+
+                    target_path = os.path.relpath(file_path, directory)
+                    self.upload(file_path, target_path, overwrite=overwrite)
+        elif method == 'tar_memory':
+            fh = BytesIO()
+            tar_file = TarFile(name='upload.tar', mode='w', fileobj=fh)
+            tar_file.add(directory, '')
+            tar_file.close()
+            fh.seek(0)
+            self.upload(fh, 'upload.tar', overwrite=overwrite, extract=True)
+        elif method == 'tgz_memory':
+            fh = BytesIO()
+            with GzipFile(filename='upload.tar.gz', mode='w', fileobj=fh) as gzip_file:
+                with TarFile(name='upload.tar', mode='w', fileobj=gzip_file) as tar_file:
+                    tar_file.add(directory, '')
+
+            fh.seek(0)
+            self.upload(fh, 'upload.tar.gz', overwrite=overwrite, extract=True)
+            fh.close()
+        elif method == 'tar_file':
+            with tempfile.TemporaryFile('w+') as fh:
+                tar_file = TarFile(name='upload.tar', mode='w', fileobj=fh)
+                tar_file.add(directory, '')
+                tar_file.close()
+                fh.seek(0)
+                self.upload(fh, 'upload.tar', overwrite=overwrite, extract=True)
+        elif method == 'tgz_file':
+            with tempfile.TemporaryFile('w+') as fh:
+                with GzipFile(filename='upload.tar.gz', mode='w', fileobj=fh) as gzip_file:
+                    with TarFile(name='upload.tar', mode='w', fileobj=gzip_file) as tar_file:
+                        tar_file.add(directory, '')
+
+                fh.seek(0)
+                self.upload(fh, 'upload.tar.gz', overwrite=overwrite, extract=True)
+        else:
+            print('Selected invalid upload directory method!')
