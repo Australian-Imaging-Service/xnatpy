@@ -151,7 +151,7 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
                 raise exceptions.XNATValueError('Cannot determine PUT url!')
 
             if self.SECONDARY_LOOKUP_FIELD is not None:
-                if kwargs[self.SECONDARY_LOOKUP_FIELD] is not None:
+                if kwargs.get(self.SECONDARY_LOOKUP_FIELD) is not None:
                     uri = '{}/{}'.format(parent.uri, kwargs[self.SECONDARY_LOOKUP_FIELD])
                     self.logger.debug('PUT URI: {}'.format(uri))
                     query = {

@@ -10,6 +10,24 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Added
+~~~~~
+
+- The experiment.create_resource and scan.create_resource now take two extra
+  arguments: data_dir and method, which allow the uploading of the content of
+  a directory as the content of the newly created resource. The method is the
+  method for resource.upload_dir method
+
+Changed
+~~~~~~~
+
+- Removed wrong default argument for create_assessor (invalid assessor type)
+
+Fixed
+~~~~~
+
+- Fixed a small bug where an incorrect error message was giving when not giving
+  a value for the secondary label during object creation.
 
 0.3.9 - 2018-07-02
 ------------------
