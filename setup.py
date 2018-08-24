@@ -57,17 +57,25 @@ if __name__ == '__main__':
         f_version.write('hg_revision = "{}"\n'.format(hg_version))
         f_version.write('hg_branch = "{}"\n'.format(hg_branch))
 
+    # Set the entry point
+    entry_points = {
+        "console_scripts": [
+            "xnat_cp_project = xnat.scripts.copy_project:main",
+        ]
+    }
+
     setup(
         name='xnat',
         version=version,
         author='H.C. Achterberg',
         author_email='hakim.achterberg@gmail.com',
-        packages=[str('xnat')],
+        packages=[str('xnat'), str('xnat.scripts')],
         url='https://bitbucket.org/bigr_erasmusmc/xnatpy',
         license='Apache 2.0',
         description='An XNAT client that exposes the XNAT REST interface as python objects. Part of the interface is automatically generated based on the servers data model as defined by the xnat schema.',
         long_description=open('README').read(),
         install_requires=_requires,
+        entry_points=entry_points,
         classifiers=[
             "Development Status :: 4 - Beta",
             "Intended Audience :: Developers",
