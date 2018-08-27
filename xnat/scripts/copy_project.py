@@ -89,7 +89,8 @@ class XNATProjectCopier:
             if source_assessor.__xsi_type__ != 'xnat:mrAssessorData':
                 dest_class = self.dest_xnat.XNAT_CLASS_LOOKUP[source_assessor.__xsi_type__]
             else:
-                print("    Avoiding creation of invalid class xnat:mrAssessorData, substituting with xnat:qcAssessmentData")
+                print("    Avoiding creation of invalid class xnat:mrAssessorData,"
+                      " substituting with xnat:qcAssessmentData")
                 dest_class = self.dest_xnat.classes.QcAssessmentData
             dest_assessor = dest_class(parent=dest_experiment, label=source_assessor.label)
             print('    copying assessor {}'.format(source_assessor.label))

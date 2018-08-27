@@ -17,6 +17,8 @@ Added
   arguments: data_dir and method, which allow the uploading of the content of
   a directory as the content of the newly created resource. The method is the
   method for resource.upload_dir method
+- Command line callable scripts that copies an entire project to another xnat.
+  See ``xnat_cp_project --help``
 
 Changed
 ~~~~~~~
