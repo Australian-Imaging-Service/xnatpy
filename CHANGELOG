@@ -22,6 +22,9 @@ Changed
 ~~~~~~~
 
 - Removed wrong default argument for create_assessor (invalid assessor type)
+- The lower level get/put/post/delete methods now can process full uris as well
+  as paths as long as the uri start matches the server uri (e.g. instead of
+  using /data/projects you can also give https://serveruri.com/data/projects.
 
 Fixed
 ~~~~~

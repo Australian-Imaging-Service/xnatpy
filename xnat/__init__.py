@@ -306,6 +306,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
         requests_session.verify = False
 
     # Check for redirects
+    original_uri = server
     server = detect_redirection(server, requests_session, logger)
 
     # If no login was found, check if the new server has a known login as a backup
@@ -363,7 +364,8 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
 
     # Create the XNAT connection
     xnat_session = XNATSession(server=server, logger=logger,
-                               interface=requests_session, debug=debug)
+                               interface=requests_session, debug=debug,
+                               original_uri=original_uri)
     xnat_module.SESSION = xnat_session
 
     # Add the required information from the module into the xnat_session object
