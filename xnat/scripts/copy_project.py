@@ -68,6 +68,10 @@ class XNATProjectCopier:
 
     def copy_resources(self, source_object, dest_object, prefix=''):
         for resource_id, source_resource in source_object.resources.items():
+            if resource_id in dest_object.resources:
+                # Already there, do not copy
+                continue
+
             # Create a resources of the same xsitype
             dest_class = self.dest_xnat.XNAT_CLASS_LOOKUP[source_resource.__xsi_type__]
             dest_resource = dest_class(
