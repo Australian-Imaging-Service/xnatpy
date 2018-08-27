@@ -151,12 +151,15 @@ def main():
 
     with xnat.connect(args.source_host) as source_xnat, xnat.connect(args.dest_host) as dest_xnat:
         # Find projects
-        source_project = source_xnat.projects[args.source_project]
-        dest_project = dest_xnat.projects[args.dest_project]
-
-        # Create and start copier
-        copier = XNATProjectCopier(source_xnat, source_project, dest_xnat, dest_project)
-        copier.start()
+        try:
+            source_project = source_xnat.projects[args.source_project]
+            dest_project = dest_xnat.projects[args.dest_project]
+        except KeyError as error:
+            print(error.message)
+        else:
+            # Create and start copier
+            copier = XNATProjectCopier(source_xnat, source_project, dest_xnat, dest_project)
+            copier.start()
 
 
 if __name__ == '__main__':
