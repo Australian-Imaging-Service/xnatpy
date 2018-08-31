@@ -123,7 +123,7 @@ class SubjectData(XNATBaseObject):
 
     def share(self, project, label=None):
         # Create the uri for sharing
-        share_uri = '{}/projects/{}'.format(self.fulluri , project)
+        share_uri = '{}/projects/{}'.format(self.fulluri, project)
 
         # Add label if needed
         query = {}
@@ -168,7 +168,7 @@ class ImageSessionData(XNATBaseObject):
                            secondary_lookup_field='path',
                            xsi_type='xnat:fileData')
 
-    def create_assessor(self, label, type_='xnat:mrAssessorData'):
+    def create_assessor(self, label, type_):
         uri = '{}/assessors/{label}?xsiType={type}&label={label}&req_format=qs'.format(self.fulluri,
                                                                                        type=type_,
                                                                                        label=label)
@@ -227,11 +227,16 @@ class DerivedData(XNATBaseObject):
                            secondary_lookup_field='label',
                            xsi_type='xnat:resourceCatalog')
 
-    def create_resource(self, label, format=None):
+    def create_resource(self, label, format=None, data_dir=None, method=None):
         uri = '{}/resources/{}'.format(self.fulluri, label)
         self.xnat_session.put(uri, format=format)
         self.clearcache()  # The resources changed, so we have to clear the cache
-        return self.xnat_session.create_object(uri, type_='xnat:resourceCatalog')
+        resource = self.xnat_session.create_object(uri, type_='xnat:resourceCatalog')
+
+        if data_dir is not None:
+            resource.upload_dir(data_dir, method=method)
+
+        return resource
 
     def download(self, path, verbose=True):
         self.xnat_session.download_zip(self.uri + '/files', path, verbose=verbose)
@@ -260,11 +265,17 @@ class ImageScanData(XNATBaseObject):
                            secondary_lookup_field='label',
                            xsi_type='xnat:resourceCatalog')
 
-    def create_resource(self, label, format=None):
+    def create_resource(self, label, format=None, data_dir=None, method='tgz_file'):
         uri = '{}/resources/{}'.format(self.uri, label)
         self.xnat_session.put(uri, format=format)
         self.clearcache()  # The resources changed, so we have to clear the cache
-        return self.xnat_session.create_object(uri, type_='xnat:resourceCatalog')
+        resource = self.xnat_session.create_object(uri, type_='xnat:resourceCatalog')
+
+        if data_dir is not None:
+            resource.upload_dir(data_dir, method=method)
+
+        return resource
+
 
     def download(self, path, verbose=True):
         self.xnat_session.download_zip(self.uri + '/files', path, verbose=verbose)
@@ -388,6 +399,9 @@ class AbstractResource(XNATBaseObject):
         :param bool overwrite: Flag to force overwriting of files
         :param str method: The method to use
         """
+        if not isinstance(directory, str):
+            directory = str(directory)
+
         if method == 'per_file':
             for root, _, files in os.walk(directory):
                 for filename in files:

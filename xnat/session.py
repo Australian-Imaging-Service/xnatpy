@@ -80,7 +80,9 @@ class XNATSession(object):
                  be created by :py:func:`xnat.connect <xnat.connect>`.
     """
 
-    def __init__(self, server, logger, interface=None, user=None, password=None, keepalive=840, debug=False):
+    def __init__(self, server, logger, interface=None, user=None,
+                 password=None, keepalive=840, debug=False,
+                 original_uri=None):
         # Class lookup to populate (session specific, as all session have their
         # own classes based on the server xsd)
         self.XNAT_CLASS_LOOKUP = {}
@@ -89,6 +91,7 @@ class XNATSession(object):
         self._interface = interface
         self._projects = None
         self._server = parse.urlparse(server) if server else None
+        self._original_uri = original_uri.rstrip('/')
         self._cache = {'__objects__': {}}
         self.caching = True
         self._source_code_file = None
@@ -394,7 +397,12 @@ class XNATSession(object):
 
     def _format_uri(self, path, format=None, query=None):
         if path[0] != '/':
-            raise ValueError('The requested URI path should start with a / (e.g. /data/projects), found {}'.format(path))
+
+            if self._original_uri is not None and path.startswith(self._original_uri):
+                path = path[len(self._original_uri):]  # Strip original uri
+
+            if path[0] != '/':
+                raise ValueError('The requested URI path should start with a / (e.g. /data/projects), found {}'.format(path))
 
         if query is None:
             query = {}
