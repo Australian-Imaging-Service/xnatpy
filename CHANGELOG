@@ -9,6 +9,11 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Fixed
+~~~~~
+
+- Functions with an async parameter had them renamed to asynchronous as async
+  is a keyword as of Python 3.7
 
 0.3.10 - 2018-08-31
 -------------------

@@ -215,18 +215,18 @@ class PrearchiveSession(XNATBaseObject):
         self.clearcache()  # Make object unavailable
         return self.xnat_session.create_object(object_uri)
 
-    def delete(self, async=None):
+    def delete(self, asynchronous=None):
         """
         Delete the session from the prearchive
 
-        :param bool async: flag to delete asynchronously
+        :param bool asynchronous: flag to delete asynchronously
         :return: requests response
         """
         query = {'src': self.uri}
 
-        if async is not None:
-            if isinstance(async, bool):
-                if async:
+        if asynchronous is not None:
+            if isinstance(asynchronous, bool):
+                if asynchronous:
                     query['async'] = 'true'
                 else:
                     query['async'] = 'false'
@@ -237,18 +237,18 @@ class PrearchiveSession(XNATBaseObject):
         self.clearcache()
         return response
 
-    def rebuild(self, async=None):
+    def rebuild(self, asynchronous=None):
         """
         Rebuilt the session in the prearchive
 
-        :param bool async: flag to rebuild asynchronously
+        :param bool asynchronous: flag to rebuild asynchronously
         :return: requests response
         """
         query = {'src': self.uri}
 
-        if async is not None:
-            if isinstance(async, bool):
-                if async:
+        if asynchronous is not None:
+            if isinstance(asynchronous, bool):
+                if asynchronous:
                     query['async'] = 'true'
                 else:
                     query['async'] = 'false'
@@ -259,20 +259,20 @@ class PrearchiveSession(XNATBaseObject):
         self.clearcache()
         return response
 
-    def move(self, new_project, async=None):
+    def move(self, new_project, asynchronous=None):
         """
         Move the session to a different project in the prearchive
 
         :param str new_project: the id of the project to move to
-        :param bool async: flag to move asynchronously
+        :param bool asynchronous: flag to move asynchronously
         :return: requests response
         """
         query = {'src': self.uri,
                  'newProject': new_project}
 
-        if async is not None:
-            if isinstance(async, bool):
-                if async:
+        if asynchronous is not None:
+            if isinstance(asynchronous, bool):
+                if asynchronous:
                     query['async'] = 'true'
                 else:
                     query['async'] = 'false'
