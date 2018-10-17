@@ -59,7 +59,7 @@ def check_auth(requests_session, server, user, logger):
     logger.debug('Status: {}'.format(test_auth_request.status_code))
 
     if test_auth_request.status_code == 401 or 'Login attempt failed. Please try again.' in test_auth_request.text:
-        message = 'Login attempt failed, please make sure your credentials for user {} are correct!'.format(user)
+        message = 'Login attempt failed for {}, please make sure your credentials for user {} are correct!'.format(server, user)
         logger.critical(message)
         raise ValueError(message)
 
