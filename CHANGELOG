@@ -14,6 +14,7 @@ Fixed
 
 - Functions with an async parameter had them renamed to asynchronous as async
   is a keyword as of Python 3.7
+- Fix a bug in the XSD parsing when an XSD contains a schema-level simpleType
 
 0.3.10 - 2018-08-31
 -------------------
