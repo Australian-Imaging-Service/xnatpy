@@ -267,7 +267,7 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
     def fulluri(self):
         return self.uri
 
-    def mset(self, values=None, **kwargs):
+    def mset(self, values=None, timeout=None, **kwargs):
         if not isinstance(values, dict):
             values = kwargs
 
@@ -282,12 +282,12 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
             xpath = '{}/{}'.format(self.xpath, name)
             query[xpath] = value
 
-        self.xnat_session.put(self.fulluri, query=query)
+        self.xnat_session.put(self.fulluri, query=query, timeout=timeout)
         self.clearcache()
         if hasattr(self.parent, 'clearcache'):
             self.parent.clearcache()
 
-    def set(self, name, value, type_=None):
+    def set(self, name, value, type_=None, timeout=None):
         """
         Set a field in the current object
 
@@ -302,7 +302,7 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
             else:
                 value = type_(value)
 
-        self.mset({name: value})
+        self.mset({name: value}, timeout=timeout)
 
     def del_(self, name):
         self.mset({name: 'NULL'})

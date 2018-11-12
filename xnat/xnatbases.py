@@ -310,6 +310,32 @@ class ImageScanData(XNATBaseObject):
 class AbstractResource(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'label'
 
+    def __init__(self,
+                 uri=None,
+                 xnat_session=None,
+                 id_=None,
+                 datafields=None,
+                 parent=None,
+                 fieldname=None,
+                 overwrites=None,
+                 data_dir=None,
+                 upload_method=None,
+                 **kwargs):
+
+        super(AbstractResource, self).__init__(
+            uri=uri,
+            xnat_session=xnat_session,
+            id_=id_,
+            datafields=datafields,
+            parent=parent,
+            fieldname=fieldname,
+            overwrites=overwrites,
+            **kwargs
+        )
+
+        if data_dir is not None:
+            self.upload_dir(data_dir, method=upload_method)
+
     @property
     @caching
     def fulldata(self):
@@ -368,15 +394,15 @@ class AbstractResource(XNATBaseObject):
         if verbose:
             self.logger.info('Downloaded resource data to {}'.format(target_dir))
 
-    def upload(self, data, remotepath, overwrite=False, extract=False):
+    def upload(self, data, remotepath, overwrite=False, extract=False, **kwargs):
         uri = '{}/files/{}'.format(self.uri, remotepath.lstrip('/'))
         query = {}
         if extract:
             query['extract'] = 'true'
-        self.xnat_session.upload(uri, data, overwrite=overwrite, query=query)
+        self.xnat_session.upload(uri, data, overwrite=overwrite, query=query, **kwargs)
         self.files.clearcache()
 
-    def upload_dir(self, directory, overwrite=False, method='tgz_file'):
+    def upload_dir(self, directory, overwrite=False, method='tgz_file', **kwargs):
         """
         Upload a directory to an XNAT resource. This means that if you do
         resource.upload_dir(directory) that if there is a file directory/a.txt
@@ -402,6 +428,9 @@ class AbstractResource(XNATBaseObject):
         if not isinstance(directory, str):
             directory = str(directory)
 
+        # Make sure that a None or empty string is replaced by the default
+        method = method or 'tgz_file'
+
         if method == 'per_file':
             for root, _, files in os.walk(directory):
                 for filename in files:
@@ -410,14 +439,14 @@ class AbstractResource(XNATBaseObject):
                         continue
 
                     target_path = os.path.relpath(file_path, directory)
-                    self.upload(file_path, target_path, overwrite=overwrite)
+                    self.upload(file_path, target_path, overwrite=overwrite, **kwargs)
         elif method == 'tar_memory':
             fh = BytesIO()
             tar_file = TarFile(name='upload.tar', mode='w', fileobj=fh)
             tar_file.add(directory, '')
             tar_file.close()
             fh.seek(0)
-            self.upload(fh, 'upload.tar', overwrite=overwrite, extract=True)
+            self.upload(fh, 'upload.tar', overwrite=overwrite, extract=True, **kwargs)
         elif method == 'tgz_memory':
             fh = BytesIO()
             with GzipFile(filename='upload.tar.gz', mode='w', fileobj=fh) as gzip_file:
@@ -425,22 +454,22 @@ class AbstractResource(XNATBaseObject):
                     tar_file.add(directory, '')
 
             fh.seek(0)
-            self.upload(fh, 'upload.tar.gz', overwrite=overwrite, extract=True)
+            self.upload(fh, 'upload.tar.gz', overwrite=overwrite, extract=True, **kwargs)
             fh.close()
         elif method == 'tar_file':
-            with tempfile.TemporaryFile('w+') as fh:
+            with tempfile.TemporaryFile('wb+') as fh:
                 tar_file = TarFile(name='upload.tar', mode='w', fileobj=fh)
                 tar_file.add(directory, '')
                 tar_file.close()
                 fh.seek(0)
-                self.upload(fh, 'upload.tar', overwrite=overwrite, extract=True)
+                self.upload(fh, 'upload.tar', overwrite=overwrite, extract=True, **kwargs)
         elif method == 'tgz_file':
-            with tempfile.TemporaryFile('w+') as fh:
+            with tempfile.TemporaryFile('wb+') as fh:
                 with GzipFile(filename='upload.tar.gz', mode='w', fileobj=fh) as gzip_file:
                     with TarFile(name='upload.tar', mode='w', fileobj=gzip_file) as tar_file:
                         tar_file.add(directory, '')
 
                 fh.seek(0)
-                self.upload(fh, 'upload.tar.gz', overwrite=overwrite, extract=True)
+                self.upload(fh, 'upload.tar.gz', overwrite=overwrite, extract=True, **kwargs)
         else:
             print('Selected invalid upload directory method!')
