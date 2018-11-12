@@ -276,10 +276,10 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
             formatter = logging.Formatter('[%(levelname)s] %(message)s')
         handler.setFormatter(formatter)
 
-        if debug:
-            logger.setLevel('DEBUG')
-        elif loglevel is not None:
+        if loglevel is not None:
             logger.setLevel(loglevel)
+        elif debug:
+            logger.setLevel('DEBUG')
         else:
             logger.setLevel('WARNING')
 
@@ -310,7 +310,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     server = detect_redirection(server, requests_session, logger)
 
     # If no login was found, check if the new server has a known login as a backup
-    if user is None and password is None:
+    if original_uri != server and user is None and password is None:
         user, password = query_netrc(server, netrc_file, logger)
 
     # Generate module
