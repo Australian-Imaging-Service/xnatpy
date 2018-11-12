@@ -191,7 +191,14 @@ class ClassPrototype(object):
             return self.name
 
         while not base.startswith('XNAT'):
-            cls = self.parser.class_list[base]
+            try:
+                cls = self.parser.class_list[base]
+            except KeyError:
+                self.logger.debug('Class list: {}'.format(
+                    self.parser.class_list.keys())
+                )
+                raise
+
             if cls.base_class is None:
                 return base
 
@@ -237,7 +244,6 @@ class ClassPrototype(object):
             }
 
             self._writer = writers[self.class_type](self)
-            #self.parser.class_list[self._writer.name] = self._writer
 
         return self._writer
 
@@ -848,6 +854,9 @@ class SchemaParser(object):
             result = []
 
         for prefix, namespace in result:
+            self.logger.debug('Registering namespace: {}  ->  {}'.format(
+                prefix, namespace)
+            )
             self.namespace_prefixes[namespace] = prefix
             self.namespaces[prefix] = namespace
 
@@ -859,7 +868,7 @@ class SchemaParser(object):
 
         if self.debug:
             self.logger.debug('Found {} unknown tags: {}'.format(len(self.unknown_tags),
-                                                              self.unknown_tags))
+                                                                 self.unknown_tags))
 
         self.current_schema = None
         return True
@@ -876,7 +885,7 @@ class SchemaParser(object):
         self.parse_schema_xmlstring(data, schema_uri=schema_uri)
 
     def parse_schema_uri(self, requests_session, schema_uri):
-        self.logger.info('Retrieving schema from {}'.format(schema_uri))
+        self.logger.info('=== Retrieving schema from {} ==='.format(schema_uri))
 
         resp = requests_session.get(schema_uri, headers={'Accept-Encoding': None})
         data = resp.text
@@ -914,7 +923,7 @@ class SchemaParser(object):
         nr_previsited = len(visited)
         tries = 0
         yielded_anything = True
-        while len(visited) < len(self.class_list) and yielded_anything and tries < 250:
+        while len(visited) < len(self.class_list) and yielded_anything and tries < 25:
             yielded_anything = False
             for key, value in self.class_list.items():
                 if key in visited:
@@ -923,30 +932,33 @@ class SchemaParser(object):
                 base = value.base_class
                 if base is not None and not base.startswith('xs:') and base not in visited:
                     if self.debug:
-                        self.logger.info("Skipping {} because of base {} is not processed".format(value.name,
-                                                                                                  base))
+                        self.logger.debug("Wait with processing {} because base {} is not yet processed".format(
+                            value.name, base
+                        ))
                     continue
 
                 if value.parent_class is not None and value.parent_class not in visited:
                     if self.debug:
-                        self.logger.info("Skipping {} because of parent {} is not processed".format(value.name,
-                                                                                                    value.parent_class))
+                        self.logger.debug("Wait with processing {} because parent {} is not yet processed".format(
+                            value.name, value.parent_class
+                        ))
                     continue
 
                 visited.add(key)
                 yielded_anything = True
+                self.logger.info('Processing {} (base class {})'.format(value.name, value.base_class))
                 yield value
 
             tries += 1
 
         expected = len(self.class_list) + nr_previsited  # We started with two "visited" classes
         if self.debug:  # and len(visited) < len(self.class_list):
-            missed = set(self.class_list) - visited
+            missed = sorted(set(self.class_list) - visited)
             if self.debug:
                 self.logger.debug('Visited: {}, expected: {}'.format(len(visited), expected))
                 self.logger.debug('Visited: {}'.format(visited))
-                self.logger.debug('Missed: {}'.format(missed))
-                self.logger.debug('Missed base class: {}'.format([self.class_list[x].base_class for x in missed]))
+                self.logger.info('Missed: {}'.format(missed))
+                self.logger.info('Missed base class: {}'.format([self.class_list[x].base_class for x in missed]))
                 self.logger.debug('Spent {} iterations'.format(tries))
 
     @contextlib.contextmanager
@@ -981,7 +993,8 @@ class SchemaParser(object):
         else:
             self._parse_unknown(element)
 
-    # TODO: We should check the following restrictions: http://www.w3schools.com/xml/schema_facets.asp
+    # TODO: We should check the following restrictions:
+    # http://www.w3schools.com/xml/schema_facets.asp
 
     def _parse_all(self, element):
         self._parse_children(element)
@@ -996,7 +1009,7 @@ class SchemaParser(object):
         if self._current_class is not None:
             if name is None:
                 if self.debug:
-                    self.logger.debug('[DEBUG] Encountered attribute without name')
+                    self.logger.warning('Encountered attribute without name')
                 return
 
             new_property = AttributePrototype(self, name=name, logger=self.logger,
@@ -1061,7 +1074,7 @@ class SchemaParser(object):
                 self._current_class.abstract = abstract == "true"
             else:
                 if self.debug:
-                    self.logger.debug('[DEBUG] Encountered attribute without name')
+                    self.logger.warning('Encountered attribute without name')
             return
 
         if self._current_class is not None:
@@ -1139,6 +1152,7 @@ class SchemaParser(object):
 
         self._current_property.type = new_type
 
+        # Parse further restrictions
         self._parse_children(element)
 
     def _parse_schema(self, element):
@@ -1149,7 +1163,10 @@ class SchemaParser(object):
             self.target_namespace_prefix = ''
 
         for child in element.getchildren():
-            if child.tag == '{http://www.w3.org/2001/XMLSchema}complexType':
+            if child.tag in [
+                '{http://www.w3.org/2001/XMLSchema}complexType',
+                '{http://www.w3.org/2001/XMLSchema}simpleType'
+            ]:
                 self.parse(child)
             elif child.tag == '{http://www.w3.org/2001/XMLSchema}element':
                 name = child.get('name')
@@ -1169,7 +1186,33 @@ class SchemaParser(object):
         self._parse_children(element)
 
     def _parse_simple_type(self, element):
-        self._parse_children(element)
+        name = element.get("name")
+
+        # This is not top-level in the schema and just adds restriction
+        if name is None:
+            self._parse_children(element)
+            return
+
+        # This is the top-level of schema and a sort of typedef
+        if ':' not in name:
+            name = self.target_namespace_prefix + name
+
+        new_class = ClassPrototype(self,
+                                   name=name,
+                                   logger=self.logger,
+                                   simple=False)
+
+        new_property = AttributePrototype(self,
+                                          name="value",
+                                          logger=self.logger,
+                                          type=None)
+        new_class.attributes["value"] = new_property
+
+        self.class_list[name] = new_class
+
+        # Descend
+        with self._descend(new_class=new_class, new_property=new_property):
+            self._parse_children(element)
 
     def _parse_unknown(self, element):
         self.unknown_tags.add(element.tag)
@@ -1214,6 +1257,7 @@ class SchemaParser(object):
         '{http://www.w3.org/2001/XMLSchema}sequence': _parse_sequence,
         '{http://www.w3.org/2001/XMLSchema}simpleContent': _parse_simple_content,
         '{http://www.w3.org/2001/XMLSchema}simpleType': _parse_simple_type,
+        '{http://www.w3.org/2001/XMLSchema}unique': _parse_ignore,
         '{http://nrg.wustl.edu/xdat}element': _parse_xdat_element,
         '{http://nrg.wustl.edu/xdat}field': _parse_children,
         '{http://nrg.wustl.edu/xdat}sqlField': _parse_sqlfield,
@@ -1247,13 +1291,15 @@ class SchemaParser(object):
 
                         if element_class.name in self.class_list:
                             if self.debug:
-                                self.logger.info('REMOVING CLASS {} FROM PARSER!'.format(element_class.name))
+                                self.logger.info('Removing class {} from parser, it only has one element!'.format(
+                                    element_class.name)
+                                )
                             to_remove.add(element_class.name)
 
                         cls.attributes[property_key] = element_property
                     elif self.debug:
-                        self.logger.info("Ignoring non-listing...")
-                        self.logger.info("Element class: {}".format(element_class.__dict__))
+                        self.logger.debug("Ignoring non-listing...")
+                        self.logger.debug("Element class: {}".format(element_class.__dict__))
 
         for key in to_remove:
             del self.class_list[key]
@@ -1270,14 +1316,19 @@ class SchemaParser(object):
 
                 if prop.element_class.simple:
                     if self.debug:
-                        self.logger.debug('$$$ Found simple mapping {}.{} -> {}'.format(cls.name,
+                        self.logger.debug('Found simple mapping {}.{} -> {}'.format(cls.name,
                                                                                         property_key,
                                                                                         prop.element_class.name))
 
                     if len(prop.element_class.attributes) > 2:
                         if self.debug:
-                            self.logger.debug('!! Too many attributes')
+                            self.logger.debug(
+                                'Too many attributes to simplify (found {} attributed)'.format(
+                                    len(prop.element_class.attributes)
+                                )
+                            )
                         continue
+
                 # Attempt to find listings with simple type
 
     def write(self, code_file):
@@ -1285,15 +1336,17 @@ class SchemaParser(object):
             self.logger.debug('namespaces: {}'.format(self.namespaces))
             self.logger.debug('namespace prefixes: {}'.format(self.namespace_prefixes))
 
+        self.logger.info('=== Pruning data structure ===')
         before = set(self.class_list.keys())
         if self.debug:
-            self.logger.debug('#! Classed before prune: {}'.format(before))
+            self.logger.debug('Classed before prune: {}'.format(before))
         self.prune_tree()
         after = set(self.class_list.keys())
         if self.debug:
-            self.logger.debug('#! Classed after prune: {}'.format(after))
-            self.logger.debug('#! Classes removed: {}'.format(before - after))
+            self.logger.debug('Classed after prune: {}'.format(after))
+            self.logger.info('Classes removed by pruning: {}'.format(sorted(before - after)))
 
+        self.logger.info('=== Writing result ===')
         schemas = '\n'.join('# - {}'.format(s) for s in self.schemas)
         code_file.write(FILE_HEADER.format(schemas=schemas,
                                            file_secondary_lookup=SECONDARY_LOOKUP_FIELDS['xnat:fileData']))

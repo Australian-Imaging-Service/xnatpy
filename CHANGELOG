@@ -9,11 +9,25 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+0.3.11 - 2018-11-12
+-------------------
+
 Fixed
 ~~~~~
 
 - Functions with an async parameter had them renamed to asynchronous as async
   is a keyword as of Python 3.7
+- Fix a bug in the XSD parsing when an XSD contains a schema-level simpleType
+- Bug in upload_dir with python3 when using a method based on a temporary file
+
+Added
+~~~~~
+
+- Resource upload methods can now forward kwargs to the ``connection.upload``
+  method.
+- Resource constructor also optionally takes a ``data_dir`` and ``upload_method``
+  arguments for uploading data immediately after creation.
+
 
 0.3.10 - 2018-08-31
 -------------------
