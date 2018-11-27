@@ -1022,7 +1022,7 @@ class SchemaParser(object):
                 self._parse_children(element)
 
     def _parse_children(self, element):
-        for child in element.getchildren():
+        for child in list(element):
             self.parse(child)
 
     def _parse_choice(self, element):
@@ -1162,7 +1162,7 @@ class SchemaParser(object):
         else:
             self.target_namespace_prefix = ''
 
-        for child in element.getchildren():
+        for child in list(element):
             if child.tag in [
                 '{http://www.w3.org/2001/XMLSchema}complexType',
                 '{http://www.w3.org/2001/XMLSchema}simpleType'
