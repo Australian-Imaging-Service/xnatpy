@@ -676,7 +676,7 @@ class XNATListing(XNATBaseListing):
             if 'URI' not in entry and 'ID' not in entry:
                 # HACK: This is a Resource, that misses the URI and ID field (let's fix that)
                 entry['ID'] = entry['xnat_abstractresource_id']
-                entry['URI'] = '{}/{}'.format(self.uri, entry['label'])
+                entry['URI'] = '{}/{}'.format(self.uri, entry['xnat_abstractresource_id'])
             elif 'ID' not in entry:
                 # HACK: This is a File and it misses an ID field and has Name (let's fix that)
                 entry['ID'] = entry['Name']
