@@ -1,6 +1,6 @@
-======
 XNATPY
 ======
+
 A new XNAT client that exposes XNAT objects/functions as python
 objects/functions. The aim is to abstract as much of the REST API
 away as possible and make xnatpy feel like native Python code. This
@@ -52,10 +52,14 @@ This documentation is a stub, but shows the classes and methods available.
 Status
 ------
 
-Currently we do not support the creation of Projects, Subjects, Experiments, etc
-via code. You can create resources and uploads files to them. Also it is
+Currently we have basic support for almost all data on XNAT servers. Also it is 
 possible to import data via the import service (upload a zip file). There is
 also some support for working with the prearchive (reading, moving, deleting and
 archiving).
 
-There is virtuall no documentation or testing, this is a known limitation.
+Any function not exposed by the object-oriented API of xnatpy, but exposed in the
+XNAT REST API can be called via the generic get/put/post methods in the session
+object.
+
+There is at the moment still a lack of proper tests in the code base and the documentation
+is somewhat sparse, this is a known limitation and can hopefully be addressed in the future.
