@@ -342,9 +342,16 @@ class AbstractResource(XNATBaseObject):
         # FIXME: ugly hack because direct query fails
         uri, label = self.uri.rsplit('/', 1)
         data = self.xnat_session.get_json(uri)['ResultSet']['Result']
+        
+        def _guess_key( d ):
+            if 'URI' not in d and 'ID' not in d and 'xnat_abstractresource_id' in d:
+                # HACK: This is a Resource where the label is not part of the uri, it uses this xnat_abstractresource_id instead.
+                return d['xnat_abstractresource_id']
+            else:
+                return d['label']
 
         try:
-            data = next(x for x in data if x['label'] == label)
+            data = next(x for x in data if _guess_key(x) == label)
         except StopIteration:
             raise ValueError('Cannot find full data!')
 
