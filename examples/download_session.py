@@ -27,7 +27,7 @@ def download_xnat_session_type(connection, projectid, session, outputdir):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='delete all data with a given session type')
+    parser = argparse.ArgumentParser(description='download all data for a given session')
     parser.add_argument('--xnathost', type=unicode, required=True, help='xnat host name')
     parser.add_argument('--project', type=unicode, required=True, help='Project id')
     parser.add_argument('--session', type=unicode, required=True, help='session')
