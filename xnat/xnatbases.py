@@ -290,10 +290,12 @@ class ImageScanData(XNATBaseObject):
         if verbose:
             self.logger.info('Downloaded image scan data to {}'.format(target_dir))
 
-    def dicom_dump(self):
+    def dicom_dump(self, fields=None):
         """
         Retrieve a dicom dump as a JSON data structure
+        See the XAPI documentation for more detailed information: `DICOM Dump Service <https://wiki.xnat.org/display/XAPI/DICOM+Dump+Service+API>`_
 
+        :param list fields: Fields to filter for DICOM tags. It can either a tag name or tag number in the format GGGGEEEE (G = Group number, E = Element number)
         :return: JSON object (dict) representation of DICOM header
         :rtype: dict
         """
@@ -304,7 +306,7 @@ class ImageScanData(XNATBaseObject):
             self.image_session_id,
             self.id,
         )
-        return self.xnat_session.services.dicom_dump(src=uri)
+        return self.xnat_session.services.dicom_dump(src=uri, fields=fields)
 
 
 class AbstractResource(XNATBaseObject):
