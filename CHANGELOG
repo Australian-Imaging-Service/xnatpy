@@ -9,6 +9,13 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Added
+~~~~~
+
+- Adds fields argument to the dicom_dump method to filter on dicom tags server side.
+- Adds dicom_dump method to prearchive scan.
+
+
 0.3.11 - 2018-11-12
 -------------------
 

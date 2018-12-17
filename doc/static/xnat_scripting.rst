@@ -161,6 +161,19 @@ To see what is downloaded, we can use the linux command find from ipython::
     /home/hachterberg/temp/ANONYMIZ3/ANONYMIZ3/scans/1001-MR2-FLAIR/resources/DICOM/files/IM11.dcm
     ...
 
+Inspect DICOM tags
+------------------
+
+You can retrieve the dicom tags of a scan, in both the archive and the prearchive, using the dicom_dump method of a Scan or PrearchiveScan object.::
+
+    In [10]: experiment.scans['T1'].dicom_dump()
+
+You can also filter on DICOM tags using the field argument: ::
+
+    In [11]: experiment.scans['T1'].dicom_dump(fields="PatientID")
+    In [12]: experiment.scans['T1'].dicom_dump(fields=["PatientID", "PatientName"])
+
+
 Custom variables
 ----------------
 
