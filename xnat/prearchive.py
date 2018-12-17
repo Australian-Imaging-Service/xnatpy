@@ -337,6 +337,21 @@ class PrearchiveScan(XNATBaseObject):
     def xpath(self):
         return "xnatpy:prearchiveScan"
 
+    def dicom_dump(self, fields=None):
+        """
+        Retrieve a dicom dump as a JSON data structure
+        See the XAPI documentation for more detailed information: `DICOM Dump Service <https://wiki.xnat.org/display/XAPI/DICOM+Dump+Service+API>`_
+
+        :param list fields: Fields to filter for DICOM tags. It can either a tag name or tag number in the format GGGGEEEE (G = Group number, E = Element number)
+        :return: JSON object (dict) representation of DICOM header
+        :rtype: dict
+        """
+
+        # Get the uri in the following format /prearchive/projects/${project}/${timestamp}/${session}
+        # Get the uri and remove the first five characters: /data
+        uri = self.uri[5:]
+        return self.xnat_session.services.dicom_dump(src=uri, fields=fields)
+
 
 class PrearchiveFile(XNATBaseObject):
     def __init__(self, uri, xnat_session, id_=None, datafields=None, parent=None, fieldname=None):
