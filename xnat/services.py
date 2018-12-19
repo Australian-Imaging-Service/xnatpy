@@ -19,7 +19,7 @@ import mimetypes
 import collections
 
 from .prearchive import PrearchiveSession
-from .exceptions import XNATResponseError
+from .exceptions import XNATResponseError, XNATValueError
 
 TokenResult = collections.namedtuple('TokenResult', ('alias', 'secret'))
 
@@ -36,8 +36,22 @@ class Services(object):
     def xnat_session(self):
         return self._xnat_session
 
-    def dicom_dump(self, src):
-        return self.xnat_session.get_json('/data/services/dicomdump', query={'src': src})['ResultSet']['Result']
+    def dicom_dump(self, src, fields=None):
+        """
+        Retrieve a dicom dump as a JSON data structure
+        See the XAPI documentation for more detailed information: `DICOM Dump Service <https://wiki.xnat.org/display/XAPI/DICOM+Dump+Service+API>`_
+
+        :param lst fields: Fields to filter for DICOM tags. It can either a tag name or tag number in the format GGGGEEEE (G = Group number, E = Element number)
+        :return: JSON object (dict) representation of DICOM header
+        :rtype: dict
+        """
+        query_string = {'src': src}
+        if fields is not None:
+            if not isinstance(fields, (list, str)):
+                raise XNATValueError('The fields argument to .dicom_dump() should be list or a str and not {}'.format(type(fields)))
+            query_string['field'] = fields
+
+        return self.xnat_session.get_json('/data/services/dicomdump', query=query_string)['ResultSet']['Result']
 
     def import_(self, path, overwrite=None, quarantine=False, destination=None,
                 trigger_pipelines=None, project=None, subject=None,
