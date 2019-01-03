@@ -14,6 +14,9 @@ Added
 
 - Adds fields argument to the dicom_dump method to filter on dicom tags server side.
 - Adds dicom_dump method to prearchive scan.
+- Allow deleting variables by useing del object.variable, this works in most
+  cases but seem to fail server-side on restriction such as gender (it does
+  not match any valid options)
 
 
 0.3.11 - 2018-11-12

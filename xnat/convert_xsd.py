@@ -740,11 +740,16 @@ class PropertyWriter(AttributeWriter):
     @{clean_name}.setter
     def {clean_name}(self, value):{docstring}{restrictions}
         # Automatically generated Property, type: {type_}
-        self.set("{name}", value, type_="{type_}")""".format(clean_name=self.clean_name,
-                                                             docstring=docstring,
-                                                             name=self.name,
-                                                             type_=self.type,
-                                                             restrictions=self.restrictions_code())
+        self.set("{name}", value, type_="{type_}")
+        
+    @{clean_name}.deleter
+    def {clean_name}(self):{docstring}
+        # Automatically generated Property, type: {type_}
+        self.del_("{name}")""".format(clean_name=self.clean_name,
+                                      docstring=docstring,
+                                      name=self.name,
+                                      type_=self.type,
+                                      restrictions=self.restrictions_code())
 
 
 class SubObjectPropertyWriter(AttributeWriter):
