@@ -16,7 +16,8 @@
 from __future__ import absolute_import
 from __future__ import unicode_literals
 from abc import ABCMeta, abstractproperty
-from collections import MutableMapping, MutableSequence, Mapping, Sequence, namedtuple
+from collections import namedtuple
+from collections.abc import MutableMapping, MutableSequence, Mapping, Sequence
 import fnmatch
 import keyword
 import re
