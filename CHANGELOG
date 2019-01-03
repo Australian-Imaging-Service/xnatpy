@@ -18,6 +18,15 @@ Added
   cases but seem to fail server-side on restriction such as gender (it does
   not match any valid options)
 
+Changed
+~~~~~~~
+
+- Beter computation for the uri's of resources
+
+Fixed
+~~~~~
+
+- Fixed xml deprecation warning due to the use of .getchildren()
 
 0.3.11 - 2018-11-12
 -------------------
