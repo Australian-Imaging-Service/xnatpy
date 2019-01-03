@@ -290,10 +290,12 @@ class ImageScanData(XNATBaseObject):
         if verbose:
             self.logger.info('Downloaded image scan data to {}'.format(target_dir))
 
-    def dicom_dump(self):
+    def dicom_dump(self, fields=None):
         """
         Retrieve a dicom dump as a JSON data structure
+        See the XAPI documentation for more detailed information: `DICOM Dump Service <https://wiki.xnat.org/display/XAPI/DICOM+Dump+Service+API>`_
 
+        :param list fields: Fields to filter for DICOM tags. It can either a tag name or tag number in the format GGGGEEEE (G = Group number, E = Element number)
         :return: JSON object (dict) representation of DICOM header
         :rtype: dict
         """
@@ -304,7 +306,7 @@ class ImageScanData(XNATBaseObject):
             self.image_session_id,
             self.id,
         )
-        return self.xnat_session.services.dicom_dump(src=uri)
+        return self.xnat_session.services.dicom_dump(src=uri, fields=fields)
 
 
 class AbstractResource(XNATBaseObject):
@@ -342,9 +344,16 @@ class AbstractResource(XNATBaseObject):
         # FIXME: ugly hack because direct query fails
         uri, label = self.uri.rsplit('/', 1)
         data = self.xnat_session.get_json(uri)['ResultSet']['Result']
+        
+        def _guess_key( d ):
+            if 'URI' not in d and 'ID' not in d and 'xnat_abstractresource_id' in d:
+                # HACK: This is a Resource where the label is not part of the uri, it uses this xnat_abstractresource_id instead.
+                return d['xnat_abstractresource_id']
+            else:
+                return d['label']
 
         try:
-            data = next(x for x in data if x['label'] == label)
+            data = next(x for x in data if _guess_key(x) == label)
         except StopIteration:
             raise ValueError('Cannot find full data!')
 

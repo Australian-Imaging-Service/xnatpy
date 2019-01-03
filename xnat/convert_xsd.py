@@ -740,11 +740,16 @@ class PropertyWriter(AttributeWriter):
     @{clean_name}.setter
     def {clean_name}(self, value):{docstring}{restrictions}
         # Automatically generated Property, type: {type_}
-        self.set("{name}", value, type_="{type_}")""".format(clean_name=self.clean_name,
-                                                             docstring=docstring,
-                                                             name=self.name,
-                                                             type_=self.type,
-                                                             restrictions=self.restrictions_code())
+        self.set("{name}", value, type_="{type_}")
+        
+    @{clean_name}.deleter
+    def {clean_name}(self):{docstring}
+        # Automatically generated Property, type: {type_}
+        self.del_("{name}")""".format(clean_name=self.clean_name,
+                                      docstring=docstring,
+                                      name=self.name,
+                                      type_=self.type,
+                                      restrictions=self.restrictions_code())
 
 
 class SubObjectPropertyWriter(AttributeWriter):
@@ -1022,7 +1027,7 @@ class SchemaParser(object):
                 self._parse_children(element)
 
     def _parse_children(self, element):
-        for child in element.getchildren():
+        for child in list(element):
             self.parse(child)
 
     def _parse_choice(self, element):
@@ -1162,7 +1167,7 @@ class SchemaParser(object):
         else:
             self.target_namespace_prefix = ''
 
-        for child in element.getchildren():
+        for child in list(element):
             if child.tag in [
                 '{http://www.w3.org/2001/XMLSchema}complexType',
                 '{http://www.w3.org/2001/XMLSchema}simpleType'

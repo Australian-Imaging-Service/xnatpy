@@ -6,6 +6,28 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <http://keepachangelog.com/>`_
 and this project adheres to `Semantic Versioning <http://semver.org/>`_
 
+0.3.12 - 2019-01-03
+-------------------
+
+Added
+~~~~~
+
+- Adds fields argument to the dicom_dump method to filter on dicom tags server side.
+- Adds dicom_dump method to prearchive scan.
+- Allow deleting variables by useing del object.variable, this works in most
+  cases but seem to fail server-side on restriction such as gender (it does
+  not match any valid options)
+
+Changed
+~~~~~~~
+
+- Beter computation for the uri's of resources
+
+Fixed
+~~~~~
+
+- Fixed xml deprecation warning due to the use of .getchildren()
+
 0.3.11 - 2018-11-12
 -------------------
 

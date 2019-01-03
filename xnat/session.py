@@ -33,7 +33,7 @@ from .inspect import Inspect
 from .prearchive import Prearchive
 from .users import Users
 from .services import Services
-
+from .exceptions import XNATValueError
 
 try:
     FILE_TYPES = (file, io.IOBase)
@@ -419,7 +419,7 @@ class XNATSession(object):
                 path = path[len(self._original_uri):]  # Strip original uri
 
             if path[0] != '/':
-                raise ValueError('The requested URI path should start with a / (e.g. /data/projects), found {}'.format(path))
+                raise XNATValueError('The requested URI path should start with a / (e.g. /data/projects), found {}'.format(path))
 
         if query is None:
             query = {}
@@ -433,7 +433,7 @@ class XNATSession(object):
 
         # Create the query string
         if len(query) > 0:
-            query_string = parse.urlencode(query)
+            query_string = parse.urlencode(query, doseq=True)
         else:
             query_string = ''
 
