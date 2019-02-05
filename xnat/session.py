@@ -82,7 +82,7 @@ class XNATSession(object):
 
     def __init__(self, server, logger, interface=None, user=None,
                  password=None, keepalive=840, debug=False,
-                 original_uri=None):
+                 original_uri=None, logged_in_user=None):
         # Class lookup to populate (session specific, as all session have their
         # own classes based on the server xsd)
         self.XNAT_CLASS_LOOKUP = {}
@@ -92,6 +92,7 @@ class XNATSession(object):
         self._projects = None
         self._server = parse.urlparse(server) if server else None
         self._original_uri = original_uri.rstrip('/')
+        self._logged_in_user = logged_in_user
         self._cache = {'__objects__': {}}
         self.caching = True
         self._source_code_file = None
@@ -230,6 +231,10 @@ class XNATSession(object):
                 self._keepalive_event.clear()
 
     @property
+    def logged_in_user(self):
+        return self._logged_in_user
+
+    @property
     def debug(self):
         return self._debug
 
@@ -309,7 +314,7 @@ class XNATSession(object):
         self.logger.debug('GET URI {}'.format(uri))
 
         try:
-            response = self.interface.head(uri, allow_redirects=False, timeout=timeout)
+            response = self.interface.head(uri, allow_redirects=allow_redirects, timeout=timeout)
         except requests.exceptions.SSLError:
             raise exceptions.XNATSSLError('Encountered a problem with the SSL connection, are you sure the server is offering https?')
         self._check_response(response, accepted_status=accepted_status, uri=uri)  # Allow OK, as we want to get data

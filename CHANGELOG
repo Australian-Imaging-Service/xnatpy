@@ -9,6 +9,11 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Added
+~~~~~
+
+- Check which user is logged in and expose that in ``connection.logged_in_user``
+
 0.3.13 - 2019-01-07
 -------------------
 

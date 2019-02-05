@@ -86,16 +86,19 @@ def check_auth(requests_session, server, user, logger):
             logger.debug(test_auth_request.text)
             raise ValueError(message)
         else:
-            logger.info('Logged in successfully as {}'.format(match.group('username')))
+            username = match.group('username')
+            logger.info('Logged in successfully as {}'.format(username))
+            return username
+
+    match = re.search(r'<span id="user_info">Logged in as: <span style="color:red;">Guest</span>',
+                      test_auth_request.text)
+    if match is None:
+        message = 'Could not determine if login was successful!'
+        logger.error(message)
+        raise ValueError(message)
     else:
-        match = re.search(r'<span id="user_info">Logged in as: <span style="color:red;">Guest</span>',
-                          test_auth_request.text)
-        if match is None:
-            message = 'Could not determine if login was successful!'
-            logger.error(message)
-            raise ValueError(message)
-        else:
-            logger.info('Logged in as guest successfully')
+        logger.info('Logged in as guest successfully')
+        return 'guest'
 
 
 def parse_schemas_16(parser, requests_session, server, logger, extension_types=True):
@@ -317,7 +320,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     parser = SchemaParser(debug=debug, logger=logger)
 
     # Check if login is successful
-    check_auth(requests_session, server=server, user=user, logger=logger)
+    logged_in_user = check_auth(requests_session, server=server, user=user, logger=logger)
 
     # Parse schemas, start with determining XNAT version
     version_uri = '{}/data/version'.format(server.rstrip('/'))
@@ -365,7 +368,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     # Create the XNAT connection
     xnat_session = XNATSession(server=server, logger=logger,
                                interface=requests_session, debug=debug,
-                               original_uri=original_uri)
+                               original_uri=original_uri, logged_in_user=logged_in_user)
     xnat_module.SESSION = xnat_session
 
     # Add the required information from the module into the xnat_session object
