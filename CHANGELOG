@@ -14,6 +14,19 @@ Added
 
 - Check which user is logged in and expose that in ``connection.logged_in_user``
 
+Changed
+~~~~~~~
+
+- Refactored some code in the model building, which is optional if you only want
+  to use xnatpy for a convenience layer about requests. Giving ``no_build_model=True``
+  to the connect function will disable the scraping of the server xml structure and
+  not create all classes, but will log in and keep alive a connection. Only the simple
+  connection ``get``, ``head``, ``put``, ``post``, ``delete``, ``download``, ``upload``
+  methods are really safe to use in that case.
+- XNAT objects (including subject and experiments) will use the listing to get their
+  label and xsitype to avoid the need to get each experiment when creating a listing.
+  This makes listings way more efficient.
+
 0.3.13 - 2019-01-07
 -------------------
 

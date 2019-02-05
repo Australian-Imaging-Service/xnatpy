@@ -889,10 +889,10 @@ class SchemaParser(object):
 
         self.parse_schema_xmlstring(data, schema_uri=schema_uri)
 
-    def parse_schema_uri(self, requests_session, schema_uri):
+    def parse_schema_uri(self, xnat_session, schema_uri):
         self.logger.info('=== Retrieving schema from {} ==='.format(schema_uri))
 
-        resp = requests_session.get(schema_uri, headers={'Accept-Encoding': None})
+        resp = xnat_session.get(schema_uri, headers={'Accept-Encoding': None})
         data = resp.text
 
         try:

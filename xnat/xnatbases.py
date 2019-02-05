@@ -93,6 +93,14 @@ class SubjectData(XNATBaseObject):
 
     @property
     def label(self):
+        # Check if label is already inserted during listing, that should be valid
+        # label for the project under which it was listed in the first place
+        try:
+            return self._overwrites['label']
+        except KeyError:
+            pass
+
+        # Retrieve the label the hard and costly way
         try:
             sharing = next(x for x in self.fulldata['children'] if x['field'] == 'sharing/share')
             share_info = next(x for x in sharing['items'] if x['data_fields']['project'] == self.project)
@@ -139,6 +147,14 @@ class ExperimentData(XNATBaseObject):
 
     @property
     def label(self):
+        # Check if label is already inserted during listing, that should be valid
+        # label for the project under which it was listed in the first place
+        try:
+            return self._overwrites['label']
+        except KeyError:
+            pass
+
+        # Retrieve the label the hard and costly way
         try:
             sharing = next(x for x in self.fulldata['children'] if x['field'] == 'sharing/share')
             share_info = next(x for x in sharing['items'] if x['data_fields']['project'] == self.project)
@@ -191,7 +207,7 @@ class ImageSessionData(XNATBaseObject):
 
     def share(self, project, label=None):
         # Create the uri for sharing
-        share_uri = '{}/projects/{}'.format(self.fulluri , project)
+        share_uri = '{}/projects/{}'.format(self.fulluri, project)
 
         # Add label if needed
         query = {}

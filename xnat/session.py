@@ -267,7 +267,7 @@ class XNATSession(object):
             if response.status_code not in accepted_status or (not self.skip_response_content_check and response.text.startswith(('<!DOCTYPE', '<html>'))):
                 raise exceptions.XNATResponseError('Invalid response from XNATSession for url {} (status {}):\n{}'.format(uri, response.status_code, response.text))
 
-    def get(self, path, format=None, query=None, accepted_status=None, timeout=None):
+    def get(self, path, format=None, query=None, accepted_status=None, timeout=None, headers=None):
         """
         Retrieve the content of a given REST directory.
 
@@ -278,6 +278,7 @@ class XNATSession(object):
         :param list accepted_status: a list of the valid values for the return code, default [200]
         :param timeout: timeout in seconds, float or (connection timeout, read timeout)
         :type timeout: float or tuple
+        :param dict headers: the HTTP headers to include
         :returns: the requests reponse
         :rtype: requests.Response
         """
@@ -288,13 +289,13 @@ class XNATSession(object):
         self.logger.debug('GET URI {}'.format(uri))
 
         try:
-            response = self.interface.get(uri, timeout=timeout)
+            response = self.interface.get(uri, timeout=timeout, headers=headers)
         except requests.exceptions.SSLError:
             raise exceptions.XNATSSLError('Encountered a problem with the SSL connection, are you sure the server is offering https?')
         self._check_response(response, accepted_status=accepted_status, uri=uri)  # Allow OK, as we want to get data
         return response
 
-    def head(self, path, accepted_status=None, allow_redirects=False, timeout=None):
+    def head(self, path, accepted_status=None, allow_redirects=False, timeout=None, headers=None):
         """
         Retrieve the header for a http request of a given REST directory.
 
@@ -304,6 +305,7 @@ class XNATSession(object):
         :param bool allow_redirects: allow you request to be redirected
         :param timeout: timeout in seconds, float or (connection timeout, read timeout)
         :type timeout: float or tuple
+        :param dict headers: the HTTP headers to include
         :returns: the requests reponse
         :rtype: requests.Response
         """
@@ -314,13 +316,13 @@ class XNATSession(object):
         self.logger.debug('GET URI {}'.format(uri))
 
         try:
-            response = self.interface.head(uri, allow_redirects=allow_redirects, timeout=timeout)
+            response = self.interface.head(uri, allow_redirects=allow_redirects, timeout=timeout, headers=headers)
         except requests.exceptions.SSLError:
             raise exceptions.XNATSSLError('Encountered a problem with the SSL connection, are you sure the server is offering https?')
         self._check_response(response, accepted_status=accepted_status, uri=uri)  # Allow OK, as we want to get data
         return response
 
-    def post(self, path, data=None, json=None, format=None, query=None, accepted_status=None, timeout=None):
+    def post(self, path, data=None, json=None, format=None, query=None, accepted_status=None, timeout=None, headers=None):
         """
         Post data to a given REST directory.
 
@@ -333,6 +335,7 @@ class XNATSession(object):
         :param list accepted_status: a list of the valid values for the return code, default [200, 201]
         :param timeout: timeout in seconds, float or (connection timeout, read timeout)
         :type timeout: float or tuple
+        :param dict headers: the HTTP headers to include
         :returns: the requests reponse
         :rtype: requests.Response
         """
@@ -345,13 +348,13 @@ class XNATSession(object):
             self.logger.debug('POST DATA {}'.format(data))
 
         try:
-            response = self._interface.post(uri, data=data, json=json, timeout=timeout)
+            response = self._interface.post(uri, data=data, json=json, timeout=timeout, headers=headers)
         except requests.exceptions.SSLError:
             raise exceptions.XNATSSLError('Encountered a problem with the SSL connection, are you sure the server is offering https?')
         self._check_response(response, accepted_status=accepted_status, uri=uri)
         return response
 
-    def put(self, path, data=None, files=None, json=None, format=None, query=None, accepted_status=None, timeout=None):
+    def put(self, path, data=None, files=None, json=None, format=None, query=None, accepted_status=None, timeout=None, headers=None):
         """
         Put the content of a given REST directory.
 
@@ -369,6 +372,7 @@ class XNATSession(object):
         :param list accepted_status: a list of the valid values for the return code, default [200, 201]
         :param timeout: timeout in seconds, float or (connection timeout, read timeout)
         :type timeout: float or tuple
+        :param dict headers: the HTTP headers to include
         :returns: the requests reponse
         :rtype: requests.Response
         """
@@ -382,7 +386,7 @@ class XNATSession(object):
             self.logger.debug('PUT FILES {}'.format(data))
 
         try:
-            response = self._interface.put(uri, data=data, files=files, json=json, timeout=timeout)
+            response = self._interface.put(uri, data=data, files=files, json=json, timeout=timeout, headers=headers)
         except requests.exceptions.SSLError:
             raise exceptions.XNATSSLError('Encountered a problem with the SSL connection, are you sure the server is offering https?')
         self._check_response(response, accepted_status=accepted_status, uri=uri)  # Allow created OK or Create status (OK if already exists)
@@ -394,7 +398,7 @@ class XNATSession(object):
 
         :param str path: the path of the uri to retrieve (e.g. "/data/archive/projects")
                          the remained for the uri is constructed automatically
-        :param str format: the format of the request, this will add the format= to the query string
+        :param dict headers: the HTTP headers to include
         :param dict query: the values to be added to the query string in the uri
         :param list accepted_status: a list of the valid values for the return code, default [200]
         :param timeout: timeout in seconds, float or (connection timeout, read timeout)
