@@ -61,7 +61,7 @@ def check_auth(requests_session, server, user, logger):
     if test_auth_request.status_code == 401 or 'Login attempt failed. Please try again.' in test_auth_request.text:
         message = 'Login attempt failed for {}, please make sure your credentials for user {} are correct!'.format(server, user)
         logger.critical(message)
-        raise ValueError(message)
+        raise exceptions.XNATLoginFailedError(message)
 
     if test_auth_request.status_code != 200:
         logger.warning('Simple test requests did not return a 200 code! Server might not be functional!')
@@ -77,14 +77,17 @@ def check_auth(requests_session, server, user, logger):
                 match = re.search('Your password has expired', test_auth_request.text)
                 if match:
                     message = 'Your password has expired. Please try again after updating your password on XNAT.'
+                    logger.error(message)
+                    raise exceptions.XNATExpiredCredentialsError(message)
                 else:
                     message = 'Could not determine if login was successful!'
+                    logger.error(message)
+                    logger.debug(test_auth_request.text)
+                    raise exceptions.XNATAuthError(message)
             else:
                 message = 'Login failed (in guest mode)!'
-
-            logger.error(message)
-            logger.debug(test_auth_request.text)
-            raise ValueError(message)
+                logger.error(message)
+                raise exceptions.XNATLoginFailedError(message)
         else:
             username = match.group('username')
             logger.info('Logged in successfully as {}'.format(username))
@@ -95,7 +98,7 @@ def check_auth(requests_session, server, user, logger):
     if match is None:
         message = 'Could not determine if login was successful!'
         logger.error(message)
-        raise ValueError(message)
+        raise exceptions.XNATAuthError(message)
     else:
         logger.info('Logged in as guest successfully')
         return 'guest'

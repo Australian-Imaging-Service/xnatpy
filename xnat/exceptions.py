@@ -55,3 +55,22 @@ class XNATSSLError(XNATError, requests.exceptions.SSLError):
     """
     XNATpy error for when there is an SSL problem
     """
+
+
+# Inherit from ValueError for backwards compatibility (they used to be value errors)
+class XNATAuthError(XNATError, ValueError):
+    """
+    XNATpy error for when there is a problem with logging in or authentication
+    """
+
+
+class XNATLoginFailedError(XNATAuthError):
+    """
+    Failed to login, this usually means the credentials are incorrect.
+    """
+
+
+class XNATExpiredCredentialsError(XNATAuthError):
+    """
+    The users credentials are expired and should be updated in the web interface of XNAT
+    """
