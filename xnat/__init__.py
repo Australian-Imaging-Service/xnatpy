@@ -187,13 +187,12 @@ def detect_redirection(server, session, logger):
     :param logger:
     :return: the server url to use later
     """
-    server = server.rstrip('/')
-    response = session.get(server + '/data/projects')
-    response_url = response.url[:-14]
-    if response_url != server:
+    response = session.get(server.rstrip('/') + '/data/projects')
+    logger.debug('Response url: {}'.format(response.url))
+    response_url = response.url[:-13]
+    if response_url != server and response_url != server + '/':
         logger.warning('Detected a redirect from {0} to {1}, using {1} from now on'.format(server, response_url))
-        return response_url
-    return server
+    return response_url
 
 
 def query_netrc(server, netrc_file, logger):
