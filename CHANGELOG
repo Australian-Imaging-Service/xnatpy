@@ -27,6 +27,11 @@ Changed
   label and xsitype to avoid the need to get each experiment when creating a listing.
   This makes listings way more efficient.
 
+Fixed
+~~~~~
+
+- Bug with auth when xnat was not running in the server root, but rather in a subdirectory
+
 0.3.13 - 2019-01-07
 -------------------
 
