@@ -15,6 +15,7 @@
 
 from __future__ import absolute_import
 from __future__ import unicode_literals
+import datetime
 import io
 import netrc
 import os
@@ -81,7 +82,7 @@ class XNATSession(object):
     """
 
     def __init__(self, server, logger, interface=None, user=None,
-                 password=None, keepalive=840, debug=False,
+                 password=None, keepalive=None, debug=False,
                  original_uri=None, logged_in_user=None):
         # Class lookup to populate (session specific, as all session have their
         # own classes based on the server xsd)
@@ -112,13 +113,23 @@ class XNATSession(object):
         self.skip_response_check = False
         self.skip_response_content_check = False
 
+        session_expiration = self.session_expiration_time
+        if session_expiration is not None:
+            # 30 seconds before the expiration, at most once per 10 seconds
+            default_keepalive = max(session_expiration[1] - 30, 10)
+        else:
+            default_keepalive = 14 * 60  # Default to 14 minutes
+
         # Set the keep alive settings and spawn the keepalive thread for sending heartbeats
+        if keepalive is None or keepalive is True:
+            keepalive = default_keepalive
+
         if isinstance(keepalive, int) and keepalive > 0:
             self._keepalive = True
             self._keepalive_interval = keepalive
         else:
             self._keepalive = False
-            self._keepalive_interval = 14 * 60
+            self._keepalive_interval = default_keepalive  # Not used while keepalive is false, but set a default
 
         self._keepalive_running = False
         self._keepalive_thread = None
@@ -163,6 +174,7 @@ class XNATSession(object):
         self._keepalive_thread = threading.Thread(target=self._keepalive_thread_run)
         self._keepalive_thread.daemon = True  # Make sure thread stops if program stops
         self._keepalive_thread.start()
+        self.heartbeat()  # Make sure the heartbeat is given and there is no chance of timeout
 
     def disconnect(self):
         # Stop the keepalive thread
@@ -256,6 +268,32 @@ class XNATSession(object):
     @property
     def xnat_session(self):
         return self
+
+    @property
+    def session_expiration_time(self):
+        """
+        Get the session expiration time information from the cookies. This
+        returns the timestamp (datetime format) when the session was created
+        and an integer with the session timeout interval.
+
+        This can return None if the cookie is not found or cannot be parsed.
+
+        :return: datetime with last session refresh and integer with timeout in seconds
+        :rtype: tuple
+        """
+        expiration_string = self.interface.cookies.get('SESSION_EXPIRATION_TIME')
+
+        if expiration_string is None:
+            return
+
+        match = re.match(r'^"(?P<timestamp>\d+),(?P<interval>\d+)"$', expiration_string)
+        if match is None:
+            self.logger.warning('Could not parse SESSION_EXPIRATION_TIME cookie')
+            return None
+
+        session_timestamp = datetime.datetime.fromtimestamp(int(match.group('timestamp')) / 1000)
+        expiration_interval = int(match.group('interval')) / 1000
+        return session_timestamp, expiration_interval
 
     def _check_response(self, response, accepted_status=None, uri=None):
         if self.debug:
