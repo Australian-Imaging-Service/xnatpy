@@ -116,7 +116,11 @@ class XNATSession(object):
         session_expiration = self.session_expiration_time
         if session_expiration is not None:
             # 30 seconds before the expiration, at most once per 10 seconds
-            default_keepalive = max(session_expiration[1] - 30, 10)
+            if session_expiration[1] < 30:
+                self.logger.warning(
+                    ('Server session expiration time ({}) is lower than 30 seconds,'
+                     ' setting heartbeat interval to the minimum of 10 seconds.').format(session_expiration[1]))
+            default_keepalive = max(session_expiration[1] - 20, 10)
         else:
             default_keepalive = 14 * 60  # Default to 14 minutes
 
