@@ -13,6 +13,8 @@ Added
 ~~~~~
 
 - Check which user is logged in and expose that in ``connection.logged_in_user``
+- Check the cookies to set the appropriate heartbeat interval for the server.
+- Allow getting the session expiration information with ``connection.session_expiration_time``
 
 Changed
 ~~~~~~~
