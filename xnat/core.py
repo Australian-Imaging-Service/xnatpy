@@ -200,6 +200,7 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
             self._cache['data'] = datafields
 
         self._overwrites = overwrites or {}
+        self._overwrites.update(kwargs)
 
     def __str__(self):
         if hasattr(self, '_DISPLAY_IDENTIFIER') and self._DISPLAY_IDENTIFIER is not None:

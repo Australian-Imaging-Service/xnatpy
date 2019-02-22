@@ -6,8 +6,36 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <http://keepachangelog.com/>`_
 and this project adheres to `Semantic Versioning <http://semver.org/>`_
 
+0.3.14 - 2019-02-22
+-------------------
+
+Added
+~~~~~
+
+- Check which user is logged in and expose that in ``connection.logged_in_user``
+- Check the cookies to set the appropriate heartbeat interval for the server.
+- Allow getting the session expiration information with ``connection.session_expiration_time``
+
+Changed
+~~~~~~~
+
+- Refactored some code in the model building, which is optional if you only want
+  to use xnatpy for a convenience layer about requests. Giving ``no_build_model=True``
+  to the connect function will disable the scraping of the server xml structure and
+  not create all classes, but will log in and keep alive a connection. Only the simple
+  connection ``get``, ``head``, ``put``, ``post``, ``delete``, ``download``, ``upload``
+  methods are really safe to use in that case.
+- XNAT objects (including subject and experiments) will use the listing to get their
+  label and xsitype to avoid the need to get each experiment when creating a listing.
+  This makes listings way more efficient.
+
+Fixed
+~~~~~
+
+- Bug with auth when xnat was not running in the server root, but rather in a subdirectory
+
 0.3.13 - 2019-01-07
-----------
+-------------------
 
 Fixed
 ~~~~~

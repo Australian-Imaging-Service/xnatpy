@@ -15,6 +15,7 @@
 
 from __future__ import absolute_import
 from __future__ import unicode_literals
+import datetime
 import io
 import netrc
 import os
@@ -81,8 +82,8 @@ class XNATSession(object):
     """
 
     def __init__(self, server, logger, interface=None, user=None,
-                 password=None, keepalive=840, debug=False,
-                 original_uri=None):
+                 password=None, keepalive=None, debug=False,
+                 original_uri=None, logged_in_user=None):
         # Class lookup to populate (session specific, as all session have their
         # own classes based on the server xsd)
         self.XNAT_CLASS_LOOKUP = {}
@@ -91,7 +92,11 @@ class XNATSession(object):
         self._interface = interface
         self._projects = None
         self._server = parse.urlparse(server) if server else None
-        self._original_uri = original_uri.rstrip('/')
+        if original_uri is not None:
+            self._original_uri = original_uri.rstrip('/')
+        else:
+            self._original_uri = server.rstrip('/')
+        self._logged_in_user = logged_in_user
         self._cache = {'__objects__': {}}
         self.caching = True
         self._source_code_file = None
@@ -111,13 +116,27 @@ class XNATSession(object):
         self.skip_response_check = False
         self.skip_response_content_check = False
 
+        session_expiration = self.session_expiration_time
+        if session_expiration is not None:
+            # 30 seconds before the expiration, at most once per 10 seconds
+            if session_expiration[1] < 30:
+                self.logger.warning(
+                    ('Server session expiration time ({}) is lower than 30 seconds,'
+                     ' setting heartbeat interval to the minimum of 10 seconds.').format(session_expiration[1]))
+            default_keepalive = max(session_expiration[1] - 20, 10)
+        else:
+            default_keepalive = 14 * 60  # Default to 14 minutes
+
         # Set the keep alive settings and spawn the keepalive thread for sending heartbeats
+        if keepalive is None or keepalive is True:
+            keepalive = default_keepalive
+
         if isinstance(keepalive, int) and keepalive > 0:
             self._keepalive = True
             self._keepalive_interval = keepalive
         else:
             self._keepalive = False
-            self._keepalive_interval = 14 * 60
+            self._keepalive_interval = default_keepalive  # Not used while keepalive is false, but set a default
 
         self._keepalive_running = False
         self._keepalive_thread = None
@@ -162,6 +181,7 @@ class XNATSession(object):
         self._keepalive_thread = threading.Thread(target=self._keepalive_thread_run)
         self._keepalive_thread.daemon = True  # Make sure thread stops if program stops
         self._keepalive_thread.start()
+        self.heartbeat()  # Make sure the heartbeat is given and there is no chance of timeout
 
     def disconnect(self):
         # Stop the keepalive thread
@@ -230,6 +250,10 @@ class XNATSession(object):
                 self._keepalive_event.clear()
 
     @property
+    def logged_in_user(self):
+        return self._logged_in_user
+
+    @property
     def debug(self):
         return self._debug
 
@@ -252,6 +276,32 @@ class XNATSession(object):
     def xnat_session(self):
         return self
 
+    @property
+    def session_expiration_time(self):
+        """
+        Get the session expiration time information from the cookies. This
+        returns the timestamp (datetime format) when the session was created
+        and an integer with the session timeout interval.
+
+        This can return None if the cookie is not found or cannot be parsed.
+
+        :return: datetime with last session refresh and integer with timeout in seconds
+        :rtype: tuple
+        """
+        expiration_string = self.interface.cookies.get('SESSION_EXPIRATION_TIME')
+
+        if expiration_string is None:
+            return
+
+        match = re.match(r'^"(?P<timestamp>\d+),(?P<interval>\d+)"$', expiration_string)
+        if match is None:
+            self.logger.warning('Could not parse SESSION_EXPIRATION_TIME cookie')
+            return None
+
+        session_timestamp = datetime.datetime.fromtimestamp(int(match.group('timestamp')) / 1000)
+        expiration_interval = int(match.group('interval')) / 1000
+        return session_timestamp, expiration_interval
+
     def _check_response(self, response, accepted_status=None, uri=None):
         if self.debug:
             self.logger.debug('Received response with status code: {}'.format(response.status_code))
@@ -262,7 +312,7 @@ class XNATSession(object):
             if response.status_code not in accepted_status or (not self.skip_response_content_check and response.text.startswith(('<!DOCTYPE', '<html>'))):
                 raise exceptions.XNATResponseError('Invalid response from XNATSession for url {} (status {}):\n{}'.format(uri, response.status_code, response.text))
 
-    def get(self, path, format=None, query=None, accepted_status=None, timeout=None):
+    def get(self, path, format=None, query=None, accepted_status=None, timeout=None, headers=None):
         """
         Retrieve the content of a given REST directory.
 
@@ -273,6 +323,7 @@ class XNATSession(object):
         :param list accepted_status: a list of the valid values for the return code, default [200]
         :param timeout: timeout in seconds, float or (connection timeout, read timeout)
         :type timeout: float or tuple
+        :param dict headers: the HTTP headers to include
         :returns: the requests reponse
         :rtype: requests.Response
         """
@@ -283,13 +334,13 @@ class XNATSession(object):
         self.logger.debug('GET URI {}'.format(uri))
 
         try:
-            response = self.interface.get(uri, timeout=timeout)
+            response = self.interface.get(uri, timeout=timeout, headers=headers)
         except requests.exceptions.SSLError:
             raise exceptions.XNATSSLError('Encountered a problem with the SSL connection, are you sure the server is offering https?')
         self._check_response(response, accepted_status=accepted_status, uri=uri)  # Allow OK, as we want to get data
         return response
 
-    def head(self, path, accepted_status=None, allow_redirects=False, timeout=None):
+    def head(self, path, accepted_status=None, allow_redirects=False, timeout=None, headers=None):
         """
         Retrieve the header for a http request of a given REST directory.
 
@@ -299,6 +350,7 @@ class XNATSession(object):
         :param bool allow_redirects: allow you request to be redirected
         :param timeout: timeout in seconds, float or (connection timeout, read timeout)
         :type timeout: float or tuple
+        :param dict headers: the HTTP headers to include
         :returns: the requests reponse
         :rtype: requests.Response
         """
@@ -309,13 +361,13 @@ class XNATSession(object):
         self.logger.debug('GET URI {}'.format(uri))
 
         try:
-            response = self.interface.head(uri, allow_redirects=False, timeout=timeout)
+            response = self.interface.head(uri, allow_redirects=allow_redirects, timeout=timeout, headers=headers)
         except requests.exceptions.SSLError:
             raise exceptions.XNATSSLError('Encountered a problem with the SSL connection, are you sure the server is offering https?')
         self._check_response(response, accepted_status=accepted_status, uri=uri)  # Allow OK, as we want to get data
         return response
 
-    def post(self, path, data=None, json=None, format=None, query=None, accepted_status=None, timeout=None):
+    def post(self, path, data=None, json=None, format=None, query=None, accepted_status=None, timeout=None, headers=None):
         """
         Post data to a given REST directory.
 
@@ -328,6 +380,7 @@ class XNATSession(object):
         :param list accepted_status: a list of the valid values for the return code, default [200, 201]
         :param timeout: timeout in seconds, float or (connection timeout, read timeout)
         :type timeout: float or tuple
+        :param dict headers: the HTTP headers to include
         :returns: the requests reponse
         :rtype: requests.Response
         """
@@ -340,13 +393,13 @@ class XNATSession(object):
             self.logger.debug('POST DATA {}'.format(data))
 
         try:
-            response = self._interface.post(uri, data=data, json=json, timeout=timeout)
+            response = self._interface.post(uri, data=data, json=json, timeout=timeout, headers=headers)
         except requests.exceptions.SSLError:
             raise exceptions.XNATSSLError('Encountered a problem with the SSL connection, are you sure the server is offering https?')
         self._check_response(response, accepted_status=accepted_status, uri=uri)
         return response
 
-    def put(self, path, data=None, files=None, json=None, format=None, query=None, accepted_status=None, timeout=None):
+    def put(self, path, data=None, files=None, json=None, format=None, query=None, accepted_status=None, timeout=None, headers=None):
         """
         Put the content of a given REST directory.
 
@@ -364,6 +417,7 @@ class XNATSession(object):
         :param list accepted_status: a list of the valid values for the return code, default [200, 201]
         :param timeout: timeout in seconds, float or (connection timeout, read timeout)
         :type timeout: float or tuple
+        :param dict headers: the HTTP headers to include
         :returns: the requests reponse
         :rtype: requests.Response
         """
@@ -377,7 +431,7 @@ class XNATSession(object):
             self.logger.debug('PUT FILES {}'.format(data))
 
         try:
-            response = self._interface.put(uri, data=data, files=files, json=json, timeout=timeout)
+            response = self._interface.put(uri, data=data, files=files, json=json, timeout=timeout, headers=headers)
         except requests.exceptions.SSLError:
             raise exceptions.XNATSSLError('Encountered a problem with the SSL connection, are you sure the server is offering https?')
         self._check_response(response, accepted_status=accepted_status, uri=uri)  # Allow created OK or Create status (OK if already exists)
@@ -389,7 +443,7 @@ class XNATSession(object):
 
         :param str path: the path of the uri to retrieve (e.g. "/data/archive/projects")
                          the remained for the uri is constructed automatically
-        :param str format: the format of the request, this will add the format= to the query string
+        :param dict headers: the HTTP headers to include
         :param dict query: the values to be added to the query string in the uri
         :param list accepted_status: a list of the valid values for the return code, default [200]
         :param timeout: timeout in seconds, float or (connection timeout, read timeout)

@@ -41,7 +41,7 @@ from .convert_xsd import SchemaParser
 
 GEN_MODULES = {}
 
-__version__ = '0.3.13'
+__version__ = '0.3.14'
 __all__ = ['connect', 'exceptions']
 
 
@@ -61,7 +61,7 @@ def check_auth(requests_session, server, user, logger):
     if test_auth_request.status_code == 401 or 'Login attempt failed. Please try again.' in test_auth_request.text:
         message = 'Login attempt failed for {}, please make sure your credentials for user {} are correct!'.format(server, user)
         logger.critical(message)
-        raise ValueError(message)
+        raise exceptions.XNATLoginFailedError(message)
 
     if test_auth_request.status_code != 200:
         logger.warning('Simple test requests did not return a 200 code! Server might not be functional!')
@@ -77,28 +77,34 @@ def check_auth(requests_session, server, user, logger):
                 match = re.search('Your password has expired', test_auth_request.text)
                 if match:
                     message = 'Your password has expired. Please try again after updating your password on XNAT.'
+                    logger.error(message)
+                    raise exceptions.XNATExpiredCredentialsError(message)
                 else:
                     message = 'Could not determine if login was successful!'
+                    logger.error(message)
+                    logger.debug(test_auth_request.text)
+                    raise exceptions.XNATAuthError(message)
             else:
                 message = 'Login failed (in guest mode)!'
-
-            logger.error(message)
-            logger.debug(test_auth_request.text)
-            raise ValueError(message)
+                logger.error(message)
+                raise exceptions.XNATLoginFailedError(message)
         else:
-            logger.info('Logged in successfully as {}'.format(match.group('username')))
+            username = match.group('username')
+            logger.info('Logged in successfully as {}'.format(username))
+            return username
+
+    match = re.search(r'<span id="user_info">Logged in as: <span style="color:red;">Guest</span>',
+                      test_auth_request.text)
+    if match is None:
+        message = 'Could not determine if login was successful!'
+        logger.error(message)
+        raise exceptions.XNATAuthError(message)
     else:
-        match = re.search(r'<span id="user_info">Logged in as: <span style="color:red;">Guest</span>',
-                          test_auth_request.text)
-        if match is None:
-            message = 'Could not determine if login was successful!'
-            logger.error(message)
-            raise ValueError(message)
-        else:
-            logger.info('Logged in as guest successfully')
+        logger.info('Logged in as guest successfully')
+        return 'guest'
 
 
-def parse_schemas_16(parser, requests_session, server, logger, extension_types=True):
+def parse_schemas_16(parser, xnat_session, extension_types=True):
     """
     Retrieve and parse schemas for an XNAT version 1.6.x
 
@@ -109,9 +115,9 @@ def parse_schemas_16(parser, requests_session, server, logger, extension_types=T
     :param bool extension_types: flag to enabled/disable scanning for extension types
     """
     # Retrieve schema from XNAT server
-    schema_uri = '{}/schemas/xnat/xnat.xsd'.format(server.rstrip('/'))
+    schema_uri = '/schemas/xnat/xnat.xsd'
 
-    success = parser.parse_schema_uri(requests_session=requests_session,
+    success = parser.parse_schema_uri(xnat_session=xnat_session,
                                       schema_uri=schema_uri)
 
     if not success:
@@ -119,35 +125,39 @@ def parse_schemas_16(parser, requests_session, server, logger, extension_types=T
 
     # Parse extension types
     if extension_types:
-        projects_uri = '{}/data/projects?format=json'.format(server.rstrip('/'))
-        response = requests_session.get(projects_uri)
-        if response.status_code != 200:
-            raise ValueError('Could not get project list from {} (status {})'.format(projects_uri,
-                                                                                     response.status_code))
+        projects_uri = '/data/projects?format=json'
+        try:
+            response = xnat_session.get(projects_uri)
+        except exceptions.XNATResponseError as exception:
+            message = 'Could list projects while scanning for extension types: {}'.format(exception)
+            xnat_session.logger.critical(message)
+            raise exception
+
         try:
             project_id = response.json()['ResultSet']['Result'][0]['ID']
         except (KeyError, IndexError):
             raise ValueError('Could not find an example project for scanning extension types!')
 
-        project_uri = '{}/data/projects/{}?format=xml'.format(server.rstrip('/'), project_id)
-        response = requests_session.get(project_uri)
-
-        if response.status_code != 200:
-            raise ValueError('Could not get example project from {} (status {})'.format(project_uri,
-                                                                                        response.status_code))
+        project_uri = '/data/projects/{}'.format(project_id)
+        try:
+            response = xnat_session.get(project_uri, format='xml')
+        except exceptions.XNATResponseError as exception:
+            message = 'Could load example project while scanning for extension types: {}'.format(exception)
+            xnat_session.logger.critical(message)
+            raise exception
 
         schemas = parser.find_schema_uris(response.text)
         if schema_uri in schemas:
-            logger.debug('Removing schema {} from list'.format(schema_uri))
+            xnat_session.logger.debug('Removing schema {} from list'.format(schema_uri))
             schemas.remove(schema_uri)
-        logger.info('Found additional schemas: {}'.format(schemas))
+        xnat_session.logger.info('Found additional schemas: {}'.format(schemas))
 
         for schema in schemas:
-            parser.parse_schema_uri(requests_session=requests_session,
+            parser.parse_schema_uri(xnat_session=xnat_session,
                                     schema_uri=schema)
 
 
-def parse_schemas_17(parser, requests_session, server, logger):
+def parse_schemas_17(parser, xnat_serssion):
     """
     Retrieve and parse schemas for an XNAT version 1.7.x
 
@@ -156,22 +166,17 @@ def parse_schemas_17(parser, requests_session, server, logger):
     :param str server: URI of the XNAT server
     :param logger: logger to use for the logging
     """
-    schemas_uri = '{}/xapi/schemas'.format(server.rstrip('/'))
-    schemas_request = requests_session.get(schemas_uri)
-
-    if schemas_request.status_code != 200:
-        message = 'Problem retrieving schemas list: [{}] {}'.format(
-            schemas_request.status_code, schemas_request.text
-        )
-        logger.critical(message)
+    schemas_uri = '/xapi/schemas'
+    try:
+        schema_list = xnat_serssion.get_json(schemas_uri)
+    except exceptions.XNATResponseError as exception:
+        message = 'Problem retrieving schemas list: {}'.format(exception)
+        xnat_serssion.logger.critical(message)
         raise ValueError(message)
 
-    schema_list = schemas_request.json()
-    schema_list = ['{server}/xapi/schemas/{schema}'.format(server=server.rstrip('/'), schema=x) for x in schema_list]
-
     for schema in schema_list:
-        parser.parse_schema_uri(requests_session=requests_session,
-                                schema_uri=schema)
+        parser.parse_schema_uri(xnat_session=xnat_serssion,
+                                schema_uri='/xapi/schemas/{schema}'.format(schema=schema))
 
 
 def detect_redirection(server, session, logger):
@@ -182,13 +187,12 @@ def detect_redirection(server, session, logger):
     :param logger:
     :return: the server url to use later
     """
-    server = server.rstrip('/')
-    response = session.get(server + '/data/projects')
-    response_url = response.url[:-14]
-    if response_url != server:
+    response = session.get(server.rstrip('/') + '/data/projects')
+    logger.debug('Response url: {}'.format(response.url))
+    response_url = response.url[:-13]
+    if response_url != server and response_url != server + '/':
         logger.warning('Detected a redirect from {0} to {1}, using {1} from now on'.format(server, response_url))
-        return response_url
-    return server
+    return response_url
 
 
 def query_netrc(server, netrc_file, logger):
@@ -209,8 +213,58 @@ def query_netrc(server, netrc_file, logger):
     return user, password
 
 
+def build_model(xnat_session, extension_types, connection_id):
+    """
+    Build the XNAT data model for a given connection
+    """
+    logger = xnat_session.logger
+    debug = xnat_session.debug
+
+    # Check XNAT version
+    version = xnat_session.xnat_version
+
+    # Generate module
+    parser = SchemaParser(debug=debug, logger=logger)
+
+    if xnat_session.xnat_version.startswith('1.6'):
+        logger.info('Found an 1.6 version ({})'.format(version))
+        parse_schemas_16(parser, xnat_session, extension_types=extension_types)
+    elif version.startswith('1.7'):
+        logger.info('Found an 1.7 version ({})'.format(version))
+        parse_schemas_17(parser, xnat_session)
+    else:
+        logger.critical('Found an unsupported version ({})'.format(version))
+        raise ValueError('Cannot continue on unsupported XNAT version')
+
+    # Write code to temp file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='_generated_xnat.py', delete=False) as code_file:
+        parser.write(code_file=code_file)
+
+    logger.debug('Code file written to: {}'.format(code_file.name))
+
+    # The module is loaded in its private namespace based on the code_file name
+    xnat_module = imp.load_source('xnat_gen_{}'.format(connection_id),
+                                  code_file.name)
+    xnat_module._SOURCE_CODE_FILE = code_file.name
+
+    logger.debug('Loaded generated module')
+
+    # Register all types parsed
+    for cls in parser.class_list.values():
+        if not (cls.name is None or (cls.base_class is not None and cls.base_class.startswith('xs:'))):
+            getattr(xnat_module, cls.writer.python_name).__register__(xnat_module.XNAT_CLASS_LOOKUP)
+
+    xnat_module.SESSION = xnat_session
+
+    # Add the required information from the module into the xnat_session object
+    xnat_session.XNAT_CLASS_LOOKUP.update(xnat_module.XNAT_CLASS_LOOKUP)
+    xnat_session.classes = xnat_module
+    xnat_session._source_code_file = code_file.name
+
+
 def connect(server, user=None, password=None, verify=True, netrc_file=None, debug=False,
-            extension_types=True, loglevel=None, logger=None, detect_redirect=True):
+            extension_types=True, loglevel=None, logger=None, detect_redirect=True,
+            no_parse_model=False):
     """
     Connect to a server and generate the correct classed based on the servers xnat.xsd
     This function returns an object that can be used as a context operator. It will call
@@ -236,6 +290,10 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     :param logging.Logger logger: A logger to reuse instead of creating an own logger
     :param bool detect_redirect: Try to detect a redirect (via a 302 response) and short-cut
                                  for subsequent requests
+    :param bool no_parse_model: Create an XNAT connection without parsing the server data
+                                model, this create a connection for which the simple
+                                get/head/put/post/delete functions where, but anything
+                                requiring the data model will file (e.g. any wrapped classes)
     :return: XNAT session object
     :rtype: XNATSession
 
@@ -256,6 +314,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
         Subjects in the SampleDICOM project: <XNATListing (CENTRAL_S01894, dcmtest1): <SubjectData CENTRAL_S01894>, (CENTRAL_S00461, PACE_HF_SUPINE): <SubjectData CENTRAL_S00461>>
         >>> session.disconnect()
     """
+
     # Generate a hash for the connection
     hasher = hashlib.md5()
     hasher.update(server.encode('utf-8'))
@@ -307,70 +366,23 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
 
     # Check for redirects
     original_uri = server
-    server = detect_redirection(server, requests_session, logger)
+    if detect_redirect:
+        server = detect_redirection(server, requests_session, logger)
 
     # If no login was found, check if the new server has a known login as a backup
     if original_uri != server and user is None and password is None:
         user, password = query_netrc(server, netrc_file, logger)
 
-    # Generate module
-    parser = SchemaParser(debug=debug, logger=logger)
-
     # Check if login is successful
-    check_auth(requests_session, server=server, user=user, logger=logger)
-
-    # Parse schemas, start with determining XNAT version
-    version_uri = '{}/data/version'.format(server.rstrip('/'))
-    version_request = requests_session.get(version_uri)
-    if version_request.status_code == 200:
-        version = version_request.text
-    else:
-        version_uri = '{}/xapi/siteConfig/buildInfo'.format(server.rstrip('/'))
-        version_request = requests_session.get(version_uri)
-
-        if version_request.status_code == 200:
-            version = version_request.json()['version']
-        else:
-            logger.critical('Could not retrieve version: [{}] {}'.format(version_request.status_code, version_request.text))
-            raise ValueError('Cannot continue on unknown XNAT version')
-
-    if version.startswith('1.6'):
-        logger.info('Found an 1.6 version ({})'.format(version))
-        parse_schemas_16(parser, requests_session, server, logger, extension_types=extension_types)
-    elif version.startswith('1.7'):
-        logger.info('Found an 1.7 version ({})'.format(version))
-        parse_schemas_17(parser, requests_session, server, logger)
-    else:
-        logger.critical('Found an unsupported version ({})'.format(version))
-        raise ValueError('Cannot continue on unsupported XNAT version')
-
-    # Write code to temp file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='_generated_xnat.py', delete=False) as code_file:
-        parser.write(code_file=code_file)
-
-    logger.debug('Code file written to: {}'.format(code_file.name))
-
-    # The module is loaded in its private namespace based on the code_file name
-    xnat_module = imp.load_source('xnat_gen_{}'.format(connection_id),
-                                  code_file.name)
-    xnat_module._SOURCE_CODE_FILE = code_file.name
-
-    logger.debug('Loaded generated module')
-
-    # Register all types parsed
-    for cls in parser.class_list.values():
-        if not (cls.name is None or (cls.base_class is not None and cls.base_class.startswith('xs:'))):
-            getattr(xnat_module, cls.writer.python_name).__register__(xnat_module.XNAT_CLASS_LOOKUP)
+    logged_in_user = check_auth(requests_session, server=server, user=user, logger=logger)
 
     # Create the XNAT connection
     xnat_session = XNATSession(server=server, logger=logger,
                                interface=requests_session, debug=debug,
-                               original_uri=original_uri)
-    xnat_module.SESSION = xnat_session
+                               original_uri=original_uri, logged_in_user=logged_in_user)
 
-    # Add the required information from the module into the xnat_session object
-    xnat_session.XNAT_CLASS_LOOKUP.update(xnat_module.XNAT_CLASS_LOOKUP)
-    xnat_session.classes = xnat_module
-    xnat_session._source_code_file = code_file.name
+    # Parse data model and create classes
+    if not no_parse_model:
+        build_model(xnat_session, extension_types=extension_types, connection_id=connection_id)
 
     return xnat_session
