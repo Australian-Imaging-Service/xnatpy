@@ -92,7 +92,10 @@ class XNATSession(object):
         self._interface = interface
         self._projects = None
         self._server = parse.urlparse(server) if server else None
-        self._original_uri = original_uri.rstrip('/')
+        if original_uri is not None:
+            self._original_uri = original_uri.rstrip('/')
+        else:
+            self._original_uri = server.rstrip('/')
         self._logged_in_user = logged_in_user
         self._cache = {'__objects__': {}}
         self.caching = True
