@@ -9,6 +9,11 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Fixed
+~~~~~
+
+- Support for changing subject and experiment labels
+
 0.3.14 - 2019-02-22
 -------------------
 

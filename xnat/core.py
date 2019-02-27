@@ -349,6 +349,7 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
         return self._uri
 
     def clearcache(self):
+        self._overwrites.clear()
         self._cache.clear()
 
     # This needs to be at the end of the class because it shadows the caching
@@ -440,8 +441,8 @@ class XNATNestedObject(XNATBaseObject):
                                       self.fieldname)
 
     def clearcache(self):
+        super(XNATNestedObject, self).clearcache()
         self.parent.clearcache()
-        self._cache.clear()
 
 
 class XNATSubObject(XNATBaseObject):
@@ -499,8 +500,8 @@ class XNATSubObject(XNATBaseObject):
         return self.fulldata['data_fields']
 
     def clearcache(self):
+        super(XNATSubObject, self).clearcache()
         self.parent.clearcache()
-        self._cache.clear()
 
 
 @six.python_2_unicode_compatible
