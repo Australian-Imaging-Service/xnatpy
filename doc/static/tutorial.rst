@@ -108,22 +108,6 @@ on the server.
 
   >>> import xnat
   >>> session = xnat.connect('http://images.xnat.org', user='admin', password='admin')
-  [INFO] Found an 1.7 version (1.7.0)
-  [INFO] Retrieving schema from http://images.xnat.org/xapi/schemas/security
-  [INFO] Retrieving schema from http://images.xnat.org/xapi/schemas/birn/birnprov
-  [INFO] Retrieving schema from http://images.xnat.org/xapi/schemas/screening/screeningAssessment
-  [INFO] Retrieving schema from http://images.xnat.org/xapi/schemas/catalog
-  [INFO] Retrieving schema from http://images.xnat.org/xapi/schemas/pipeline/workflow
-  [INFO] Retrieving schema from http://images.xnat.org/xapi/schemas/pipeline/build
-  [INFO] Retrieving schema from http://images.xnat.org/xapi/schemas/pipeline/repository
-  [INFO] Retrieving schema from http://images.xnat.org/xapi/schemas/validation/protocolValidation
-  [INFO] Retrieving schema from http://images.xnat.org/xapi/schemas/assessments
-  [INFO] Retrieving schema from http://images.xnat.org/xapi/schemas/xdat
-  [INFO] Retrieving schema from http://images.xnat.org/xapi/schemas/xdat/instance
-  [INFO] Retrieving schema from http://images.xnat.org/xapi/schemas/xdat/PlexiViewer
-  [INFO] Retrieving schema from http://images.xnat.org/xapi/schemas/xdat/display
-  [INFO] Retrieving schema from http://images.xnat.org/xapi/schemas/xnat
-  [INFO] Retrieving schema from http://images.xnat.org/xapi/schemas/project
   >>> session.projects
   <XNATListing (sandbox, sandbox project): <ProjectData sandbox project (sandbox)>>
 
@@ -201,6 +185,30 @@ adding them to the main archive. It is possible to view the prearchive via xnatp
 This gives a list of ``PrearchiveSessions`` in the archive. It is possible to 
 archive, rebuild, more or remove the session using simple methods. For more information
 see :py:class:`PrearchiveSession <xnat.prearchive.PrearchiveSession>`
+
+Object creation
+---------------
+
+It is possible to create object on the XNAT server (such as a new subject, experiment, etc).
+This is achieved by creating such an object in python and xnatpy will create a version of the
+server. For example you can create a subject:
+
+  >>> import xnat
+  >>> connection = xnat.connect('https://xnat.example.com')
+  >>> project = connection.projects['myproject']
+  >>> subject = connection.classes.SubjectData(parent=project, label='new_subject_label')
+  >>> subject
+  <SubjectData new_subject_label>
+
+.. note:: the parent need to be the correct parent for the type, so an ``MRSessionData`` would
+          need a ``SubjectData`` to be the parent.
+
+In the ``connection.classes`` are all classes known the XNAT, also
+``MRSessionData``, ``CTSessionData``. To get a complete list you can do:
+
+  >>> dir(connection.classes)
+
+.. note:: the valid parent for a project (``ProjectData``) would be the connection object itself
 
 Example scripts
 ---------------
