@@ -13,6 +13,8 @@ Fixed
 ~~~~~
 
 - Support for changing subject and experiment labels
+- Support creation of ScanData types with the id and type set on creation
+- Fix a bug in scanning extension types where there are new-lines in the xs:schema tag
 
 0.3.14 - 2019-02-22
 -------------------
