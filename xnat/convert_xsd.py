@@ -851,12 +851,13 @@ class SchemaParser(object):
 
         # Get the namespaces from the XML document (ElementTree loses them, so
         # get them by hand) and register them
-        for line in xml.splitlines():
-            if "<xs:schema" in line:
-                result = re.findall('xmlns:(?P<prefix>\w+)="(?P<ns>\S+)"', line)
-                break
-        else:
+        xml_schema_element_match = re.search('<xs:schema([^>]*)>', xml)
+
+        if xml_schema_element_match is None:
             result = []
+        else:
+            xml_schema_element = xml_schema_element_match.group(1)
+            result = re.findall(r'xmlns:(?P<prefix>\w+)="(?P<ns>\S+)"', xml_schema_element)
 
         for prefix, namespace in result:
             self.logger.debug('Registering namespace: {}  ->  {}'.format(
