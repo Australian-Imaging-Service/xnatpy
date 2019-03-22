@@ -375,7 +375,7 @@ class BaseClassWriter(BaseWriter):
 
     @property
     def display_identifier(self):
-        if self.name in SECONDARY_LOOKUP_FIELDS:
+        if self.prototype.display_identifier is None and self.name in SECONDARY_LOOKUP_FIELDS:
             return SECONDARY_LOOKUP_FIELDS[self.name]
         else:
             return self.prototype.display_identifier
