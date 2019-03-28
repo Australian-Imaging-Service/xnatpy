@@ -323,7 +323,6 @@ class ImageScanData(XNATBaseObject):
 
         return resource
 
-
     def download(self, path, verbose=True):
         self.xnat_session.download_zip(self.uri + '/files', path, verbose=verbose)
 
