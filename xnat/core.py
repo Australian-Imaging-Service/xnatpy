@@ -130,6 +130,7 @@ class CustomVariableMap(VariableMap):
 @six.python_2_unicode_compatible
 class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
     SECONDARY_LOOKUP_FIELD = None
+    _DISPLAY_IDENTIFIER = None
     _HAS_FIELDS = False
     _CONTAINED_IN = None
     _XSI_TYPE = 'xnat:baseObject'
@@ -154,25 +155,36 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
                 self.logger.debug('parent {}, self._CONTAINED_IN: {}'.format(parent, self._CONTAINED_IN))
                 raise exceptions.XNATValueError('Cannot determine PUT url!')
 
-            if self.SECONDARY_LOOKUP_FIELD is not None:
-                if kwargs.get(self.SECONDARY_LOOKUP_FIELD) is not None:
-                    uri = '{}/{}'.format(parent.uri, kwargs[self.SECONDARY_LOOKUP_FIELD])
-                    self.logger.debug('PUT URI: {}'.format(uri))
-                    query = {
-                        'xsiType': self.__xsi_type__,
-                        'req_format': 'qs',
-                    }
-
-                    # Add all kwargs to query
-                    query.update(kwargs)
-
-                    self.logger.debug('query: {}'.format(query))
-                    response = self.xnat_session.put(uri, query=query)
-                else:
-                    raise exceptions.XNATValueError('The {} for a {} need to be specified on creation'.format(self.SECONDARY_LOOKUP_FIELD,
-                                                                                                              self.__xsi_type__))
+            # Check what argument to use to build the URL
+            if self._DISPLAY_IDENTIFIER is not None:
+                url_part_argument = pythonize_attribute_name(self._DISPLAY_IDENTIFIER)
+            elif self.SECONDARY_LOOKUP_FIELD is not None:
+                url_part_argument = self.SECONDARY_LOOKUP_FIELD
             else:
-                raise exceptions.XNATValueError('The secondary look up is None, creation currently not supported!')
+                raise exceptions.XNATValueError('Cannot figure out correct object creation url for <{}>, '
+                                                'creation currently not supported!'.format(type(self).__name__))
+
+            # Get extra required url part
+            url_part = kwargs.get(url_part_argument)
+
+            if url_part is not None:
+                uri = '{}/{}'.format(parent.uri, url_part)
+                self.logger.debug('PUT URI: {}'.format(uri))
+                query = {
+                    'xsiType': self.__xsi_type__,
+                    'req_format': 'qs',
+                }
+
+                # Add all kwargs to query
+                query.update(kwargs)
+
+                self.logger.debug('query: {}'.format(query))
+                self.xnat_session.put(uri, query=query)
+            else:
+                raise exceptions.XNATValueError('The {} for a {} need to be specified on creation'.format(
+                    url_part_argument,
+                    self.__xsi_type__
+                ))
 
             # Clear parent cache
             parent.clearcache()
@@ -203,16 +215,12 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
         self._overwrites.update(kwargs)
 
     def __str__(self):
-        if hasattr(self, '_DISPLAY_IDENTIFIER') and self._DISPLAY_IDENTIFIER is not None:
-            attribute = pythonize_attribute_name(self._DISPLAY_IDENTIFIER)
-            di = getattr(self, attribute)
-            return six.text_type('<{} {}>').format(self.__class__.__name__, di)
-        elif self.SECONDARY_LOOKUP_FIELD is None:
+        if self.SECONDARY_LOOKUP_FIELD is None:
             return six.text_type('<{} {}>').format(self.__class__.__name__, self.id)
         else:
             return six.text_type('<{} {} ({})>').format(self.__class__.__name__,
-                                                getattr(self, self.SECONDARY_LOOKUP_FIELD),
-                                                self.id)
+                                                        getattr(self, self.SECONDARY_LOOKUP_FIELD),
+                                                        self.id)
 
     def __repr__(self):
         return str(self)
@@ -349,6 +357,7 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
         return self._uri
 
     def clearcache(self):
+        self._overwrites.clear()
         self._cache.clear()
 
     # This needs to be at the end of the class because it shadows the caching
@@ -440,8 +449,8 @@ class XNATNestedObject(XNATBaseObject):
                                       self.fieldname)
 
     def clearcache(self):
+        super(XNATNestedObject, self).clearcache()
         self.parent.clearcache()
-        self._cache.clear()
 
 
 class XNATSubObject(XNATBaseObject):
@@ -499,8 +508,8 @@ class XNATSubObject(XNATBaseObject):
         return self.fulldata['data_fields']
 
     def clearcache(self):
+        super(XNATSubObject, self).clearcache()
         self.parent.clearcache()
-        self._cache.clear()
 
 
 @six.python_2_unicode_compatible

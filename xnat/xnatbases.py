@@ -24,6 +24,8 @@ from tarfile import TarFile
 from six import BytesIO
 
 from .core import caching, XNATBaseObject, XNATListing
+from .search import SearchField
+from .utils import mixedproperty
 
 
 class ProjectData(XNATBaseObject):
@@ -91,7 +93,12 @@ class SubjectData(XNATBaseObject):
     def fulluri(self):
         return '{}/projects/{}/subjects/{}'.format(self.xnat_session.fulluri, self.project, self.id)
 
-    @property
+    @mixedproperty
+    def label(cls):
+        # 0 Automatically generated Property, type: xs:string
+        return SearchField(cls, "label")
+
+    @label.getter
     def label(self):
         # Check if label is already inserted during listing, that should be valid
         # label for the project under which it was listed in the first place
@@ -102,11 +109,21 @@ class SubjectData(XNATBaseObject):
 
         # Retrieve the label the hard and costly way
         try:
+            # First check if subject is shared into current project
             sharing = next(x for x in self.fulldata['children'] if x['field'] == 'sharing/share')
             share_info = next(x for x in sharing['items'] if x['data_fields']['project'] == self.project)
-            return share_info['data_fields']['label']
+            label = share_info['data_fields']['label']
         except (KeyError, StopIteration):
-            return self.get('label', type_=str)
+            label = self.get('label', type_=str)
+
+        # Cache label for future use
+        self._overwrites['label'] = label
+        return label
+
+    @label.setter
+    def label(self, value):
+        self.xnat_session.put(self.fulluri, query={'label': value})
+        self.clearcache()
 
     @property
     @caching
@@ -145,7 +162,11 @@ class SubjectData(XNATBaseObject):
 class ExperimentData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'label'
 
-    @property
+    @mixedproperty
+    def label(cls):
+        return SearchField(cls, "label")
+
+    @label.getter
     def label(self):
         # Check if label is already inserted during listing, that should be valid
         # label for the project under which it was listed in the first place
@@ -156,11 +177,21 @@ class ExperimentData(XNATBaseObject):
 
         # Retrieve the label the hard and costly way
         try:
+            # First check if subject is shared into current project
             sharing = next(x for x in self.fulldata['children'] if x['field'] == 'sharing/share')
             share_info = next(x for x in sharing['items'] if x['data_fields']['project'] == self.project)
-            return share_info['data_fields']['label']
+            label = share_info['data_fields']['label']
         except (KeyError, StopIteration):
-            return self.get('label', type_=str)
+            label = self.get('label', type_=str)
+
+        # Cache label for future use
+        self._overwrites['label'] = label
+        return label
+
+    @label.setter
+    def label(self, value):
+        self.xnat_session.put(self.fulluri, query={'label': value})
+        self.clearcache()
 
 
 class SubjectAssessorData(XNATBaseObject):

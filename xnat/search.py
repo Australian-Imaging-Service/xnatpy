@@ -85,7 +85,7 @@ class Query(object):
         element_name.text = self.xsi_type
         field_id = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "field_ID"))
         # TODO: This has to come from the querying class somehow
-        field_id.text = 'SESSION_ID'
+        field_id.text = 'ID'
         sequence = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "sequence"))
         sequence.text = '0'
         type_ = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "type"))
