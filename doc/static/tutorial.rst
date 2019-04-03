@@ -160,6 +160,20 @@ This will download all the relevant experiments and unpack them in the target
 folder. Experiments, scans and resources can also be downloaded in a zip bundle
 using the ``download_zip`` method.
 
+Getting external urls of an object
+----------------------------------
+
+Sometimes you want to know the full external URL of a resource in XNAT, for this
+all XNAT objects have a function to retrieve this::
+
+    >>> experiment_01.external_uri()
+    'https://xnat.server.com/data/archive/projects/project/subjects/XNAT_S09618/experiments/XNAT_E36346'
+
+You can change the query string or scheme used with extra arguments:
+
+    >>> experiment_01.external_uri(scheme='test', query={'hello': 'world'})
+    'test://xnat.server.com/data/archive/projects/project/subjects/XNAT_S09618/experiments/XNAT_E36346?hello=world'
+
 Importing data into XNAT
 ------------------------
 
