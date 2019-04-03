@@ -27,6 +27,12 @@ from .core import caching, XNATBaseObject, XNATListing
 from .search import SearchField
 from .utils import mixedproperty
 
+try:
+    PYDICOM_LOADED = True
+    import pydicom
+except ImportError:
+    PYDICOM_LOADED = False
+
 
 class ProjectData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'name'
@@ -354,6 +360,28 @@ class ImageScanData(XNATBaseObject):
         )
         return self.xnat_session.services.dicom_dump(src=uri, fields=fields)
 
+    def read_dicom(self, file=None, read_pixel_data=False):
+        # Check https://gist.github.com/obskyr/b9d4b4223e7eaf4eedcd9defabb34f13 for partial loading?
+        if not PYDICOM_LOADED:
+            raise RuntimeError('Cannot read DICOM, missing required dependency: pydicom')
+
+        dicom_resource = self.resources.get('DICOM')
+
+        if dicom_resource is None:
+            raise ValueError('Scan {} does not contain a DICOM resource!'.format(self))
+
+        if file is None:
+            dicom_files = sorted(self.files.values(), key=lambda x: x.path)
+            file = dicom_files[0]
+        else:
+            if file not in dicom_resource.files.values():
+                raise ValueError('File {} not part of scan {} DICOM resource'.format(file, self))
+
+        with file.open() as dicom_fh:
+            dicom_data = pydicom.dcmread(dicom_fh, stop_before_pixels=not read_pixel_data)
+
+        return dicom_data
+
 
 class AbstractResource(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'label'
@@ -497,11 +525,11 @@ class AbstractResource(XNATBaseObject):
                     self.upload(file_path, target_path, overwrite=overwrite, **kwargs)
         elif method == 'tar_memory':
             fh = BytesIO()
-            tar_file = TarFile(name='upload.tar', mode='w', fileobj=fh)
-            tar_file.add(directory, '')
-            tar_file.close()
+            with TarFile(name='upload.tar', mode='w', fileobj=fh) as tar_file:
+                tar_file.add(directory, '')
             fh.seek(0)
             self.upload(fh, 'upload.tar', overwrite=overwrite, extract=True, **kwargs)
+            fh.close()
         elif method == 'tgz_memory':
             fh = BytesIO()
             with GzipFile(filename='upload.tar.gz', mode='w', fileobj=fh) as gzip_file:
@@ -513,9 +541,8 @@ class AbstractResource(XNATBaseObject):
             fh.close()
         elif method == 'tar_file':
             with tempfile.TemporaryFile('wb+') as fh:
-                tar_file = TarFile(name='upload.tar', mode='w', fileobj=fh)
-                tar_file.add(directory, '')
-                tar_file.close()
+                with TarFile(name='upload.tar', mode='w', fileobj=fh) as tar_file:
+                    tar_file.add(directory, '')
                 fh.seek(0)
                 self.upload(fh, 'upload.tar', overwrite=overwrite, extract=True, **kwargs)
         elif method == 'tgz_file':

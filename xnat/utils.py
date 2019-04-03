@@ -19,6 +19,16 @@ from __future__ import unicode_literals
 import re
 import keyword
 
+import six
+import requests
+
+if six.PY3:
+    from io import BufferedIOBase, SEEK_SET, SEEK_END
+    superclass = BufferedIOBase
+else:
+    from os import SEEK_SET, SEEK_END
+    superclass = object
+
 
 class mixedproperty(object):
     """
@@ -117,3 +127,54 @@ def pythonize_attribute_name(name):
         name += '_'
 
     return name
+
+
+class RequestsFileLike(object):
+    def __init__(self, request, chunk_size=512*1024):
+        self._bytes = six.BytesIO()
+        self._request = request
+        self._iterator = request.iter_content(chunk_size)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def _load_all(self):
+        self._bytes.seek(0, SEEK_END)
+        for chunk in self._iterator:
+            self._bytes.write(chunk)
+
+    def _load_until(self, goal_position):
+        current_position = self._bytes.seek(0, SEEK_END)
+        while current_position < goal_position:
+            try:
+                current_position = self._bytes.write(next(self._iterator))
+            except StopIteration:
+                break
+
+    def tell(self):
+        return self._bytes.tell()
+
+    def read(self, size=None):
+        current_position = self._bytes.tell()
+
+        if size is None:
+            self._load_all()
+        else:
+            goal_position = current_position + size
+            self._load_until(goal_position)
+
+        self._bytes.seek(current_position)
+        return self._bytes.read(size)
+
+    def seek(self, position, whence=SEEK_SET):
+        if whence == SEEK_END:
+            self._load_all()
+        else:
+            self._bytes.seek(position, whence)
+
+    def close(self):
+        self._bytes.close()
+        self._request.close()

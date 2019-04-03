@@ -58,7 +58,13 @@ from six import BytesIO  # Needed by generated code
 
 from xnat import search
 from xnat.core import XNATObject, XNATNestedObject, XNATSubObject, XNATListing, XNATSimpleListing, XNATSubListing, caching
-from xnat.utils import mixedproperty
+from xnat.utils import mixedproperty, RequestsFileLike
+
+try:
+    PYDICOM_LOADED = True
+    import pydicom
+except ImportError:
+    PYDICOM_LOADED = False
 
 
 SESSION = None
@@ -125,6 +131,11 @@ class FileData(XNATObjectMixin):
 
     def download_stream(self, *args, **kwargs):
         self.xnat_session.download_stream(self.uri, *args, **kwargs)
+        
+    def open(self):
+        uri = self.xnat_session._format_uri(self.uri)
+        request = self.xnat_session.interface.get(uri, stream=True)
+        return RequestsFileLike(request)
 
     @property
     @caching

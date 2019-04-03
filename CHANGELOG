@@ -9,6 +9,13 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Added
+~~~~~
+
+- Can open FileData object with ``file.open()`` to get a file-like object
+  that can be used similar to a local file.
+- Added ``read_dicom()`` to ScanData to read the dicom header/file with pydicom
+
 0.3.16 - 2019-03-28
 -------------------
 

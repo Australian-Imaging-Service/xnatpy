@@ -146,12 +146,12 @@ and most things will work naturally. For example::
   ...     print(subject.label)
   test001
 
-Dowloading data
----------------
+Downloading data
+----------------
 
 The REST API allows for downloading of data from XNAT. The xnatpy package
 includes helper functions to make the downloading of data easier. For
-example, to download all exerpiments belonging to a subject::
+example, to download all experiments belonging to a subject::
 
   >>> subject = sandbox_project.subjects['test001']
   >>> subject.download_dir('./Downloads/test001')
@@ -209,6 +209,69 @@ In the ``connection.classes`` are all classes known the XNAT, also
   >>> dir(connection.classes)
 
 .. note:: the valid parent for a project (``ProjectData``) would be the connection object itself
+
+Accessing XNAT files as local files (partial read)
+--------------------------------------------------
+
+There is a helper added in xnatpy that allows you to open a remote file (FileData object)
+similarly as a local file. Note that it will read the file from the start and until it is done,
+seeking will download until the seek point.
+
+For example::
+
+    >>> import xnat
+    >>> connection = xnat.connect('https://xnat.server.com')
+    >>> file_obj = connection.projects['project'].subjects['S'].experiments['EXP'].scans['T1'].resources['DICOM'].files[0]
+    <FileData 1.3.6.1...-18s1eb2.dcm (1.3.6.1...-18s1eb2.dcm)>
+    >>> with file_obj.open() as fin:
+            data = fin.read(3000)
+    >>> print(len(data))
+    3000
+
+You can also use this to read the headers of a dicom file using pydicom::
+
+    >>> import pydicom
+    >>> with file_obj.open() as fin:
+            data = pydicom.dcmread(fin, stop_before_pixels=True)
+    
+This should read the header and stop downloading once the entire header is read.
+
+.. note:: The file is read in chucks so there might be a bit too much data downloaded
+
+.. note:: If you open the file and not close it, the memory buffer might not be cleaned properly
+
+Accessing DICOM headers of scan
+-------------------------------
+
+Sometimes it is desired to read DICOM headers without downloading the entire scan.
+XNAT has a dicomdump service which can be used::
+
+    >>> connection.service.dicom_dump(scan_uri)
+
+For more details see :py:meth:`import_ <xnat.services.Services.dicom_dump>`. As
+a helper we added a dicom_dump method to ScanData::
+
+    >>> scan.dicom_dump()
+
+See :py:meth:`ScanData.dicom_dump <xnat.xnatbases.ImageScanData.dicom_dump>` for the details.
+
+A limitation of the dicomdump of XNAT is that field values are truncated under
+64 characters. If you want to access the entire dicom header, a convenience method
+is added that reads the header via ``pydicom``::
+
+    >>> scan.read_dicom()
+
+This reads only the header and not the pixel data and will only download part
+of the file. To read the pixel data use::
+
+    >>> scan.read_dicom(read_pixel_data=True)
+
+For the details see      :py:meth:`ScanData.dicom_dump <xnat.xnatbases.ImageScanData.read_dicom>`
+
+.. note::
+    Only one file is loaded, so the pixel data will only contain a single slice
+    unless it is a DICOM Enhanced file
+
 
 Example scripts
 ---------------

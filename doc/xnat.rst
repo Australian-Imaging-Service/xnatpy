@@ -47,3 +47,11 @@ Code reference
     :members:
     :undoc-members:
     :show-inheritance:
+
+:mod:`xnatbases` Module
+-------------------
+
+.. automodule:: xnat.xnatbases
+    :members:
+    :undoc-members:
+    :show-inheritance:
