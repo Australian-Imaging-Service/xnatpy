@@ -41,7 +41,8 @@ class Services(object):
         Retrieve a dicom dump as a JSON data structure
         See the XAPI documentation for more detailed information: `DICOM Dump Service <https://wiki.xnat.org/display/XAPI/DICOM+Dump+Service+API>`_
 
-        :param lst fields: Fields to filter for DICOM tags. It can either a tag name or tag number in the format GGGGEEEE (G = Group number, E = Element number)
+        :param str src: The url of the scan to generate the DICOM dump for
+        :param list fields: Fields to filter for DICOM tags. It can either a tag name or tag number in the format GGGGEEEE (G = Group number, E = Element number)
         :return: JSON object (dict) representation of DICOM header
         :rtype: dict
         """

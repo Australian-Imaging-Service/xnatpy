@@ -280,6 +280,16 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
     def fulluri(self):
         return self.uri
 
+    def external_uri(self, query=None, scheme=None):
+        """
+        Return the external url for this object, not just a REST path
+
+        :param query: extra query string parameters
+        :param scheme: scheme to use (when not using original url scheme)
+        :return: external url for this object
+        """
+        return self.xnat_session.url_for(self, query=query, scheme=scheme)
+
     def mset(self, values=None, timeout=None, **kwargs):
         if not isinstance(values, dict):
             values = kwargs

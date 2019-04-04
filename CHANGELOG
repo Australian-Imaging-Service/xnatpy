@@ -6,7 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <http://keepachangelog.com/>`_
 and this project adheres to `Semantic Versioning <http://semver.org/>`_
 
-0.3.16 - 2019-02-28
+0.3.17 - 2019-04-04
+-------------------
+
+Added
+~~~~~
+
+- Can open FileData object with ``file.open()`` to get a file-like object
+  that can be used similar to a local file.
+- Added ``read_dicom()`` to ScanData to read the dicom header/file with pydicom
+- ``external_uri`` method to get a full external uri of an XNAT object
+
+0.3.16 - 2019-03-28
 -------------------
 
 Fixed
@@ -16,7 +27,7 @@ Fixed
 - Support creation of ScanData types with the id and type set on creation
 - Fix a bug in scanning extension types where there are new-lines in the xs:schema tag
 
-0.3.15 - 2019-02-22
+0.3.14 - 2019-02-22
 -------------------
 
 Added

@@ -466,7 +466,7 @@ class XNATSession(object):
         self._check_response(response, accepted_status=accepted_status, uri=uri)
         return response
 
-    def _format_uri(self, path, format=None, query=None):
+    def _format_uri(self, path, format=None, query=None, scheme=None):
         if path[0] != '/':
 
             if self._original_uri is not None and path.startswith(self._original_uri):
@@ -491,7 +491,7 @@ class XNATSession(object):
         else:
             query_string = ''
 
-        data = (self._server.scheme,
+        data = (scheme or self._server.scheme,
                 self._server.netloc,
                 self._server.path.rstrip('/') + path,
                 '',
@@ -499,6 +499,16 @@ class XNATSession(object):
                 '')
 
         return parse.urlunparse(data)
+
+    def url_for(self, obj, query=None, scheme=None):
+        """
+        Return the (external) url for a given XNAT object
+        :param XNATBaseObject obj: object to get url for
+        :param query: extra query string parameters
+        :param scheme: scheme to use (when not using original url scheme)
+        :return: external url for the object
+        """
+        return self._format_uri(obj.fulluri, query=query, scheme=scheme)
 
     def get_json(self, uri, query=None, accepted_status=None):
         """
