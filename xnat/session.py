@@ -502,7 +502,7 @@ class XNATSession(object):
 
     def url_for(self, obj, query=None, scheme=None):
         """
-        Return the url for a given XNAT object
+        Return the (external) url for a given XNAT object
         :param XNATBaseObject obj: object to get url for
         :param query: extra query string parameters
         :param scheme: scheme to use (when not using original url scheme)
