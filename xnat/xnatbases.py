@@ -360,7 +360,7 @@ class ImageScanData(XNATBaseObject):
         )
         return self.xnat_session.services.dicom_dump(src=uri, fields=fields)
 
-    def read_dicom(self, file=None, read_pixel_data=False):
+    def read_dicom(self, file=None, read_pixel_data=False, force=False):
         # Check https://gist.github.com/obskyr/b9d4b4223e7eaf4eedcd9defabb34f13 for partial loading?
         if not PYDICOM_LOADED:
             raise RuntimeError('Cannot read DICOM, missing required dependency: pydicom')
@@ -378,7 +378,9 @@ class ImageScanData(XNATBaseObject):
                 raise ValueError('File {} not part of scan {} DICOM resource'.format(file, self))
 
         with file.open() as dicom_fh:
-            dicom_data = pydicom.dcmread(dicom_fh, stop_before_pixels=not read_pixel_data)
+            dicom_data = pydicom.dcmread(dicom_fh,
+                                         stop_before_pixels=not read_pixel_data,
+                                         force=force)
 
         return dicom_data
 

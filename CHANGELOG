@@ -9,6 +9,11 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Improved
+~~~~~~~~
+
+- Added ``force`` flag to ``ScanData.read_dicom``
+
 0.3.17 - 2019-04-04
 -------------------
 
