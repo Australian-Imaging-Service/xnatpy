@@ -13,6 +13,7 @@ Improved
 ~~~~~~~~
 
 - Added ``force`` flag to ``ScanData.read_dicom``
+- Documentation
 
 0.3.17 - 2019-04-04
 -------------------

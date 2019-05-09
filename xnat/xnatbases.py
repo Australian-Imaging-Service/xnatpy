@@ -495,11 +495,11 @@ class AbstractResource(XNATBaseObject):
 
         The method has 5 options, default is tgz_file:
 
-        1. ``per_file``: Scans the directory and uploads file by file
-        2. ``tar_memory``: Create a tar archive in memory and upload it in one go
-        3. ``tgz_memory``: Create a gzipped tar file in memory and upload that
-        4. ``tar_file``: Create a temporary tar file and upload that
-        4. ``tgz_file``: Create a temporary gzipped tar file and upload that
+        #. ``per_file``: Scans the directory and uploads file by file
+        #. ``tar_memory``: Create a tar archive in memory and upload it in one go
+        #. ``tgz_memory``: Create a gzipped tar file in memory and upload that
+        #. ``tar_file``: Create a temporary tar file and upload that
+        #. ``tgz_file``: Create a temporary gzipped tar file and upload that
 
         The considerations are that sometimes you can fit things in memory so
         you can save disk IO by putting it in memory. The per file does not
