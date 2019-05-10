@@ -18,9 +18,9 @@ from __future__ import unicode_literals
 
 import re
 import keyword
+from functools import update_wrapper
 
 import six
-import requests
 
 if six.PY3:
     from io import BufferedIOBase, SEEK_SET, SEEK_END
@@ -37,7 +37,7 @@ class mixedproperty(object):
     function so the behaviour changes depending on whether it is called on
     the class or and instance of the class.
     """
-    def __init__(self, fcget, fget=None, fset=None, fdel=None, doc=None):
+    def __init__(self, fcget, fget=None, fset=None, fdel=None):
         # fcget is the get on the class e.g. Test.x
         # fget is the get on an instance Test().x
         # fset and fdel are the set and delete of the instance
@@ -46,13 +46,7 @@ class mixedproperty(object):
         self.fset = fset
         self.fdel = fdel
 
-        # Copy docstring from fcget or fget if required
-        if doc is None:
-            if fcget is not None:
-                doc = fcget.__doc__
-            elif fget is not None:
-                doc = fget.__doc__
-        self.__doc__ = doc
+        update_wrapper(self, fcget)
 
     def __get__(self, obj, objtype):
         if obj is not None and self.fget is not None:
@@ -60,7 +54,16 @@ class mixedproperty(object):
             # If the fget is not set, call the class version
             return self.fget(obj)
         else:
-            return self.fcget(objtype)
+            # Splice the docstring into returned object
+            value = self.fcget(objtype)
+
+            # Check if we can safely copy docstring and do so if possible
+            from_module = value.__class__.__module__
+
+            if from_module is not None and from_module.startswith('xnat.'):
+                value.__doc__ = self.__doc__
+
+            return value
 
     def __set__(self, obj, value):
         if self.fset is None:
@@ -75,13 +78,13 @@ class mixedproperty(object):
     # These allow the updating of the property using the @x.getter, @x.setter
     # and @x.deleter decorators.
     def getter(self, fget):
-        return type(self)(self.fcget, fget, self.fset, self.fdel, self.__doc__)
+        return type(self)(self.fcget, fget, self.fset, self.fdel)
 
     def setter(self, fset):
-        return type(self)(self.fcget, self.fget, fset, self.fdel, self.__doc__)
+        return type(self)(self.fcget, self.fget, fset, self.fdel)
 
     def deleter(self, fdel):
-        return type(self)(self.fcget, self.fget, self.fset, fdel, self.__doc__)
+        return type(self)(self.fcget, self.fget, self.fset, fdel)
 
 
 def pythonize_class_name(name):
@@ -178,3 +181,12 @@ class RequestsFileLike(object):
     def close(self):
         self._bytes.close()
         self._request.close()
+
+
+def full_class_name(cls):
+    module = cls.__module__
+
+    if module is None or module == str.__module__:
+        return cls.__name__
+
+    return '{cls.__module__}.{cls.__name__}'.format(cls=cls)

@@ -191,6 +191,20 @@ TYPE_FROM_MAP = {
     'xs:duration': from_timedelta,
 }
 
+TYPE_TO_PYTHON = {
+    'xs:anyURI': str,
+    'xs:string': str,
+    'xs:boolean': bool,
+    'xs:integer': int,
+    'xs:long': int,
+    'xs:float': float,
+    'xs:double': float,
+    'xs:dateTime': datetime.datetime,
+    'xs:time': datetime.time,
+    'xs:date': datetime.date,
+    'xs:duration': datetime.timedelta,
+}
+
 
 def convert_to(value, type_):
     return TYPE_TO_MAP.get(type_, six.text_type)(value)

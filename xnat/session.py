@@ -745,6 +745,9 @@ class XNATSession(object):
     def projects(self):
         """
         Listing of all projects on the XNAT server
+
+        Returns an :py:class:`XNATListing <xnat.core.XNATListing>` with elements
+        of :py:class:`ProjectData <xnat.classes.ProjectData>`
         """
         return XNATListing(self.uri + '/projects',
                            xnat_session=self.xnat_session,
@@ -758,6 +761,9 @@ class XNATSession(object):
     def subjects(self):
         """
         Listing of all subjects on the XNAT server
+
+        Returns an :py:class:`XNATListing <xnat.core.XNATListing>` with elements
+        of :py:class:`SubjectData <xnat.classes.SubjectData>`
         """
         return XNATListing(self.uri + '/subjects',
                            xnat_session=self.xnat_session,
@@ -771,6 +777,9 @@ class XNATSession(object):
     def experiments(self):
         """
         Listing of all experiments on the XNAT server
+
+        Returns an :py:class:`XNATListing <xnat.core.XNATListing>` with elements
+        that are subclasses of :py:class:`ExperimentData <xnat.classes.ExperimentData>`
         """
         return XNATListing(self.uri + '/experiments',
                            xnat_session=self.xnat_session,

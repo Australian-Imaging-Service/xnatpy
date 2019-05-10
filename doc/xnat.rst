@@ -10,19 +10,19 @@ Code reference
     :undoc-members:
     :show-inheritance:
 
-:mod:`core` Module
--------------------
-
-.. automodule:: xnat.core
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 :mod:`session` Module
 ---------------------
 
 .. automodule:: xnat.session
     :members:
+    :show-inheritance:
+
+:mod:`core` Module
+---------------------
+
+.. automodule:: xnat.core
+    :members:
+    :undoc-members:
     :show-inheritance:
 
 :mod:`inspect` Module
@@ -65,8 +65,13 @@ Code reference
     :undoc-members:
     :show-inheritance:
 
+Generated XSD classes
+=====================
+
 :mod:`XSD Classes` Documentation
 --------------------------------
+
+This is an overview of all generated classes based on the XSD files of central.xnat.org.
 
 .. automodule:: xnat.classes
     :members:

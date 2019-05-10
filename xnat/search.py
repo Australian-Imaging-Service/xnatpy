@@ -17,7 +17,7 @@ def or_(*args):
     return CompoundConstraint(tuple(args), 'OR')
 
 
-class SearchField(object):
+class SearchField(property):
     def __init__(self, search_class, field_name):
         self.search_class = search_class
         self.field_name = field_name

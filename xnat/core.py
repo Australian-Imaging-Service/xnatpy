@@ -52,7 +52,7 @@ def caching(func):
         return self._cache[name]
 
     docstring = func.__doc__ if func.__doc__ is not None else ''
-    wrapper.__doc__ = textwrap.dedent(docstring) + '\nCached using the caching decorator'
+    wrapper.__doc__ = textwrap.dedent(docstring) + '\n\nCached using the caching decorator'
     return wrapper
 
 
