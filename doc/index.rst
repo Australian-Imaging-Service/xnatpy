@@ -35,6 +35,7 @@ XNAT Client Documentation
     static/tutorial.rst
     static/xnat_scripting.rst
     xnat
+    xsd
 
 
 

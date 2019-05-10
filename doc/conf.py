@@ -82,7 +82,9 @@ with xnat.connect(server='https://central.xnat.org') as session:
     print('Connected to central.xnat.org!')
     target = os.path.join(os.path.dirname(__file__), '_build', 'classes.py')
 
-    os.makedirs(os.path.dirname(target), exist_ok=True)
+    if not os.path.exists(os.path.dirname(target)):
+        os.mkdir(os.path.dirname(target))
+
     shutil.copy2(session._source_code_file, target)
 
     classes_module = imp.load_source('xnat.classes', target)

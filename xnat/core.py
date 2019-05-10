@@ -25,6 +25,7 @@ import fnmatch
 import keyword
 import re
 import textwrap
+from functools import update_wrapper
 
 from . import exceptions
 from .datatypes import convert_from, convert_to
@@ -51,8 +52,7 @@ def caching(func):
 
         return self._cache[name]
 
-    docstring = func.__doc__ if func.__doc__ is not None else ''
-    wrapper.__doc__ = textwrap.dedent(docstring) + '\n\nCached using the caching decorator'
+    update_wrapper(wrapper, func)
     return wrapper
 
 
