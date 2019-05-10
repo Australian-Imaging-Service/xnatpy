@@ -78,7 +78,7 @@ release = setup_module.version
 # Create temporary code for documentation
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
 import xnat
-with xnat.connect(server='https://central.xnat.org') as session:
+with xnat.connect(server='https://central.xnat.org', extension_types=False) as session:
     print('Connected to central.xnat.org!')
     target = os.path.join(os.path.dirname(__file__), '_build', 'classes.py')
 
