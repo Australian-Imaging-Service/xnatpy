@@ -371,7 +371,7 @@ class ImageScanData(XNATBaseObject):
             raise ValueError('Scan {} does not contain a DICOM resource!'.format(self))
 
         if file is None:
-            dicom_files = sorted(self.files.values(), key=lambda x: x.path)
+            dicom_files = sorted(dicom_resource.files.values(), key=lambda x: x.path)
             file = dicom_files[0]
         else:
             if file not in dicom_resource.files.values():

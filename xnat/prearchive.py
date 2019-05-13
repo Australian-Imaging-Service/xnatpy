@@ -364,16 +364,11 @@ class PrearchiveScan(XNATBaseObject):
         if not PYDICOM_LOADED:
             raise RuntimeError('Cannot read DICOM, missing required dependency: pydicom')
 
-        dicom_resource = self.resources.get('DICOM')
-
-        if dicom_resource is None:
-            raise ValueError('Scan {} does not contain a DICOM resource!'.format(self))
-
         if file is None:
-            dicom_files = sorted(self.files.values(), key=lambda x: x.path)
+            dicom_files = sorted(self.files, key=lambda x: x.name)
             file = dicom_files[0]
         else:
-            if file not in dicom_resource.files.values():
+            if file not in self.files:
                 raise ValueError('File {} not part of scan {} DICOM resource'.format(file, self))
 
         with file.open() as dicom_fh:
