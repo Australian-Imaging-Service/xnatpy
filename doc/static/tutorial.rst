@@ -149,6 +149,49 @@ and most things will work naturally. For example::
 Downloading data
 ----------------
 
+If you have the following in your XNAT::
+
+    >>> experiment.scans['T1']
+    <MrScanData T1 (1001-MR3)>
+
+In some cases you might want to download an individual scan to inspect/process locally. This
+is using::
+
+    >>> experiment.scans['T1'].download('/home/hachterberg/temp/T1.zip')
+    Downloading http://127.0.0.1/xnat/data/experiments/demo_E00091/scans/1001-MR3/files?format=zip:
+    13035 kb
+    Saved as /home/hachterberg/temp/T1.zip...
+
+As you can see, the scan is downloaded as a zip archive that contains all the DICOM files.
+
+If you are interested in downloading all data of an entire subject, it is possible to use a helper function
+that downloads the data and extracts it in the target directory. This will create a data structure similar to
+that of XNAT on your local disk::
+
+    >>> subject = experiment.subject
+
+    >>> subject.download_dir('/home/hachterberg/temp/')
+    Downloading http://120.0.0.1/xnat/data/experiments/demo_E00091/scans/ALL/files?format=zip:
+    23736 kb
+    Downloaded image session to /home/hachterberg/temp/ANONYMIZ3
+    Downloaded subject to /home/hachterberg/temp/ANONYMIZ3
+
+To see what is downloaded, we can use the linux command find from ipython::
+
+    $ find /home/hachterberg/temp/ANONYMIZ3
+    /home/hachterberg/temp/ANONYMIZ3
+    /home/hachterberg/temp/ANONYMIZ3/ANONYMIZ3
+    /home/hachterberg/temp/ANONYMIZ3/ANONYMIZ3/scans
+    /home/hachterberg/temp/ANONYMIZ3/ANONYMIZ3/scans/1001-MR2-FLAIR
+    /home/hachterberg/temp/ANONYMIZ3/ANONYMIZ3/scans/1001-MR2-FLAIR/resources
+    /home/hachterberg/temp/ANONYMIZ3/ANONYMIZ3/scans/1001-MR2-FLAIR/resources/DICOM
+    /home/hachterberg/temp/ANONYMIZ3/ANONYMIZ3/scans/1001-MR2-FLAIR/resources/DICOM/files
+    /home/hachterberg/temp/ANONYMIZ3/ANONYMIZ3/scans/1001-MR2-FLAIR/resources/DICOM/files/IM2.dcm
+    /home/hachterberg/temp/ANONYMIZ3/ANONYMIZ3/scans/1001-MR2-FLAIR/resources/DICOM/files/IM32.dcm
+    /home/hachterberg/temp/ANONYMIZ3/ANONYMIZ3/scans/1001-MR2-FLAIR/resources/DICOM/files/IM11.dcm
+    ...
+
+
 The REST API allows for downloading of data from XNAT. The xnatpy package
 includes helper functions to make the downloading of data easier. For
 example, to download all experiments belonging to a subject::
@@ -157,8 +200,39 @@ example, to download all experiments belonging to a subject::
   >>> subject.download_dir('./Downloads/test001')
 
 This will download all the relevant experiments and unpack them in the target
-folder. Experiments, scans and resources can also be downloaded in a zip bundle
-using the ``download_zip`` method.
+folder. This is available for
+:py:meth:`projects <xnat.classes.ProjectData.download_dir>`,
+:py:meth:`subjects <xnat.classes.SubjectData.download_dir>`,
+:py:meth:`experiments <xnat.classes.ImageSessionData.download_dir>`,
+:py:meth:`scans <xnat.classes.ImageScanData.download_dir>`, and
+:py:meth:`resources <xnat.classes.AbstractResource.download_dir>`.
+
+Experiments, scans and resources can also be downloaded in a zip bundle
+using the ``download`` method for :py:meth:`experiments <xnat.classes.ImageSessionData.download>`,
+:py:meth:`scans <xnat.classes.ImageScanData.download>`, and
+:py:meth:`resources <xnat.classes.AbstractResource.download>`.
+
+Custom variables
+----------------
+
+The custom variables are exposed as a ``dict``-like object in ``xnatpy``. They are located in the
+``field`` attribute under the objects that can have custom variables::
+
+    In [18]: experiment = project.subjects['ANONYMIZ'].experiments['ANONYMIZ']
+
+    In [19]: experiment.fields
+    Out[19]: <VariableMap {u'brain_volume': u'0'}>
+
+    In [20]: experiment.fields['brain_volume']
+    Out[20]: u'0'
+
+    In [21]: experiment.fields['brain_volume'] = 42.0
+
+    In [22]: experiment.fields
+    Out[22]: <VariableMap {u'brain_volume': u'42.0'}>
+
+    In [27]: experiment.fields['brain_volume']
+    Out[27]: u'42.0'
 
 Getting external urls of an object
 ----------------------------------
@@ -187,6 +261,31 @@ Will upload the DICOM files in archive.zip and add them as scans under the subje
 in project *sandbox*. For more information on importing data see
 :py:meth:`import_ <xnat.services.Services.import_>`
 
+As it is dangerous to add data straight into the archive due to lack of reviewing, it is possible to also upload
+the data to the prearchive first. This can be achieved by adding the ``destination`` argument as follows::
+
+    # Import via prearchive:
+    >>> prearchive_session = session.services.import_('/home/hachterberg/temp/ANONYMIZ.zip', project='brainimages', destination='/prearchive')
+    >>> print(prearchive_session)
+    <PrearchiveSession brainimages/20161107_114859342/ANONYMIZ>
+
+Once the data is uploaded (either via ``xnatpy`` or other means) it is possible to query the prearchive and
+process the scans in it. To get a list of ``sessions`` waiting for archiving use the following::
+
+    >>> session.prearchive.sessions()
+    [<PrearchiveSession brainimages/20161107_114859342/ANONYMIZ>]
+
+Once the data in the prearchive is located it can be archived as follows::
+
+    >>> prearchive_session = session.prearchive.sessions()[0]
+    >>> experiment = prearchive_session.archive(subject='ANONYMIZ3', experiment='ANONYMIZ3')
+    >>> print(experiment)
+    <MrSessionData ANONYMIZ3 (demo_E00092)>
+
+
+.. note:: It is worth noting that it is possible to inspect the scan before archiving: one can look at the status,
+ move it between projects, list the scans and files contained in the scans.
+
 Prearchive
 ----------
 
@@ -197,7 +296,11 @@ adding them to the main archive. It is possible to view the prearchive via xnatp
   []
 
 This gives a list of ``PrearchiveSessions`` in the archive. It is possible to 
-archive, rebuild, more or remove the session using simple methods. For more information
+:py:meth:`archive <xnat.prearchive.PrearchiveSession.archive>`,
+:py:meth:`rebuild <xnat.prearchive.PrearchiveSession.rebuild>`,
+:py:meth:`move <xnat.prearchive.PrearchiveSession.move>`, or
+:py:meth:`delete <xnat.prearchive.PrearchiveSession.delete>`
+the session using simple methods. For more information
 see :py:class:`PrearchiveSession <xnat.prearchive.PrearchiveSession>`
 
 Object creation

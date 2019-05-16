@@ -391,7 +391,7 @@ class PrearchiveFile(XNATBaseObject):
         self._fulldata = datafields
 
     def open(self):
-        uri = self.xnat_session._format_uri(self.uri)
+        uri = self.xnat_session.url_for(self)
         request = self.xnat_session.interface.get(uri, stream=True)
         return RequestsFileLike(request)
 

@@ -81,6 +81,17 @@ class ProjectData(XNATBaseObject):
                            xsi_type='xnat:resourceCatalog')
 
     def download_dir(self, target_dir, verbose=True):
+        """
+        Download the entire project and unpack it in a given directory. Note
+        that this method will create a directory structure following
+        $target_dir/{project.name}/{subject.label}/{experiment.label}
+        and unzip the experiment zips as given by XNAT into that. If
+        the $target_dir/{project.name} does not exist, it will be created.
+
+        :param str target_dir: directory to create project directory in
+        :param bool verbose: show progress
+        """
+
         project_dir = os.path.join(target_dir, self.name)
         if not os.path.isdir(project_dir):
             os.mkdir(project_dir)
@@ -142,6 +153,16 @@ class SubjectData(XNATBaseObject):
                            xsi_type='xnat:fileData')
 
     def download_dir(self, target_dir, verbose=True):
+        """
+        Download the entire subject and unpack it in a given directory. Note
+        that this method will create a directory structure following
+        $target_dir/{subject.label}/{experiment.label}
+        and unzip the experiment zips as given by XNAT into that. If
+        the $target_dir/{subject.label} does not exist, it will be created.
+
+        :param str target_dir: directory to create subject directory in
+        :param bool verbose: show progress
+        """
         subject_dir = os.path.join(target_dir, self.label)
         if not os.path.isdir(subject_dir):
             os.mkdir(subject_dir)
@@ -233,6 +254,24 @@ class ImageSessionData(XNATBaseObject):
         self.xnat_session.download_zip(self.uri + '/scans/ALL/files', path, verbose=verbose)
 
     def download_dir(self, target_dir, verbose=True):
+        """
+        Download the entire experiment and unpack it in a given directory. Note
+        that this method will create a directory structure following
+        $target_dir/{experiment.label} and unzip the experiment zips
+        as given by XNAT into that. If the $target_dir/{experiment.label} does
+        not exist, it will be created.
+
+        :param str target_dir: directory to create experiment directory in
+        :param bool verbose: show progress
+        """
+        # Check if there are actually file to be found
+        file_list = self.xnat_session.get_json(self.uri + '/scans/ALL/files')
+        if len(file_list['ResultSet']['Result']) == 0:
+            # Just make sure the target directory exists and stop
+            if not os.path.exists(target_dir):
+                os.mkdir(target_dir)
+            return
+
         with tempfile.TemporaryFile() as temp_path:
             self.xnat_session.download_stream(self.uri + '/scans/ALL/files', temp_path, format='zip', verbose=verbose)
 
@@ -470,6 +509,12 @@ class AbstractResource(XNATBaseObject):
         self.xnat_session.download_zip(self.uri + '/files', path, verbose=verbose)
 
     def download_dir(self, target_dir, verbose=True):
+        """
+        Download the entire resource and unpack it in a given directory
+
+        :param str target_dir: directory to unpack to
+        :param bool verbose: show progress
+        """
         with tempfile.TemporaryFile() as temp_path:
             self.xnat_session.download_stream(self.uri + '/files', temp_path, format='zip', verbose=verbose)
 

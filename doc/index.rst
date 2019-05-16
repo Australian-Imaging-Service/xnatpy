@@ -33,7 +33,6 @@ XNAT Client Documentation
 
     static/introduction.rst
     static/tutorial.rst
-    static/xnat_scripting.rst
     xnat
     xsd
 
