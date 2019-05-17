@@ -15,7 +15,7 @@ Improved
 - Added ``force`` flag to ``ScanData.read_dicom``
 - Added ``open`` to ``PrearchiveFile`` (same as for FileData)
 - Added ``read_dicom`` to ``PrearchiveScan`` (same as for ScanData)
-- Documentation
+- Documentation improved, added code reference and changelog into docs
 
 0.3.17 - 2019-04-04
 -------------------
