@@ -66,3 +66,22 @@ SECONDARY_LOOKUP_FIELDS = {
     'xnat:imageScanData': 'type',
     'xnat:fileData': 'path',
 }
+
+# DEFAULT SCHEMAS IN XNAT 1.7
+DEFAULT_SCHEMAS = [
+    "security",
+    "xnat",
+    "assessments",
+    "screening/screeningAssessment",
+    "pipeline/build",
+    "pipeline/repository",
+    "pipeline/workflow",
+    "birn/birnprov",
+    "catalog",
+    "project",
+    "validation/protocolValidation",
+    "xdat/display",
+    "xdat",
+    "xdat/instance",
+    "xdat/PlexiViewer"
+]

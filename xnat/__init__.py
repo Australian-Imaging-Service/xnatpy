@@ -37,11 +37,12 @@ from six.moves.urllib import parse
 
 from . import exceptions
 from .session import XNATSession
+from .constants import DEFAULT_SCHEMAS
 from .convert_xsd import SchemaParser
 
 GEN_MODULES = {}
 
-__version__ = '0.3.17'
+__version__ = '0.3.18'
 __all__ = ['connect', 'exceptions']
 
 
@@ -157,7 +158,7 @@ def parse_schemas_16(parser, xnat_session, extension_types=True):
                                     schema_uri=schema)
 
 
-def parse_schemas_17(parser, xnat_serssion):
+def parse_schemas_17(parser, xnat_serssion, extension_types=True):
     """
     Retrieve and parse schemas for an XNAT version 1.7.x
 
@@ -166,17 +167,21 @@ def parse_schemas_17(parser, xnat_serssion):
     :param str server: URI of the XNAT server
     :param logger: logger to use for the logging
     """
-    schemas_uri = '/xapi/schemas'
-    try:
-        schema_list = xnat_serssion.get_json(schemas_uri)
-    except exceptions.XNATResponseError as exception:
-        message = 'Problem retrieving schemas list: {}'.format(exception)
-        xnat_serssion.logger.critical(message)
-        raise ValueError(message)
+    if extension_types:
+        schemas_uri = '/xapi/schemas'
+        try:
+            schema_list = xnat_serssion.get_json(schemas_uri)
+        except exceptions.XNATResponseError as exception:
+            message = 'Problem retrieving schemas list: {}'.format(exception)
+            xnat_serssion.logger.critical(message)
+            raise ValueError(message)
+    else:
+        schema_list = DEFAULT_SCHEMAS
 
     for schema in schema_list:
-        parser.parse_schema_uri(xnat_session=xnat_serssion,
-                                schema_uri='/xapi/schemas/{schema}'.format(schema=schema))
+        if extension_types or schema in ['xdat', 'xnat']:
+            parser.parse_schema_uri(xnat_session=xnat_serssion,
+                                    schema_uri='/xapi/schemas/{schema}'.format(schema=schema))
 
 
 def detect_redirection(server, session, logger):
@@ -231,7 +236,7 @@ def build_model(xnat_session, extension_types, connection_id):
         parse_schemas_16(parser, xnat_session, extension_types=extension_types)
     elif version.startswith('1.7'):
         logger.info('Found an 1.7 version ({})'.format(version))
-        parse_schemas_17(parser, xnat_session)
+        parse_schemas_17(parser, xnat_session, extension_types=extension_types)
     else:
         logger.critical('Found an unsupported version ({})'.format(version))
         raise ValueError('Cannot continue on unsupported XNAT version')

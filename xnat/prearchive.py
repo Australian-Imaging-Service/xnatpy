@@ -22,6 +22,13 @@ import isodate
 
 from .core import XNATBaseObject
 from .datatypes import to_date, to_time
+from .utils import RequestsFileLike
+
+try:
+    PYDICOM_LOADED = True
+    import pydicom
+except ImportError:
+    PYDICOM_LOADED = False
 
 
 class PrearchiveSession(XNATBaseObject):
@@ -170,7 +177,7 @@ class PrearchiveSession(XNATBaseObject):
         :param str subject: the subject in the archive to assign the session to
         :param str experiment: the experiment in the archive to assign the session content to
         :return: the newly created experiment
-        :rtype: ExperimentData
+        :rtype: xnat.classes.ExperimentData
         """
         query = {'src': self.uri}
 
@@ -352,6 +359,25 @@ class PrearchiveScan(XNATBaseObject):
         uri = self.uri[5:]
         return self.xnat_session.services.dicom_dump(src=uri, fields=fields)
 
+    def read_dicom(self, file=None, read_pixel_data=False, force=False):
+        # Check https://gist.github.com/obskyr/b9d4b4223e7eaf4eedcd9defabb34f13 for partial loading?
+        if not PYDICOM_LOADED:
+            raise RuntimeError('Cannot read DICOM, missing required dependency: pydicom')
+
+        if file is None:
+            dicom_files = sorted(self.files, key=lambda x: x.name)
+            file = dicom_files[0]
+        else:
+            if file not in self.files:
+                raise ValueError('File {} not part of scan {} DICOM resource'.format(file, self))
+
+        with file.open() as dicom_fh:
+            dicom_data = pydicom.dcmread(dicom_fh,
+                                         stop_before_pixels=not read_pixel_data,
+                                         force=force)
+
+        return dicom_data
+
 
 class PrearchiveFile(XNATBaseObject):
     def __init__(self, uri, xnat_session, id_=None, datafields=None, parent=None, fieldname=None):
@@ -363,6 +389,11 @@ class PrearchiveFile(XNATBaseObject):
                                              fieldname=fieldname)
 
         self._fulldata = datafields
+
+    def open(self):
+        uri = self.xnat_session.url_for(self)
+        request = self.xnat_session.interface.get(uri, stream=True)
+        return RequestsFileLike(request)
 
     @property
     def data(self):

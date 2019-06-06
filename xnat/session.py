@@ -50,32 +50,32 @@ class XNATSession(object):
 
     The main starting points for working with the XNATSession server are:
 
-    * :py:meth:`XNATSession.projects <xnat.XNATSession.projects>`
-    * :py:meth:`XNATSession.subjects <xnat.XNATSession.subjects>`
-    * :py:meth:`XNATSession.experiments <xnat.XNATSession.experiments>`
-    * :py:meth:`XNATSession.prearchive <xnat.XNATSession.prearchive>`
-    * :py:meth:`XNATSession.services <xnat.XNATSession.services>`
-    * :py:meth:`XNATSession.users <xnat.XNATSession.users>`
+    * :py:meth:`XNATSession.projects <xnat.session.XNATSession.projects>`
+    * :py:meth:`XNATSession.subjects <xnat.session.XNATSession.subjects>`
+    * :py:meth:`XNATSession.experiments <xnat.session.XNATSession.experiments>`
+    * :py:meth:`XNATSession.prearchive <xnat.session.XNATSession.prearchive>`
+    * :py:meth:`XNATSession.services <xnat.session.XNATSession.services>`
+    * :py:meth:`XNATSession.users <xnat.session.XNATSession.users>`
 
-    .. note:: Some methods create listing that are using the :py:class:`xnat.XNATListing`
+    .. note:: Some methods create listing that are using the :py:class:`xnat.core.XNATListing <xnat.core.XNATListing>`
               class. They allow for indexing with both XNATSession ID and a secondary key (often the
               label). Also they support basic filtering and tabulation.
 
     There are also methods for more low level communication. The main methods
-    are :py:meth:`XNATSession.get <xnat.XNATSession.get>`, :py:meth:`XNATSession.post <xnat.XNATSession.post>`,
-    :py:meth:`XNATSession.put <xnat.XNATSession.put>`, and :py:meth:`XNATSession.delete <xnat.XNATSession.delete>`.
+    are :py:meth:`XNATSession.get <xnat.session.XNATSession.get>`, :py:meth:`XNATSession.post <xnat.session.XNATSession.post>`,
+    :py:meth:`XNATSession.put <xnat.session.XNATSession.put>`, and :py:meth:`XNATSession.delete <xnat.session.XNATSession.delete>`.
     The methods do not query URIs but instead query XNATSession REST paths as described in the
     `XNATSession 1.6 REST API Directory <https://wiki.xnat.org/display/XNAT16/XNATSession+REST+API+Directory>`_.
 
-    For an even lower level interfaces, the :py:attr:`XNATSession.interface <xnat.XNATSession.interface>`
+    For an even lower level interfaces, the :py:attr:`XNATSession.interface <xnat.session.XNATSession.interface>`
     gives access to the underlying `requests <https://requests.readthedocs.org>`_ interface.
     This interface has the user credentials and benefits from the keep alive of this class.
 
-    .. note:: XNATSession Objects have a client-side cache. This is for efficiency, but might cause
+    .. note:: :py:class:`XNATSession <xnat.session.XNATSession>` Objects have a client-side cache. This is for efficiency, but might cause
               problems if the server is being changed by a different client. It is possible
-              to clear the current cache using :py:meth:`XNATSession.clearcache <xnat.XNATSession.clearcache>`.
+              to clear the current cache using :py:meth:`XNATSession.clearcache <xnat.session.XNATSession.clearcache>`.
               Turning off caching complete can be done by setting
-              :py:attr:`XNATSession.caching <xnat.XNATSession.caching>`.
+              :py:attr:`XNATSession.caching <xnat.session.XNATSession.caching>`.
 
     .. warning:: You should NOT try use this class directly, it should only
                  be created by :py:func:`xnat.connect <xnat.connect>`.
@@ -745,6 +745,9 @@ class XNATSession(object):
     def projects(self):
         """
         Listing of all projects on the XNAT server
+
+        Returns an :py:class:`XNATListing <xnat.core.XNATListing>` with elements
+        of :py:class:`ProjectData <xnat.classes.ProjectData>`
         """
         return XNATListing(self.uri + '/projects',
                            xnat_session=self.xnat_session,
@@ -758,6 +761,9 @@ class XNATSession(object):
     def subjects(self):
         """
         Listing of all subjects on the XNAT server
+
+        Returns an :py:class:`XNATListing <xnat.core.XNATListing>` with elements
+        of :py:class:`SubjectData <xnat.classes.SubjectData>`
         """
         return XNATListing(self.uri + '/subjects',
                            xnat_session=self.xnat_session,
@@ -771,6 +777,9 @@ class XNATSession(object):
     def experiments(self):
         """
         Listing of all experiments on the XNAT server
+
+        Returns an :py:class:`XNATListing <xnat.core.XNATListing>` with elements
+        that are subclasses of :py:class:`ExperimentData <xnat.classes.ExperimentData>`
         """
         return XNATListing(self.uri + '/experiments',
                            xnat_session=self.xnat_session,

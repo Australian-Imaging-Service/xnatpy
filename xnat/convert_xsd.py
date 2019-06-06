@@ -27,8 +27,9 @@ from xml.etree import ElementTree
 
 from . import core
 from . import xnatbases
+from .datatypes import TYPE_TO_PYTHON
 from .constants import SECONDARY_LOOKUP_FIELDS, FIELD_HINTS, CORE_REST_OBJECTS
-from .utils import pythonize_class_name, pythonize_attribute_name
+from .utils import pythonize_class_name, pythonize_attribute_name, full_class_name
 
 
 FILE_HEADER = '''
@@ -303,9 +304,6 @@ class AttributePrototype(object):
                 return 'subobject'
         else:
             return 'subobject'
-
-        print('FOUND OBJECT TYPE: {}'.format(object_type))
-        return type_map[object_type]
 
     @property
     def writer(self):
@@ -736,7 +734,11 @@ class PropertyWriter(AttributeWriter):
         return '<PropertyWriter {}({})>'.format(self.name, self.type_)
 
     def tostring(self):
-        docstring = '\n        """ {} """'.format(self.docstring) if self.docstring is not None else ''
+        type_string = ':py:class:`{}`'.format(full_class_name(TYPE_TO_PYTHON.get(self.type, str)))
+
+        docstring_content = self.docstring + '\n\n' if self.docstring else ''
+        docstring_content += "\n        Property of type: {}".format(type_string)
+        docstring = '\n        """{}"""'.format(docstring_content)
         return \
     """    @mixedproperty
     def {clean_name}(cls):{docstring}
@@ -744,7 +746,7 @@ class PropertyWriter(AttributeWriter):
         return search.SearchField(cls, "{name}")
 
     @{clean_name}.getter
-    def {clean_name}(self):
+    def {clean_name}(self):{docstring}
         # Generate automatically, type: {type_}
         return self.get("{name}", type_="{type_}")
 
@@ -768,7 +770,6 @@ class SubObjectPropertyWriter(AttributeWriter):
         return '<SubObjectPropertyWriter {}({})>'.format(self.name, self.type)
 
     def tostring(self):
-        docstring = '\n        """ {} """'.format(self.docstring) if self.docstring is not None else ''
         if self.type is None:
             if self.element_class is not None:
                 xsi_type = self.element_class.name
@@ -779,6 +780,27 @@ class SubObjectPropertyWriter(AttributeWriter):
         else:
             xsi_type = '{}'.format(core.TYPE_HINTS.get(self.name, self.type))
             xsi_type_arg = ', "{}"'.format(xsi_type)
+
+        type_def = self.type or self.element_class
+
+        if type_def:
+            if isinstance(type_def, ClassPrototype):
+                type_string = 'xnat.classes.{}'.format(pythonize_class_name(type_def.name))
+            elif type_def.startswith('xs:'):
+                type_string = full_class_name(TYPE_TO_PYTHON.get(type_def, str))
+            else:
+                type_string = type_def
+                if ':' in type_string:
+                    type_string.split(':', 1)
+                type_string = 'xnat.classes.{}'.format(pythonize_class_name(type_string))
+
+            type_string = ':py:class:`listing <xnat.core.XNATBaseListing>` of :py:class:`{}`'.format(type_string)
+        else:
+            type_string = 'Unknown'
+
+        docstring_content = self.docstring + '\n\n' if self.docstring else '\n'
+        docstring_content += "        Property of type: {}".format(type_string)
+        docstring = '\n        """{}"""'.format(docstring_content)
 
         return \
             """    @mixedproperty
@@ -822,9 +844,28 @@ class ListingPropertyWriter(AttributeWriter):
 
         field_name = self.field_name or self.name
 
-        property_base = """    @property
+        # Get the correct type for in the docstring
+        type_def = self.element_class or self.type
+
+        if isinstance(type_def, ClassPrototype):
+            type_string = 'xnat.classes.{}'.format(pythonize_class_name(type_def.name))
+        elif type_def.startswith('xs:'):
+            type_string = full_class_name(TYPE_TO_PYTHON.get(type_def, str))
+        else:
+            type_string = type_def
+            if ':' in type_string:
+                type_string.split(':', 1)
+            type_string = 'xnat.classes.{}'.format(pythonize_class_name(type_string))
+
+        type_string = ':py:class:`listing <xnat.core.XNATBaseListing>` of :py:class:`{}`'.format(type_string)
+
+        docstring_content = self.docstring + '\n\n        ' if self.docstring else ''
+        docstring_content += type_string
+        docstring = '\n        """ {} """'.format(docstring_content)
+
+        property_base = '''    @property
     @caching
-    def {clean_name}(self):""".format(clean_name=self.clean_name)
+    def {clean_name}(self):{docstring}'''.format(clean_name=self.clean_name, docstring=docstring)
         if self.element_class is not None:
             element_class = self.element_class
             property_base += element_class.writer.create_listing(secondary_lookup=secondary_lookup, field_name=field_name)

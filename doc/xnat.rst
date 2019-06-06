@@ -1,6 +1,7 @@
 Code reference
 ==============
 
+
 :mod:`xnat` Package
 -------------------
 
@@ -14,6 +15,14 @@ Code reference
 
 .. automodule:: xnat.session
     :members:
+    :show-inheritance:
+
+:mod:`core` Module
+---------------------
+
+.. automodule:: xnat.core
+    :members:
+    :undoc-members:
     :show-inheritance:
 
 :mod:`inspect` Module
@@ -49,7 +58,7 @@ Code reference
     :show-inheritance:
 
 :mod:`xnatbases` Module
--------------------
+-----------------------
 
 .. automodule:: xnat.xnatbases
     :members:
