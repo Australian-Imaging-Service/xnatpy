@@ -9,6 +9,9 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+0.3.18 - 2019-06-06
+-------------------
+
 Improved
 ~~~~~~~~
 
@@ -16,6 +19,11 @@ Improved
 - Added ``open`` to ``PrearchiveFile`` (same as for FileData)
 - Added ``read_dicom`` to ``PrearchiveScan`` (same as for ScanData)
 - Documentation improved, added code reference and changelog into docs
+
+Fixed
+~~~~~
+
+- Flag extension_types=False now also working for 1.7 servers
 
 0.3.17 - 2019-04-04
 -------------------
