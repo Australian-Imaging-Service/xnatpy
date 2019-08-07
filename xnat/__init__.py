@@ -27,6 +27,7 @@ import hashlib
 import imp
 import logging
 import os
+import platform
 import netrc
 import re
 import tempfile
@@ -362,6 +363,15 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
 
     # Create the correct requests session
     requests_session = requests.Session()
+    user_agent = "xnatpy/{version} ({platform}/{release}; python/{python}; requests/{requests})".format(
+        version=__version__,
+        platform=platform.system(),
+        release=platform.release(),
+        python=platform.python_version(),
+        requests=requests.__version__
+    )
+
+    requests_session.headers.update({'User-Agent': user_agent})
 
     if user is not None:
         requests_session.auth = (user, password)

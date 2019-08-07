@@ -9,6 +9,12 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Added
+~~~~~
+
+- xnatpy changes the user-agent header to give detailed information about
+  the xnatpy client running.
+
 0.3.18 - 2019-06-06
 -------------------
 
