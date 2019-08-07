@@ -178,7 +178,7 @@ class XNATSession(object):
 
         # Create a keepalive thread
         self._keepalive_running = True
-        self._keepalive_thread = threading.Thread(target=self._keepalive_thread_run)
+        self._keepalive_thread = threading.Thread(target=self._keepalive_thread_run, name='XNATpyKeepAliveThread')
         self._keepalive_thread.daemon = True  # Make sure thread stops if program stops
         self._keepalive_thread.start()
         self.heartbeat()  # Make sure the heartbeat is given and there is no chance of timeout
