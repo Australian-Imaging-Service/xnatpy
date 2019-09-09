@@ -18,7 +18,6 @@ import os
 import imp
 import shutil
 import sys
-import tempfile
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -33,7 +32,7 @@ if on_rtd:
 # -- General configuration -----------------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.
-# needs_sphinx = '1.0'
+needs_sphinx = '1.8'
 
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
@@ -68,16 +67,15 @@ copyright = '2011 -- 2019, Hakim Achterberg'
 # built documents.
 #
 # Get version
-setup_module = imp.load_source('setup', os.path.join(os.path.dirname(__file__), '../setup.py'))
+import xnat
 
 # The short X.Y version.
-version = setup_module.version.rsplit('.')[0]
+version = xnat.__version__
 # The full version, including alpha/beta/rc tags.
-release = setup_module.version
+release = xnat.__version__
 
 # Create temporary code for documentation
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
-import xnat
 with xnat.connect(server='https://central.xnat.org', extension_types=False) as session:
     print('Connected to central.xnat.org!')
     target = os.path.join(os.path.dirname(__file__), '_build', 'classes.py')
@@ -156,17 +154,19 @@ else:
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
-# html_logo = None
+html_logo = 'static/images/logo.svg'
 
 # The name of an image file (within the static path) to use as favicon of the
 # docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
 # pixels large.
-# html_favicon = None
+html_favicon = 'static/images/favicon.ico'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-#html_static_path = ['_static']
+html_static_path = ['static/sources']
+
+html_css_files = ['extra.css']
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
 # using the given strftime format.
