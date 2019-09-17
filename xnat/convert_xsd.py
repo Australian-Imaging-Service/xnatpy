@@ -26,7 +26,7 @@ import re
 from xml.etree import ElementTree
 
 from . import core
-from . import xnatbases
+from . import mixin
 from .datatypes import TYPE_TO_PYTHON
 from .constants import SECONDARY_LOOKUP_FIELDS, FIELD_HINTS, CORE_REST_OBJECTS
 from .utils import pythonize_class_name, pythonize_attribute_name, full_class_name
@@ -57,7 +57,7 @@ from tarfile import TarFile  # Needed by generated code
 from zipfile import ZipFile  # Needed by generated code
 from six import BytesIO  # Needed by generated code
 
-from xnat import search
+from xnat import search, mixin
 from xnat.core import XNATObject, XNATNestedObject, XNATSubObject, XNATListing, XNATSimpleListing, XNATSubListing, caching
 from xnat.utils import mixedproperty, RequestsFileLike
 
@@ -407,8 +407,8 @@ class BaseClassWriter(BaseWriter):
 
     # Convenience methods that can be shared along writers
     def get_base_template(self):
-        if hasattr(xnatbases, self.python_name):
-            return getattr(xnatbases, self.python_name)
+        if hasattr(mixin, self.python_name):
+            return getattr(mixin, self.python_name)
 
     def _pythonize_name(self, name):
         return pythonize_class_name(name)
@@ -460,14 +460,17 @@ class BaseClassWriter(BaseWriter):
         return data
 
     def header(self):
-        base = self.get_base_template()
-        if base is not None:
-            base_source = inspect.getsource(base)
-            base_source = re.sub(r'class {}\(XNATBaseObject\):'.format(self.python_name), 'class {}({}):'.format(self.python_name, self.python_base_class), base_source)
-            header = base_source.strip() + '\n\n    # END HEADER\n'
+        base_mixin = self.get_base_template()
+        if base_mixin is not None:
+            header = '# Base mixin for {}: {}\n'.format(self.python_name, base_mixin)
+            header += "class {name}({base}, mixin.{mixin}):\n".format(name=self.python_name,
+                                                                base=self.python_base_class,
+                                                                mixin=base_mixin.__name__)
+            header += '\n\n    # END HEADER\n'
         else:
             header = '# No base template found for {}\n'.format(self.python_name)
             header += "class {name}({base}):\n".format(name=self.python_name, base=self.python_base_class)
+            header += '\n\n    # END HEADER\n'
 
         header += "    # Abstract: {}\n".format(self.abstract)
         header += "    # Simple: {}\n".format(self.simple)

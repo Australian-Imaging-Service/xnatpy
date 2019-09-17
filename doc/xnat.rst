@@ -57,10 +57,10 @@ Code reference
     :undoc-members:
     :show-inheritance:
 
-:mod:`xnatbases` Module
+:mod:`mixin` Module
 -----------------------
 
-.. automodule:: xnat.xnatbases
+.. automodule:: xnat.mixin
     :members:
     :undoc-members:
     :show-inheritance:
