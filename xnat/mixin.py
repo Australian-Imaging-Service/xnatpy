@@ -80,7 +80,7 @@ class ProjectData(XNATBaseObject):
                            secondary_lookup_field='label',
                            xsi_type='xnat:resourceCatalog')
 
-    def download_dir(self, target_dir, verbose=True):
+    def download_dir(self, target_dir, verbose=True, progress_callback=None):
         """
         Download the entire project and unpack it in a given directory. Note
         that this method will create a directory structure following
@@ -90,17 +90,24 @@ class ProjectData(XNATBaseObject):
 
         :param str target_dir: directory to create project directory in
         :param bool verbose: show progress
+        :param progress_callback: function to call with progress string
+                                  should be a function with one argument
         """
 
         project_dir = os.path.join(target_dir, self.name)
         if not os.path.isdir(project_dir):
             os.mkdir(project_dir)
 
-        for subject in self.subjects.values():
-            subject.download_dir(project_dir, verbose=verbose)
+        number_of_subjects = len(self.subjects)
+
+        for n, subject in enumerate(self.subjects.values(), start=1):
+            if progress_callback:
+                progress_callback("Downloading subject {} of {}".format(n, number_of_subjects))
+
+            subject.download_dir(project_dir, verbose=verbose, progress_callback=progress_callback)
 
         if verbose:
-            self.logger.info('Downloaded subject to {}'.format(project_dir))
+            self.logger.info('Downloaded project to {}'.format(project_dir))
 
 
 class SubjectData(XNATBaseObject):
@@ -152,7 +159,7 @@ class SubjectData(XNATBaseObject):
                            secondary_lookup_field='path',
                            xsi_type='xnat:fileData')
 
-    def download_dir(self, target_dir, verbose=True):
+    def download_dir(self, target_dir, verbose=True, progress_callback=None):
         """
         Download the entire subject and unpack it in a given directory. Note
         that this method will create a directory structure following
@@ -162,12 +169,18 @@ class SubjectData(XNATBaseObject):
 
         :param str target_dir: directory to create subject directory in
         :param bool verbose: show progress
+        :param progress_callback: function to call with progress string
+                                  should be a function with one argument
         """
         subject_dir = os.path.join(target_dir, self.label)
         if not os.path.isdir(subject_dir):
             os.mkdir(subject_dir)
 
-        for experiment in self.experiments.values():
+        number_of_experiments = len(self.experiments)
+
+        for n, experiment in enumerate(self.experiments.values(), start=1):
+            if progress_callback is not None:
+                progress_callback("Downloading experiment {} of {}".format(n, number_of_experiments))
             experiment.download_dir(subject_dir, verbose=verbose)
 
         if verbose:

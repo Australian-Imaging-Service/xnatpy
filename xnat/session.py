@@ -542,7 +542,7 @@ class XNATSession(object):
                                    parameters:
 
                                      - the number of bytes downloaded so far
-                                     - the total number of bytse to be
+                                     - the total number of bytes to be
                                        downloaded (might be ``None``),
                                      - A boolean flag which is ``False`` during
                                        the download, and ``True`` when the
@@ -844,7 +844,6 @@ def default_update_func(total):
             DataSize(),
             ' ', BouncingBar(),
             ' ', AdaptiveTransferSpeed(),
-            ' ', Timer(),
         ]
 
     progress_bar = ProgressBar(widgets=widgets, max_value=total)

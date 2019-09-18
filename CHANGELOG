@@ -14,6 +14,8 @@ Added
 
 - xnatpy changes the user-agent header to give detailed information about
   the xnatpy client running.
+- option to have some progress logging/printing added to the download_dir
+  methods for projects and subjects
 
 Improved
 ~~~~~~~~
