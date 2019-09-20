@@ -474,13 +474,13 @@ class Prearchive(object):
         sessions = self.sessions(project=project)
 
         for option in sessions:
-            if subject is None or option.subject != subject:
+            if subject is not None and option.subject != subject:
                 continue
 
-            if session is None or option.label != session:
+            if session is not None and option.label != session:
                 continue
 
-            if status is None or option.status != status:
+            if status is not None and option.status != status:
                 continue
 
             result.append(option)
