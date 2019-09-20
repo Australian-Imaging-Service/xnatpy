@@ -458,3 +458,31 @@ class Prearchive(object):
         data = self.xnat_session.get_json(uri)
         # We need to prepend /data to our url (seems to be a bug?)
         return [PrearchiveSession('/data{}'.format(x['url']), self.xnat_session) for x in data['ResultSet']['Result']]
+
+    def find(self, project=None, subject=None, session=None, status=None):
+        """
+        Find specific session(s) given the project/subject/session/status
+
+        :param str project:
+        :param str subject:
+        :param str session:
+        :param str status:
+        :return: list of matching sessions
+        :rtype: list[PrearchiveSession]
+        """
+        result = []
+        sessions = self.sessions(project=project)
+
+        for option in sessions:
+            if subject is None or option.subject != subject:
+                continue
+
+            if session is None or option.label != session:
+                continue
+
+            if status is None or option.status != status:
+                continue
+
+            result.append(option)
+
+        return result

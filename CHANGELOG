@@ -16,6 +16,7 @@ Added
   the xnatpy client running.
 - option to have some progress logging/printing added to the download_dir
   methods for projects and subjects
+- add method to find specific sessions in the prearchive
 
 Improved
 ~~~~~~~~
