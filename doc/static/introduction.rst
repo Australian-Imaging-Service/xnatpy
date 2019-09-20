@@ -7,9 +7,17 @@ objects/functions.
 Getting started
 ---------------
 
-To install just use the setup.py normally::
+To install just use pip:
 
-  python setup.py install
+.. code-block:: bash
+
+    pip install xnat
+
+If desired, instead of pip conda can be used. There is also a conda package available:
+
+.. code-block:: bash
+
+    conda install -c conda-forge xnat
 
 To get started, create a connection and start querying::
 
@@ -47,3 +55,5 @@ object.
 
 There is at the moment still a lack of proper tests in the code base and the documentation
 is somewhat sparse, this is a known limitation and can hopefully be addressed in the future.
+You can contact the author for any feature request and they will be considered. Also pull
+requests, documentation updates and other help are always appreciated.

@@ -370,7 +370,7 @@ a helper we added a dicom_dump method to ScanData::
 
     >>> scan.dicom_dump()
 
-See :py:meth:`ScanData.dicom_dump <xnat.xnatbases.ImageScanData.dicom_dump>` for the details.
+See :py:meth:`ScanData.dicom_dump <xnat.mixin.ImageScanData.dicom_dump>` for the details.
 
 A limitation of the dicomdump of XNAT is that field values are truncated under
 64 characters. If you want to access the entire dicom header, a convenience method
@@ -383,7 +383,7 @@ of the file. To read the pixel data use::
 
     >>> scan.read_dicom(read_pixel_data=True)
 
-For the details see      :py:meth:`ScanData.dicom_dump <xnat.xnatbases.ImageScanData.read_dicom>`
+For the details see      :py:meth:`ScanData.dicom_dump <xnat.mixin.ImageScanData.read_dicom>`
 
 .. note::
     Only one file is loaded, so the pixel data will only contain a single slice
