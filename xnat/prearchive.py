@@ -20,7 +20,7 @@ import re
 
 import isodate
 
-from .core import XNATBaseObject
+from .core import XNATBaseObject, caching
 from .datatypes import to_date, to_time
 from .utils import RequestsFileLike
 
@@ -64,6 +64,7 @@ class PrearchiveSession(XNATBaseObject):
             return self.xnat_session.get_json(self.uri)['ResultSet']['Result'][0]
 
     @property
+    @caching
     def data(self):
         return self.fulldata
 
@@ -436,6 +437,23 @@ class PrearchiveFile(XNATBaseObject):
 class Prearchive(object):
     def __init__(self, xnat_session):
         self._xnat_session = xnat_session
+        self._cache = {}
+        self._caching = True
+
+    @property
+    def caching(self):
+        if self._caching is not None:
+            return self._caching
+        else:
+            return self.xnat_session.caching
+
+    @caching.setter
+    def caching(self, value):
+        self._caching = value
+
+    @caching.deleter
+    def caching(self):
+        self._caching = None
 
     @property
     def xnat_session(self):
@@ -457,7 +475,20 @@ class Prearchive(object):
 
         data = self.xnat_session.get_json(uri)
         # We need to prepend /data to our url (seems to be a bug?)
-        return [PrearchiveSession('/data{}'.format(x['url']), self.xnat_session) for x in data['ResultSet']['Result']]
+
+        result = []
+        for session_data in data['ResultSet']['Result']:
+            uri = '/data{}'.format(session_data['url'])
+
+            session = self._cache.get(uri, None)
+
+            if session is None:
+                session = PrearchiveSession(uri, self.xnat_session)
+                self._cache[uri] = session
+
+            result.append(session)
+
+        return result
 
     def find(self, project=None, subject=None, session=None, status=None):
         """

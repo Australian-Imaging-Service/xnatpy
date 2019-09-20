@@ -24,7 +24,6 @@ except ImportError:
 import fnmatch
 import keyword
 import re
-import textwrap
 from functools import update_wrapper
 
 from . import exceptions
