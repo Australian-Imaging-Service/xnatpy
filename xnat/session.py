@@ -524,7 +524,6 @@ class XNATSession(object):
             return response.json()
         except ValueError:
             if response.text.startswith('<?xml version="1.0" encoding="UTF-8"?>\n<cat:Catalog'):
-                self.logger.warning('Attempting to access resource uri, using work around')
                 # Probably XML catalog for resource
                 parts = uri.rsplit('/resources/')
                 if len(parts) != 2:

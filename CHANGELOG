@@ -9,6 +9,11 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Improved
+~~~~~~~~
+
+- Removed annoying warning message when resource was accessed
+
 0.3.20 - 2019-10-09
 -------------------
 
