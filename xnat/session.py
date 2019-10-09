@@ -523,7 +523,38 @@ class XNATSession(object):
         try:
             return response.json()
         except ValueError:
-            raise ValueError('Could not decode JSON from [{}] {}'.format(uri, response.text))
+            if response.text.startswith('<?xml version="1.0" encoding="UTF-8"?>\n<cat:Catalog'):
+                self.logger.warning('Attempting to access resource uri, using work around')
+                # Probably XML catalog for resource
+                parts = uri.rsplit('/resources/')
+                if len(parts) != 2:
+                    raise ValueError('Could not decode JSON from [{}] and could not figure out resource URI'.format(uri))
+
+                uri = parts[0] + '/resources'
+                id = parts[1]
+
+                # Unpack result and find correct entry
+                data = self.get_json(uri)
+                data = data['ResultSet']['Result']
+                data = next(x for x in data if x.get('xnat_abstractresource_id', None) == id or x.get('label', None) == id)
+
+                # Pack data properly for xnat response
+                data = {
+                    'items': [
+                        {
+                            'children': [],
+                            'meta': {
+                                'xsi:type': 'xnat:resourceCatalog',
+                                'isHistory': False
+                            },
+                            'data_fields': data
+                        }
+                    ]
+                }
+
+                return data
+            else:
+                raise ValueError('Could not decode JSON from [{}] {}'.format(uri, response.text))
 
     def download_stream(self, uri, target_stream, format=None, verbose=False, chunk_size=524288, update_func=None, timeout=None):
         """

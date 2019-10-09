@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <http://keepachangelog.com/>`_
 and this project adheres to `Semantic Versioning <http://semver.org/>`_
 
+0.3.20 - 2019-10-09
+-------------------
+
+Fixed
+~~~~~
+
+- now possible to create/retrieve data for resources properly. XNAT would
+  only return the catalog when queried and not the object information. Created
+  a work around that catches the case in get_json and retrieves the json data
+  from the listing instead and presents it in a format consistent with the
+  REST API so other code still functions.
+
 0.3.19 - 2019-09-20
 -------------------
 
