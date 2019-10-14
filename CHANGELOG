@@ -9,6 +9,17 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Changed
+~~~~~~~
+
+- Add a default timeout of 300 seconds (5 minutes) to all requests to avoid
+  stale connections blocking the entire code (without error, just infinite
+  hangs). Can be changed when connecting or in the XNATSession object
+  afterwards. Note that the 300 seconds is not the total duration of the
+  request allowed, but means that after there is nothing received 300 seconds
+  the connection is considered timed-out, a download that takes 10 minutes
+  would still be possible.
+
 0.3.21 - 2019-10-09
 -------------------
 

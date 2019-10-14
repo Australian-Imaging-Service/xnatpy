@@ -270,7 +270,7 @@ def build_model(xnat_session, extension_types, connection_id):
 
 def connect(server, user=None, password=None, verify=True, netrc_file=None, debug=False,
             extension_types=True, loglevel=None, logger=None, detect_redirect=True,
-            no_parse_model=False):
+            no_parse_model=False, default_timeout=300):
     """
     Connect to a server and generate the correct classed based on the servers xnat.xsd
     This function returns an object that can be used as a context operator. It will call
@@ -300,6 +300,8 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
                                 model, this create a connection for which the simple
                                 get/head/put/post/delete functions where, but anything
                                 requiring the data model will file (e.g. any wrapped classes)
+    :param int default_timeout: The default timeout of requests sent by xnatpy, is a 5 minutes
+                                per default.
     :return: XNAT session object
     :rtype: XNATSession
 
@@ -394,7 +396,8 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     # Create the XNAT connection
     xnat_session = XNATSession(server=server, logger=logger,
                                interface=requests_session, debug=debug,
-                               original_uri=original_uri, logged_in_user=logged_in_user)
+                               original_uri=original_uri, logged_in_user=logged_in_user,
+                               default_timeout=default_timeout)
 
     # Parse data model and create classes
     if not no_parse_model:

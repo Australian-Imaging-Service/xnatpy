@@ -83,7 +83,7 @@ class XNATSession(object):
 
     def __init__(self, server, logger, interface=None, user=None,
                  password=None, keepalive=None, debug=False,
-                 original_uri=None, logged_in_user=None):
+                 original_uri=None, logged_in_user=None, default_timeout=300):
         # Class lookup to populate (session specific, as all session have their
         # own classes based on the server xsd)
         self.XNAT_CLASS_LOOKUP = {}
@@ -106,7 +106,7 @@ class XNATSession(object):
         self._debug = debug
         self.logger = logger
         self.inspect = Inspect(self)
-        self.request_timeout = None
+        self.request_timeout = default_timeout
 
         # Accepted status
         self.accepted_status_get = [200]

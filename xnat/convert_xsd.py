@@ -67,7 +67,6 @@ try:
 except ImportError:
     PYDICOM_LOADED = False
 
-
 SESSION = None
 
 
