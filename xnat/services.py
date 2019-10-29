@@ -68,10 +68,22 @@ class Services(object):
         :param bool trigger_pipelines: indicate that archiving should trigger pipelines
         :param str destination: the destination to upload the scan to
         :param str project: the project in the archive to assign the session to
+                            (only accepts project ID, not a label)
         :param str subject: the subject in the archive to assign the session to
         :param str experiment: the experiment in the archive to assign the session content to
-        :param str content_type: overwite the content_type (by the mimetype will be guessed)
+        :param str content_type: overwite the content_type (by default the mimetype will be
+                                 guessed using the ``mimetypes`` package).
+                                 This will often be ``application/zip``.
         :return:
+
+        .. note::
+            The project has to be given using the project ID and *NOT* the label.
+
+        .. warning::
+            On some systems the guessed mimetype of a zip file might not be ``application/zip``
+            but be something like ``application/x-zip-compressed``. In that case you might have to
+            set the ``content_type`` parameter to ``application/zip`` manually.
+
         """
         query = {}
         if overwrite is not None:

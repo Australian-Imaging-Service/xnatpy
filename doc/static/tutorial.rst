@@ -258,8 +258,8 @@ automatically try to store it in the correct place::
   >>> session.services.import_('/path/to/archive.zip', project='sandbox', subject='test002')
 
 Will upload the DICOM files in archive.zip and add them as scans under the subject *test002*
-in project *sandbox*. For more information on importing data see
-:py:meth:`import_ <xnat.services.Services.import_>`
+in project *sandbox* (the project ID needs to be *sandbox*, not the label). For more information
+on importing data see :py:meth:`import_ <xnat.services.Services.import_>`
 
 As it is dangerous to add data straight into the archive due to lack of reviewing, it is possible to also upload
 the data to the prearchive first. This can be achieved by adding the ``destination`` argument as follows::
