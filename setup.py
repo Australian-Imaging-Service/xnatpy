@@ -70,7 +70,7 @@ if __name__ == '__main__':
         author='H.C. Achterberg',
         author_email='hakim.achterberg@gmail.com',
         packages=[str('xnat'), str('xnat.scripts')],
-        url='https://bitbucket.org/bigr_erasmusmc/xnatpy',
+        url='https://gitlab.com/radiology/infrastructure/xnatpy',
         license='Apache 2.0',
         description='An XNAT client that exposes the XNAT REST interface as python objects. Part of the interface is automatically generated based on the servers data model as defined by the xnat schema.',
         long_description=open('README.rst').read(),
