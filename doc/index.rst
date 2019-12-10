@@ -5,7 +5,7 @@ XNAT Python Client
 A new XNAT client that exposes XNAT objects/functions as python
 objects/functions.
 
-The XNAT Python client is open-source (licensed under the Apache 2.0 license) and hosted on bitbucket at `https://bitbucket.org/bigr_erasmusmc/xnatpy <https://bitbucket.org/bigr_erasmusmc/xnatpy>`_
+The XNAT Python client is open-source (licensed under the Apache 2.0 license) and hosted on gitlab at `https://gitlab.com/radiology/infrastructure/xnatpy <https://gitlab.com/radiology/infrastructure/xnatpy>`_
 
 The official documentation can be found at `xnat.readthedocs.org <http://xnat.readthedocs.org>`_
 
@@ -26,19 +26,10 @@ Alternatively, you can get yourself a copy of the source code:
 
 .. code-block:: bash
 
-    hg clone https://<yourusername>@bitbucket.org/bigr_erasmusmc/xnatpy
-
-or if you have a ssh key pair:
-
-.. code-block:: bash
-
-    hg clone ssh://hg@bitbucket.org/bigr_erasmusmc/xnatpy
+    git clone https://gitlab.com/radiology/infrastructure/xnatpy 
 
 .. note::
-    The source will be moved from mercurial to git at the end of 2019!
-
-.. note::
-    This is NOT pyxnat, but a new module which is not as mature but uses a different philisophy for the user interface. Pyxnat is located at: `https://pythonhosted.org/pyxnat/ <https://pythonhosted.org/pyxnat/>`_
+    This is NOT pyxnat, but a new module which is not as mature but uses a different philisophy for the user interface. Pyxnat is located at: `https://pyxnat.github.io/pyxnat <https://pyxnat.github.io/pyxnat/>`_
 
 
 XNAT Client Documentation
