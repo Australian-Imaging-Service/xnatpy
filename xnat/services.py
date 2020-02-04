@@ -17,6 +17,11 @@ from __future__ import absolute_import
 from __future__ import unicode_literals
 import mimetypes
 import collections
+import os
+import tempfile
+from zipfile import ZipFile
+
+from six import BytesIO
 
 from .prearchive import PrearchiveSession
 from .exceptions import XNATResponseError, XNATValueError
@@ -131,6 +136,64 @@ class Services(object):
             return PrearchiveSession(response_text, self.xnat_session)
 
         return self.xnat_session.create_object(response_text)
+
+    def import_dir(self, directory, overwrite=None, quarantine=False, destination=None,
+                trigger_pipelines=None, project=None, subject=None,
+                experiment=None, method='zip_file'):
+        """
+        Import a directory to an XNAT resource.
+
+        :param str path: local path of the directory to upload and import
+        :param str overwrite: how the handle existing data (none, append, delete)
+        :param bool quarantine: flag to indicate session should be quarantined
+        :param bool trigger_pipelines: indicate that archiving should trigger pipelines
+        :param str destination: the destination to upload the scan to
+        :param str project: the project in the archive to assign the session to
+                            (only accepts project ID, not a label)
+        :param str subject: the subject in the archive to assign the session to
+        :param str experiment: the experiment in the archive to assign the session content to
+
+
+        The method has 2 options, default is zip_file:
+
+        #. ``zip_file``: Create a temporary zip file and upload that
+        #. ``zip_file``: Create a temporary zip file in memory and upload it
+
+        The considerations are that sometimes you can fit things in memory so
+        you can save disk IO by putting it in memory.
+
+        """
+        # Make sure that a None or empty string is replaced by the default
+        method = method or 'zip_file'
+        
+        if method == 'zip_file':
+            content_type = 'application/zip'
+            fh = tempfile.TemporaryFile('wb+')
+            with ZipFile(fh, 'w') as zip_file:
+                for dirpath, dirs, files in os.walk(directory):
+                    for f in files:
+                        fn = os.path.join(dirpath, f)
+                        zip_file.write(fn)
+        elif method == 'zip_memory':
+            content_type = 'application/zip'
+            fh = BytesIO()
+            with ZipFile(fh, 'w') as zip_file:
+                for dirpath, dirs, files in os.walk(directory):
+                    for f in files:
+                        fn = os.path.join(dirpath, f)
+                        zip_file.write(fn)
+                
+        else:
+            print('Selected invalid import directory method!')
+            return
+        fh.seek(0)
+        session = self.import_(fh, overwrite, quarantine, destination,
+                trigger_pipelines, project, subject,
+                experiment, content_type)
+        fh.close()
+        return session
+            
+
 
     def issue_token(self, user=None):
         """
