@@ -264,7 +264,7 @@ class ImageSessionData(XNATBaseObject):
         return self.xnat_session.create_object('{}/assessors/{}'.format(self.fulluri, label), type_=type_)
 
     def download(self, path, verbose=True):
-        self.xnat_session.download_zip(self.uri + '/scans/ALL/files', path, verbose=verbose)
+        self.xnat_session.download_zip(self.fulluri + '/scans/ALL/files', path, verbose=verbose)
 
     def download_dir(self, target_dir, verbose=True):
         """
