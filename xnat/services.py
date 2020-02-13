@@ -61,7 +61,7 @@ class Services(object):
 
     def import_(self, path, overwrite=None, quarantine=False, destination=None,
                 trigger_pipelines=None, project=None, subject=None,
-                experiment=None, content_type=None):
+                experiment=None, content_type=None, import_handler=None):
         """
         Import a file into XNAT using the import service. See the
         `XNAT wiki <https://wiki.xnat.org/pages/viewpage.action?pageId=6226268>`_
@@ -120,9 +120,28 @@ class Services(object):
         if experiment is not None:
             query['session'] = experiment
 
+        if import_handler is not None:
+            query['import-handler'] = import_handler
+
         # Get mimetype of file
         if content_type is None:
             content_type, _ = mimetypes.guess_type(path)
+
+        if content_type not in ['application/x-tar', 'application/zip']:
+            if path.endswith('.zip'):
+                self.xnat_session.logger.warning(
+                    'Found unexpect content type, but assuming zip based on the extension'
+                )
+                content_type = 'application/zip'
+            elif path.endswith('.tar.gz'):
+                self.xnat_session.logger.warning(
+                    'Found unexpect content type, but assuming tar based on the extension'
+                )
+                content_type = 'application/x-tar'
+            else:
+                self.xnat_session.logger.warning(
+                    'Found unexpected content (found type {}), this could result in errors on import!'.format(content_type)
+                )
 
         uri = '/data/services/import'
         response = self.xnat_session.upload(uri=uri, file_=path, query=query, content_type=content_type, method='post')
@@ -139,7 +158,7 @@ class Services(object):
 
     def import_dir(self, directory, overwrite=None, quarantine=False, destination=None,
                 trigger_pipelines=None, project=None, subject=None,
-                experiment=None, method='zip_file'):
+                experiment=None, method='zip_file', import_handler=None):
         """
         Import a directory to an XNAT resource.
 
@@ -165,7 +184,7 @@ class Services(object):
         """
         # Make sure that a None or empty string is replaced by the default
         method = method or 'zip_file'
-        
+
         if method == 'zip_file':
             content_type = 'application/zip'
             fh = tempfile.TemporaryFile('wb+')
@@ -182,17 +201,17 @@ class Services(object):
                     for f in files:
                         fn = os.path.join(dirpath, f)
                         zip_file.write(fn)
-                
+
         else:
             print('Selected invalid import directory method!')
             return
         fh.seek(0)
         session = self.import_(fh, overwrite, quarantine, destination,
                 trigger_pipelines, project, subject,
-                experiment, content_type)
+                experiment, content_type, import_handler=import_handler)
         fh.close()
         return session
-            
+
 
 
     def issue_token(self, user=None):
