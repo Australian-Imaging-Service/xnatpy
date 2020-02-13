@@ -248,7 +248,7 @@ class ImageSessionData(XNATBaseObject):
     @property
     @caching
     def files(self):
-        return XNATListing(self.uri + '/files',
+        return XNATListing(self.fulluri + '/files',
                            xnat_session=self.xnat_session,
                            parent=self,
                            field_name='files',
@@ -278,7 +278,7 @@ class ImageSessionData(XNATBaseObject):
         :param bool verbose: show progress
         """
         # Check if there are actually file to be found
-        file_list = self.xnat_session.get_json(self.uri + '/scans/ALL/files')
+        file_list = self.xnat_session.get_json(self.fulluri + '/scans/ALL/files')
         if len(file_list['ResultSet']['Result']) == 0:
             # Just make sure the target directory exists and stop
             if not os.path.exists(target_dir):
@@ -286,7 +286,7 @@ class ImageSessionData(XNATBaseObject):
             return
 
         with tempfile.TemporaryFile() as temp_path:
-            self.xnat_session.download_stream(self.uri + '/scans/ALL/files', temp_path, format='zip', verbose=verbose)
+            self.xnat_session.download_stream(self.fulluri + '/scans/ALL/files', temp_path, format='zip', verbose=verbose)
 
             with ZipFile(temp_path) as zip_file:
                 zip_file.extractall(target_dir)
