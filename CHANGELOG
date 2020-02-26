@@ -9,9 +9,18 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Added
+~~~~~
+
+- The ``services.import_dir`` function to import a local directory into XNAT.
+  The function will automatically zip the contents in a temporary file (or
+  memory if desired) before upload.
+
 Changed
 ~~~~~~~
 
+- Updated documentation and setup to refer to new gitlab repository instead
+  of bitbucket, finalizing the move
 - Add a default timeout of 300 seconds (5 minutes) to all requests to avoid
   stale connections blocking the entire code (without error, just infinite
   hangs). Can be changed when connecting or in the XNATSession object
@@ -19,6 +28,15 @@ Changed
   request allowed, but means that after there is nothing received 300 seconds
   the connection is considered timed-out, a download that takes 10 minutes
   would still be possible.
+
+Improved
+~~~~~~~~
+
+- The ``import_`` function is more resilient. On windows programs like 7zip could
+  mess with the mimetypes and cause zip files get a different estimated
+  content_type. If a non-recognized content type is found, xnatpy will try to
+  re-estimate it based just on the extension.
+- Added supper to change the ``import-handler`` in the ``import_`` function
 
 0.3.21 - 2019-10-09
 -------------------
