@@ -417,7 +417,8 @@ class ImageScanData(XNATBaseObject):
         if not PYDICOM_LOADED:
             raise RuntimeError('Cannot read DICOM, missing required dependency: pydicom')
 
-        dicom_resource = self.resources.get('DICOM')
+        dicom_resource = self.resources.get('DICOM',
+                                            self.resources.get('secondary'))
 
         if dicom_resource is None:
             raise ValueError('Scan {} does not contain a DICOM resource!'.format(self))
