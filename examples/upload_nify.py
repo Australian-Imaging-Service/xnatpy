@@ -49,14 +49,13 @@ def upload_files(session, project, subject, experiment, experiment_type, scan, s
         xnat_scan = xnat_experiment.scans[scan]
     else:
         if experiment_type == 'CT':
-            xnat_scan = session.classes.CtScanData(parent=xnat_experiment, id=scan, type=scan, series_description=scan, label=scan)
+            xnat_scan = session.classes.CtScanData(parent=xnat_experiment, id=scan, type=scan, series_description=scan_description, label=scan)
         elif experiment_type == 'MR':
-            xnat_scan = session.classes.MrScanData(parent=xnat_experiment, id=scan, type=scan, series_description=scan, label=scan)
+            xnat_scan = session.classes.MrScanData(parent=xnat_experiment, id=scan, type=scan, series_description=scan_description, label=scan)
         else:
             print(f"[ERROR] scan type {experiment_type} not supported use 'MR' or 'CT'")
             return
 
-    xnat_scan = session.classes.CtScanData(parent=xnat_experiment, id=scan, type=scan, series_description=scan_description, label=scan)
     # If resource exists create new resource
     if resource in xnat_scan.resources:
         xnat_resource = xnat_scan.resources[resource]
