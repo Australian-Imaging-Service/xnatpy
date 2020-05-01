@@ -43,7 +43,7 @@ from .convert_xsd import SchemaParser
 
 GEN_MODULES = {}
 
-__version__ = '0.3.22'
+__version__ = '0.3.23'
 __all__ = ['connect', 'exceptions']
 
 
@@ -195,7 +195,7 @@ def detect_redirection(server, session, logger):
     """
     response = session.get(server.rstrip('/') + '/data/projects')
     logger.debug('Response url: {}'.format(response.url))
-    response_url = response.url[:-13]
+    response_url = re.match(r'(.*)/(app|data)', response.url).group(1)
     if response_url != server and response_url != server + '/':
         logger.warning('Detected a redirect from {0} to {1}, using {1} from now on'.format(server, response_url))
     return response_url

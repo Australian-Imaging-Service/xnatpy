@@ -523,19 +523,27 @@ class XNATSession(object):
         try:
             return response.json()
         except ValueError:
-            if response.text.startswith('<?xml version="1.0" encoding="UTF-8"?>\n<cat:Catalog'):
+            # Multiple options to support newer XNAT versions
+            if response.text.startswith((
+                '<?xml version="1.0" encoding="UTF-8"?>\n<cat:Catalog',
+                '<?xml version="1.0" encoding="UTF-8"?>\n<cat:DCMCatalog',  # XNAT 1.7.5.3+
+            )):
                 # Probably XML catalog for resource
                 parts = uri.rsplit('/resources/')
                 if len(parts) != 2:
-                    raise ValueError('Could not decode JSON from [{}] and could not figure out resource URI'.format(uri))
+                    raise XNATValueError('Could not decode JSON from [{}] and could not figure out resource URI'.format(uri))
 
                 uri = parts[0] + '/resources'
-                id = parts[1]
+                # Make sure everything after additional / or ? in uri are ignored
+                id = parts[1].split('/')[0].split('?')[0]
 
                 # Unpack result and find correct entry
                 data = self.get_json(uri)
                 data = data['ResultSet']['Result']
-                data = next(x for x in data if x.get('xnat_abstractresource_id', None) == id or x.get('label', None) == id)
+                try:
+                    data = next(x for x in data if x.get('xnat_abstractresource_id', None) == id or x.get('label', None) == id)
+                except StopIteration:
+                    raise XNATValueError('Could not find data for resource with abstract resource id or label matching {}'.format(id))
 
                 # Pack data properly for xnat response
                 data = {
@@ -553,7 +561,7 @@ class XNATSession(object):
 
                 return data
             else:
-                raise ValueError('Could not decode JSON from [{}] {}'.format(uri, response.text))
+                raise XNATValueError('Could not decode JSON from [{}] {}'.format(uri, response.text))
 
     def download_stream(self, uri, target_stream, format=None, verbose=False, chunk_size=524288, update_func=None, timeout=None):
         """
