@@ -74,3 +74,9 @@ class XNATExpiredCredentialsError(XNATAuthError):
     """
     The users credentials are expired and should be updated in the web interface of XNAT
     """
+
+
+class XNATNotConnectedError(XNATError):
+    """
+    The connection is not open, either it was never established or it was disconnected.
+    """

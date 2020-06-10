@@ -34,7 +34,7 @@ from .inspect import Inspect
 from .prearchive import Prearchive
 from .users import Users
 from .services import Services
-from .exceptions import XNATValueError
+from .exceptions import XNATValueError, XNATNotConnectedError
 
 try:
     FILE_TYPES = (file, io.IOBase)
@@ -312,6 +312,15 @@ class XNATSession(object):
             if response.status_code not in accepted_status or (not self.skip_response_content_check and response.text.startswith(('<!DOCTYPE', '<html>'))):
                 raise exceptions.XNATResponseError('Invalid response from XNATSession for url {} (status {}):\n{}'.format(uri, response.status_code, response.text))
 
+    def _check_connection(self):
+        """
+        Check if connection is still open
+        """
+        if self.interface is None:
+            message = 'Not connected to server. Either the connection was not established or was closed!'
+            self.logger.error(message)
+            raise XNATNotConnectedError(message)
+
     def get(self, path, format=None, query=None, accepted_status=None, timeout=None, headers=None):
         """
         Retrieve the content of a given REST directory.
@@ -327,6 +336,8 @@ class XNATSession(object):
         :returns: the requests reponse
         :rtype: requests.Response
         """
+        self._check_connection()
+
         accepted_status = accepted_status or self.accepted_status_get
         uri = self._format_uri(path, format, query=query)
         timeout = timeout or self.request_timeout
@@ -354,6 +365,8 @@ class XNATSession(object):
         :returns: the requests reponse
         :rtype: requests.Response
         """
+        self._check_connection()
+
         accepted_status = accepted_status or self.accepted_status_get
         uri = self._format_uri(path)
         timeout = timeout or self.request_timeout
@@ -384,6 +397,8 @@ class XNATSession(object):
         :returns: the requests reponse
         :rtype: requests.Response
         """
+        self._check_connection()
+
         accepted_status = accepted_status or self.accepted_status_post
         uri = self._format_uri(path, format, query=query)
         timeout = timeout or self.request_timeout
@@ -421,6 +436,8 @@ class XNATSession(object):
         :returns: the requests reponse
         :rtype: requests.Response
         """
+        self._check_connection()
+
         accepted_status = accepted_status or self.accepted_status_put
         uri = self._format_uri(path, format, query=query)
         timeout = timeout or self.request_timeout
@@ -451,6 +468,8 @@ class XNATSession(object):
         :returns: the requests reponse
         :rtype: requests.Response
         """
+        self._check_connection()
+
         accepted_status = accepted_status or self.accepted_status_delete
         uri = self._format_uri(path, query=query)
         timeout = timeout or self.request_timeout
@@ -588,6 +607,7 @@ class XNATSession(object):
         :param timeout: timeout in seconds, float or (connection timeout, read timeout)
         :type timeout: float or tuple
         """
+        self._check_connection()
 
         uri = self._format_uri(uri, format=format)
         self.logger.debug('DOWNLOAD STREAM {}'.format(uri))
@@ -630,6 +650,8 @@ class XNATSession(object):
         """
         Download uri to a target file
         """
+        self._check_connection()
+
         with open(target, 'wb') as out_fh:
             self.download_stream(uri, out_fh, format=format, verbose=verbose, timeout=timeout)
 
@@ -660,6 +682,8 @@ class XNATSession(object):
         :type timeout: float or tuple
         :return:
         """
+        self._check_connection()
+
         if overwrite:
             if query is None:
                 query = {}
