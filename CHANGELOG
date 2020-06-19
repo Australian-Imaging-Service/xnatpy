@@ -9,6 +9,14 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Improved
+~~~~~~~~
+
+- Connections now check if they are still valid and will raise an appropriate
+  error if they are closed. This avoid strange errors when trying to use a
+  connection after ``.disconnect`` has been called.
+- Removed warning about collections.abc use on Python 3.7+
+
 0.3.22 - 2020-02-26
 -------------------
 
