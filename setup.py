@@ -21,41 +21,16 @@ import sys
 from setuptools import setup
 
 # Get information about the version (polling mercurial if possible)
-version = '0.3.23'
-dirstate = './.hg/dirstate'
+version = '0.3.24'
 
 if __name__ == '__main__':
     # Get the requirements
     with open('requirements.txt', 'r') as fh:
         _requires = fh.read().splitlines()
 
-    if os.path.isfile(dirstate):
-        with open(dirstate, 'rb') as f_dirstate:
-            hg_version = binascii.hexlify(f_dirstate.read(20))
-
-            if sys.version_info[0] >= 3:
-                hg_version = hg_version.decode('utf-8')
-    else:
-        hg_version = None
-
-    branch = './.hg/branch'
-    if os.path.isfile(branch):
-        with open(branch, 'r') as f_branch:
-            hg_branch = f_branch.read().strip()
-    else:
-        hg_branch = ''
-
-    if hg_version is not None:
-        extra_version = '{}-{}-{}'.format(version, hg_branch, hg_version[0:6])
-    else:
-        extra_version = '{}'.format(version)
-
     # Write information to version.py
     with open('./xnat/version.py', 'w') as f_version:
         f_version.write('version = "{}"\n'.format(version))
-        f_version.write('extra_version = "{}"\n'.format(extra_version))
-        f_version.write('hg_revision = "{}"\n'.format(hg_version))
-        f_version.write('hg_branch = "{}"\n'.format(hg_branch))
 
     # Set the entry point
     entry_points = {
