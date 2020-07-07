@@ -9,6 +9,14 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Fixed
+~~~~~
+
+- Fixed issue when creating objects with a space in the label, the object would
+  be created but the uri with the label (and spaces) would not work, making the
+  return object useless. Now it updates the URI to use the generated ID if
+  possible avoiding the issue.
+
 0.3.24 - 2020-06-19
 -------------------
 

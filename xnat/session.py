@@ -237,7 +237,7 @@ class XNATSession(object):
             self.heartbeat()
 
     def heartbeat(self):
-        self.get('/data/JSESSION')
+        self.get('/data/JSESSION', timeout=10)
 
     def _keepalive_thread_run(self):
         # This thread runs until the program stops, it should be inexpensive if not used due to the long sleep time
