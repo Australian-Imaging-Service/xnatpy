@@ -9,6 +9,12 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Added
+~~~~~
+
+- Added ``import_dicom_inbox`` function to import dicoms from server filesystem
+  via a path
+
 Fixed
 ~~~~~
 

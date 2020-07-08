@@ -212,6 +212,63 @@ class Services(object):
         fh.close()
         return session
 
+    def import_dicom_inbox(self, path, cleanup=False, project=None, subject=None, experiment=None):
+        """
+        Import a file into XNAT using the import service. See the
+        `XNAT wiki <https://wiki.xnat.org/pages/viewpage.action?pageId=6226268>`_
+        for a detailed explanation.
+
+        :param str path: local path of the file to upload and import
+        :param str cleanup: remove the files after importing them (default false)
+        :param str project: the project in the archive to assign the session to
+                            (only accepts project ID, not a label)
+        :param str subject: the subject in the archive to assign the session to
+        :param str experiment: the experiment in the archive to assign the session content to
+        :return:
+
+        .. note::
+            The project has to be given using the project ID and *NOT* the label.
+
+        .. warning::
+            On some systems the guessed mimetype of a zip file might not be ``application/zip``
+            but be something like ``application/x-zip-compressed``. In that case you might have to
+            set the ``content_type`` parameter to ``application/zip`` manually.
+
+        """
+        query = {
+            'import-handler': 'inbox',
+            'path': path,
+        }
+
+        if cleanup:
+            query['cleanupAfterImport'] = 'true'
+        else:
+            query['cleanupAfterImport'] = 'false'
+
+        if project is not None:
+            query['PROJECT_ID'] = project
+
+        if subject is not None:
+            query['SUBJECT_ID'] = subject
+
+        if experiment is not None:
+            query['EXPT_LABEL'] = experiment
+
+        uri = '/data/services/import'
+        response = self.xnat_session.post(uri=uri, query=query)
+        self.xnat_session.logger.warning('POST RESPONSE: [{}] {}'.format(response.status_code, response.text))
+
+        if response.status_code != 200:
+            raise XNATResponseError('The response for uploading was ({}) {}'.format(response.status_code, response.text))
+
+        # Create object, the return text should be the url, but it will have a \r\n at the end that needs to be stripped
+        response_text = response.text.strip()
+        if response_text.startswith('/data/prearchive'):
+            return PrearchiveSession(response_text, self.xnat_session)
+
+        return self.xnat_session.create_object(response_text)
+
+
 
 
     def issue_token(self, user=None):
