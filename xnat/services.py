@@ -227,13 +227,7 @@ class Services(object):
         :return:
 
         .. note::
-            The project has to be given using the project ID and *NOT* the label.
-
-        .. warning::
-            On some systems the guessed mimetype of a zip file might not be ``application/zip``
-            but be something like ``application/x-zip-compressed``. In that case you might have to
-            set the ``content_type`` parameter to ``application/zip`` manually.
-
+            The project and subject has to be given using the ID and *NOT* the label/name.
         """
         query = {
             'import-handler': 'inbox',

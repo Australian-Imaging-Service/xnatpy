@@ -238,9 +238,12 @@ def build_model(xnat_session, extension_types, connection_id):
     elif version.startswith('1.7'):
         logger.info('Found an 1.7 version ({})'.format(version))
         parse_schemas_17(parser, xnat_session, extension_types=extension_types)
+    elif version.startswith('ML-BETA'):
+        logger.info('Found an ML beta version ({})'.format(version))
+        parse_schemas_17(parser, xnat_session, extension_types=extension_types)
     else:
-        logger.critical('Found an unsupported version ({})'.format(version))
-        raise ValueError('Cannot continue on unsupported XNAT version')
+        logger.warning('Found an unsupported version ({}), trying 1.7 compatible model builder'.format(version))
+        parse_schemas_17(parser, xnat_session, extension_types=extension_types)
 
     # Write code to temp file
     with tempfile.NamedTemporaryFile(mode='w', suffix='_generated_xnat.py', delete=False) as code_file:
