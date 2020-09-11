@@ -15,6 +15,7 @@
 
 from __future__ import absolute_import
 from __future__ import unicode_literals
+import datetime
 import mimetypes
 import collections
 import os
@@ -27,6 +28,58 @@ from .prearchive import PrearchiveSession
 from .exceptions import XNATResponseError, XNATValueError
 
 TokenResult = collections.namedtuple('TokenResult', ('alias', 'secret'))
+
+
+class DicomBoxImportRequest(object):
+    def __init__(self, uri, xnat_session):
+        self._xnat_session = xnat_session
+        self._data = None
+        self.uri = uri
+        self._update_data()
+
+    def _update_data(self):
+        self._data = self._xnat_session.get_json(self.uri)
+
+    @property
+    def status(self):
+        self._update_data()
+        return self._data['status']
+
+    @property
+    def id(self):
+        return self._data['id']
+
+    @property
+    def username(self):
+        return self._data['username']
+
+    @property
+    def project_id(self):
+        return self._data['parameters'].get('PROJECT_ID')
+
+    @property
+    def subject_id(self):
+        return self._data['parameters'].get('SUBJECT_ID')
+
+    @property
+    def session_path(self):
+        return self._data['sessionPath']
+
+    @property
+    def cleanup_after_import(self):
+        return self._data['clenaupAfterImport']
+
+    @property
+    def enabled(self):
+        return self._data['enabled']
+
+    @property
+    def created(self):
+        return datetime.datetime.fromtimestamp(self._data['created'] / 1000.0)
+
+    @property
+    def timestamp(self):
+        return datetime.datetime.fromtimestamp(self._data['timestamp'] / 1000.0)
 
 
 class Services(object):
@@ -162,7 +215,7 @@ class Services(object):
         """
         Import a directory to an XNAT resource.
 
-        :param str path: local path of the directory to upload and import
+        :param str directory: local path of the directory to upload and import
         :param str overwrite: how the handle existing data (none, append, delete)
         :param bool quarantine: flag to indicate session should be quarantined
         :param bool trigger_pipelines: indicate that archiving should trigger pipelines
@@ -260,10 +313,7 @@ class Services(object):
         if response_text.startswith('/data/prearchive'):
             return PrearchiveSession(response_text, self.xnat_session)
 
-        return self.xnat_session.create_object(response_text)
-
-
-
+        return DicomBoxImportRequest(response_text, self._xnat_session)
 
     def issue_token(self, user=None):
         """
