@@ -303,7 +303,6 @@ class Services(object):
 
         uri = '/data/services/import'
         response = self.xnat_session.post(uri=uri, query=query)
-        self.xnat_session.logger.warning('POST RESPONSE: [{}] {}'.format(response.status_code, response.text))
 
         if response.status_code != 200:
             raise XNATResponseError('The response for uploading was ({}) {}'.format(response.status_code, response.text))
