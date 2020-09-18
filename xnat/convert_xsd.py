@@ -136,6 +136,47 @@ class FileData(XNATObjectMixin):
         uri = self.xnat_session._format_uri(self.uri)
         request = self.xnat_session.interface.get(uri, stream=True)
         return RequestsFileLike(request)
+        
+    @property
+    @caching
+    def full_data(self):
+        listing_uri = self.uri[:-len(self.id)-1]
+        data = self.xnat_session.get_json(listing_uri)
+        data = data['ResultSet']['Result']
+        item = next(x for x in data if x['Name'] == self.id)
+        return item
+        
+    @property
+    def data(self):
+        return self.full_data
+        
+    @property
+    def cat_id(self):
+        return self.get('cat_ID', str)
+        
+    @property
+    def collection(self):
+        return self.get('collection', str)
+        
+    @property
+    def digest(self):
+        return self.get('digest', str)
+        
+    @property
+    def file_content(self):
+        return self.get('file_content', str)
+        
+    @property
+    def file_format(self):
+        return self.get('file_format', str)
+        
+    @property
+    def file_tags(self):
+        return self.get('file_tags', str)
+        
+    @property
+    def file_size(self):
+        return self.get('Size', str)
 
     @property
     @caching

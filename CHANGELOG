@@ -14,6 +14,8 @@ Added
 
 - Added ``import_dicom_inbox`` function to import dicoms from server filesystem
   via a path
+- Support of querying information for FileData via the containing resource file
+  listing, giving access to file_content, file_format, digest, etc
 
 Fixed
 ~~~~~
