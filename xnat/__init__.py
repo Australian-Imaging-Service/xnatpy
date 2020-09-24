@@ -66,7 +66,7 @@ def check_auth(requests_session, server, user, logger):
         raise exceptions.XNATLoginFailedError(message)
 
     if test_auth_request.status_code != 200:
-        logger.warning('Simple test requests did not return a 200 code! Server might not be functional!')
+        logger.warning('Simple test requests did not return a 200 or 401 code! Server might not be functional!')
 
     if user is not None:
         match = re.search(r'<span id="user_info">Logged in as: &nbsp;<a (id="[^"]+" )?href="[^"]+">(?P<username>[^<]+)</a>',
@@ -81,11 +81,16 @@ def check_auth(requests_session, server, user, logger):
                     message = 'Your password has expired. Please try again after updating your password on XNAT.'
                     logger.error(message)
                     raise exceptions.XNATExpiredCredentialsError(message)
-                else:
-                    message = 'Could not determine if login was successful!'
-                    logger.error(message)
-                    logger.debug(test_auth_request.text)
-                    raise exceptions.XNATAuthError(message)
+
+                match = re.search(r'<form name="form1" method="post" action="/xnat/login"', test_auth_request.text)
+                if match:
+                    message = 'Login attempt failed for {}, please make sure your credentials for user {} are correct!'.format(server, user)
+                    raise exceptions.XNATLoginFailedError(message)
+
+                message = 'Could not determine if login was successful!'
+                logger.error(message)
+                logger.debug(test_auth_request.text)
+                raise exceptions.XNATAuthError(message)
             else:
                 message = 'Login failed (in guest mode)!'
                 logger.error(message)
