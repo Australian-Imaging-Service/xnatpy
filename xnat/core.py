@@ -28,6 +28,7 @@ from .datatypes import convert_from, convert_to
 from .constants import TYPE_HINTS
 from .utils import mixedproperty, pythonize_attribute_name
 import six
+from six.moves.urllib.parse import quote
 
 
 def caching(func):
@@ -161,7 +162,8 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
                                                 'creation currently not supported!'.format(type(self).__name__))
 
             # Get extra required url part
-            url_part = kwargs.get(url_part_argument)
+            url_part = six.text_type(kwargs.get(url_part_argument))
+            url_part = quote(url_part)
 
             if url_part is not None:
                 uri = '{}/{}'.format(parent.uri, url_part)
@@ -175,7 +177,15 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
                 query.update(kwargs)
 
                 self.logger.debug('query: {}'.format(query))
-                self.xnat_session.put(uri, query=query)
+                result = self.xnat_session.put(uri, query=query)
+                self.logger.debug('PUT RESULT: [{}] {}'.format(result.status_code, result.text))
+                result_text = result.text.strip()
+
+                # This should be the ID of the newly created object, which is safer than
+                # labels that can contain weird characters and break stuff
+                if result_text:
+                    uri = '{}/{}'.format(parent.uri, result_text)
+                    self.logger.debug('UPDATED URI BASED ON RESPONSE: {}'.format(uri))
             else:
                 raise exceptions.XNATValueError('The {} for a {} need to be specified on creation'.format(
                     url_part_argument,

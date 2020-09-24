@@ -21,7 +21,7 @@ import sys
 from setuptools import setup
 
 # Get information about the version (polling mercurial if possible)
-version = '0.3.24'
+version = '0.3.25'
 
 if __name__ == '__main__':
     # Get the requirements

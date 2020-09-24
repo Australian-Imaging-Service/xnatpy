@@ -43,7 +43,7 @@ from .convert_xsd import SchemaParser
 
 GEN_MODULES = {}
 
-__version__ = '0.3.24'
+__version__ = '0.3.25'
 __all__ = ['connect', 'exceptions']
 
 
@@ -66,7 +66,7 @@ def check_auth(requests_session, server, user, logger):
         raise exceptions.XNATLoginFailedError(message)
 
     if test_auth_request.status_code != 200:
-        logger.warning('Simple test requests did not return a 200 code! Server might not be functional!')
+        logger.warning('Simple test requests did not return a 200 or 401 code! Server might not be functional!')
 
     if user is not None:
         match = re.search(r'<span id="user_info">Logged in as: &nbsp;<a (id="[^"]+" )?href="[^"]+">(?P<username>[^<]+)</a>',
@@ -81,11 +81,16 @@ def check_auth(requests_session, server, user, logger):
                     message = 'Your password has expired. Please try again after updating your password on XNAT.'
                     logger.error(message)
                     raise exceptions.XNATExpiredCredentialsError(message)
-                else:
-                    message = 'Could not determine if login was successful!'
-                    logger.error(message)
-                    logger.debug(test_auth_request.text)
-                    raise exceptions.XNATAuthError(message)
+
+                match = re.search(r'<form name="form1" method="post" action="/xnat/login"', test_auth_request.text)
+                if match:
+                    message = 'Login attempt failed for {}, please make sure your credentials for user {} are correct!'.format(server, user)
+                    raise exceptions.XNATLoginFailedError(message)
+
+                message = 'Could not determine if login was successful!'
+                logger.error(message)
+                logger.debug(test_auth_request.text)
+                raise exceptions.XNATAuthError(message)
             else:
                 message = 'Login failed (in guest mode)!'
                 logger.error(message)
@@ -238,9 +243,12 @@ def build_model(xnat_session, extension_types, connection_id):
     elif version.startswith('1.7'):
         logger.info('Found an 1.7 version ({})'.format(version))
         parse_schemas_17(parser, xnat_session, extension_types=extension_types)
+    elif version.startswith('ML-BETA'):
+        logger.info('Found an ML beta version ({})'.format(version))
+        parse_schemas_17(parser, xnat_session, extension_types=extension_types)
     else:
-        logger.critical('Found an unsupported version ({})'.format(version))
-        raise ValueError('Cannot continue on unsupported XNAT version')
+        logger.warning('Found an unsupported version ({}), trying 1.7 compatible model builder'.format(version))
+        parse_schemas_17(parser, xnat_session, extension_types=extension_types)
 
     # Write code to temp file
     with tempfile.NamedTemporaryFile(mode='w', suffix='_generated_xnat.py', delete=False) as code_file:

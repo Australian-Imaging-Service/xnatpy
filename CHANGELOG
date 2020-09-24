@@ -6,6 +6,25 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <http://keepachangelog.com/>`_
 and this project adheres to `Semantic Versioning <http://semver.org/>`_
 
+0.3.25 - 2020-09-24
+-------------------
+
+Added
+~~~~~
+
+- Added ``import_dicom_inbox`` function to import dicoms from server filesystem
+  via a path
+- Support of querying information for FileData via the containing resource file
+  listing, giving access to file_content, file_format, digest, etc
+
+Fixed
+~~~~~
+
+- Fixed issue when creating objects with a space in the label, the object would
+  be created but the uri with the label (and spaces) would not work, making the
+  return object useless. Now it updates the URI to use the generated ID if
+  possible avoiding the issue.
+
 0.3.24 - 2020-06-19
 -------------------
 
