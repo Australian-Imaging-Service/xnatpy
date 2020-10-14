@@ -494,9 +494,6 @@ class BaseClassWriter(BaseWriter):
 
     def print_property(self, prop):
         data = prop.tostring()
-        if prop.name == SECONDARY_LOOKUP_FIELDS.get(self.name, '!None'):
-            head, tail = data.split('\n', 1)
-            data = '{}\n    @caching\n{}'.format(head, tail)
         return data
 
     def header(self):
@@ -848,7 +845,7 @@ class SubObjectPropertyWriter(AttributeWriter):
         return \
             """    @mixedproperty
     def {clean_name}(cls):{docstring}
-        # 1 Automatically generated Property, type: {type_}
+        # 1 Automatically generated SuboObject Property, type: {type_}
         return XNAT_CLASS_LOOKUP["{xsi_type}"]
 
     @{clean_name}.getter
