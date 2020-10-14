@@ -102,13 +102,23 @@ def check_auth(requests_session, server, user, logger):
 
     match = re.search(r'<span id="user_info">Logged in as: <span style="color:red;">Guest</span>',
                       test_auth_request.text)
+    if match is not None:
+        logger.info('Logged in as guest successfully')
+        return 'guest'
+
+    match = re.search(r'<span id="user_info">Logged in as: &nbsp;<a (id="[^"]+" )?href="[^"]+">(?P<username>[^<]+)</a>',
+                      test_auth_request.text)
+
     if match is None:
         message = 'Could not determine if login was successful!'
         logger.error(message)
         raise exceptions.XNATAuthError(message)
-    else:
-        logger.info('Logged in as guest successfully')
-        return 'guest'
+
+    username = match.group('username')
+    logger.warning('Detected (somewhat unexpected) login as {username} (expected {expected_username})'.format(
+        username=username, expected_username=user or 'guest'
+    ))
+    return username
 
 
 def parse_schemas_16(parser, xnat_session, extension_types=True):
