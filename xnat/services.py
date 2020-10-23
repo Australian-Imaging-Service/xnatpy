@@ -94,6 +94,27 @@ class Services(object):
     def xnat_session(self):
         return self._xnat_session
 
+    def guess_content_type(self, path):
+        content_type, _ = mimetypes.guess_type(path)
+
+        if content_type not in ['application/x-tar', 'application/zip']:
+            if path.endswith('.zip'):
+                self.xnat_session.logger.warning(
+                    'Found unexpect content type, but assuming zip based on the extension'
+                )
+                content_type = 'application/zip'
+            elif path.endswith('.tar.gz'):
+                self.xnat_session.logger.warning(
+                    'Found unexpect content type, but assuming tar based on the extension'
+                )
+                content_type = 'application/x-tar'
+            else:
+                self.xnat_session.logger.warning(
+                    'Found unexpected content (found type {}), this could result in errors on import!'.format(content_type)
+                )
+
+        return content_type
+
     def dicom_dump(self, src, fields=None):
         """
         Retrieve a dicom dump as a JSON data structure
@@ -178,23 +199,7 @@ class Services(object):
 
         # Get mimetype of file
         if content_type is None:
-            content_type, _ = mimetypes.guess_type(path)
-
-        if content_type not in ['application/x-tar', 'application/zip']:
-            if path.endswith('.zip'):
-                self.xnat_session.logger.warning(
-                    'Found unexpect content type, but assuming zip based on the extension'
-                )
-                content_type = 'application/zip'
-            elif path.endswith('.tar.gz'):
-                self.xnat_session.logger.warning(
-                    'Found unexpect content type, but assuming tar based on the extension'
-                )
-                content_type = 'application/x-tar'
-            else:
-                self.xnat_session.logger.warning(
-                    'Found unexpected content (found type {}), this could result in errors on import!'.format(content_type)
-                )
+            content_type = self.guess_content_type(path)
 
         uri = '/data/services/import'
         response = self.xnat_session.upload(uri=uri, file_=path, query=query, content_type=content_type, method='post')
@@ -229,7 +234,7 @@ class Services(object):
         The method has 2 options, default is zip_file:
 
         #. ``zip_file``: Create a temporary zip file and upload that
-        #. ``zip_file``: Create a temporary zip file in memory and upload it
+        #. ``zip_memory``: Create a temporary zip file in memory and upload it
 
         The considerations are that sometimes you can fit things in memory so
         you can save disk IO by putting it in memory.
@@ -260,8 +265,8 @@ class Services(object):
             return
         fh.seek(0)
         session = self.import_(fh, overwrite, quarantine, destination,
-                trigger_pipelines, project, subject,
-                experiment, content_type, import_handler=import_handler)
+                               trigger_pipelines, project, subject,
+                               experiment, content_type, import_handler=import_handler)
         fh.close()
         return session
 
@@ -302,7 +307,7 @@ class Services(object):
             query['EXPT_LABEL'] = experiment
 
         uri = '/data/services/import'
-        response = self.xnat_session.post(uri=uri, query=query)
+        response = self.xnat_session.post(uri, query=query)
 
         if response.status_code != 200:
             raise XNATResponseError('The response for uploading was ({}) {}'.format(response.status_code, response.text))
