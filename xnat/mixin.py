@@ -537,18 +537,33 @@ class AbstractResource(XNATBaseObject):
                 zip_file.extractall(target_dir)
                 extracted_files = zip_file.namelist()
 
-            extraction_sub_directories = os.path.dirname(os.path.normpath(extracted_files[0]))
+            extraction_sub_directories = [os.path.dirname(os.path.normpath(i_extracted_file)) for i_extracted_file in extracted_files]
+            unique_extraction_sub_directories = list(set(extraction_sub_directories))
+            # Check if we have multiple resources
+            multiple_resources = len(unique_extraction_sub_directories) > 1
 
             if flatten_dirs:
                 for i_extracted_file in extracted_files:
-                    new_dcm_path = os.path.join(target_dir, os.path.basename(os.path.normpath(i_extracted_file)))
-                    shutil.move(os.path.join(target_dir, i_extracted_file), new_dcm_path)
+                    new_resource_path = target_dir
+                    if multiple_resources:
+                        # With multiple resources we keep the subfolder
+                        new_resource_path = os.path.join(new_resource_path, os.path.basename(os.path.dirname(os.path.normpath(i_extracted_file))))
+                    if not os.path.exists(new_resource_path):
+                        os.makedirs(new_resource_path)
 
-                root_extraction_sub_dir = os.path.join(target_dir, os.path.normpath(extraction_sub_directories).split(os.sep)[0])
+                    new_resource_path = os.path.join(new_resource_path,  os.path.basename(os.path.normpath(i_extracted_file)))
+
+                    shutil.move(os.path.join(target_dir, i_extracted_file), new_resource_path)
+
+                # Remove the original download directory
+                root_extraction_sub_dir = os.path.join(target_dir, os.path.normpath(extraction_sub_directories[0]).split(os.sep)[0])
                 shutil.rmtree(root_extraction_sub_dir)
                 scan_directory = target_dir
             else:
-                scan_directory = os.path.join(target_dir, extraction_sub_directories)
+                if multiple_resources:
+                    scan_directory = os.path.join(target_dir, os.path.dirname(os.path.normpath(unique_extraction_sub_directories[0])))
+                else:
+                    scan_directory = os.path.join(target_dir, unique_extraction_sub_directories[0])
 
         if verbose:
             self.logger.info('Downloaded resource data to {}'.format(scan_directory))
