@@ -110,6 +110,15 @@ class ProjectData(XNATBaseObject):
             self.logger.info('Downloaded project to {}'.format(project_dir))
 
 
+class InvestigatorData(XNATBaseObject):
+    def __str__(self):
+        title = self.title or ''
+        first = self.firstname or ''
+        last = self.lastname or ''
+        fullname = '{title} {first} {last}'.format(title=title, first=first, last=last).strip()
+        return '<InvestigatorData {fullname}>'.format(fullname=fullname)
+
+
 class SubjectData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'label'
 
