@@ -20,6 +20,7 @@ import tempfile
 from gzip import GzipFile
 from zipfile import ZipFile
 from tarfile import TarFile
+import shutil
 
 from six import BytesIO
 
@@ -482,7 +483,7 @@ class AbstractResource(XNATBaseObject):
         # FIXME: ugly hack because direct query fails
         uri, label = self.uri.rsplit('/', 1)
         data = self.xnat_session.get_json(uri)['ResultSet']['Result']
-        
+
         def _guess_key( d ):
             if 'URI' not in d and 'ID' not in d and 'xnat_abstractresource_id' in d:
                 # HACK: This is a Resource where the label is not part of the uri, it uses this xnat_abstractresource_id instead.
@@ -531,7 +532,7 @@ class AbstractResource(XNATBaseObject):
     def download(self, path, verbose=True):
         self.xnat_session.download_zip(self.uri + '/files', path, verbose=verbose)
 
-    def download_dir(self, target_dir, verbose=True):
+    def download_dir(self, target_dir, verbose=True, flatten_dirs=False):
         """
         Download the entire resource and unpack it in a given directory
 
@@ -543,9 +544,39 @@ class AbstractResource(XNATBaseObject):
 
             with ZipFile(temp_path) as zip_file:
                 zip_file.extractall(target_dir)
+                extracted_files = zip_file.namelist()
+
+            extraction_sub_directories = [os.path.dirname(os.path.normpath(i_extracted_file)) for i_extracted_file in extracted_files]
+            unique_extraction_sub_directories = list(set(extraction_sub_directories))
+            # Check if we have multiple resources
+            multiple_resources = len(unique_extraction_sub_directories) > 1
+
+            if flatten_dirs:
+                for i_extracted_file in extracted_files:
+                    new_resource_path = target_dir
+                    if multiple_resources:
+                        # With multiple resources we keep the subfolder
+                        new_resource_path = os.path.join(new_resource_path, os.path.basename(os.path.dirname(os.path.normpath(i_extracted_file))))
+                    if not os.path.exists(new_resource_path):
+                        os.makedirs(new_resource_path)
+
+                    new_resource_path = os.path.join(new_resource_path,  os.path.basename(os.path.normpath(i_extracted_file)))
+
+                    shutil.move(os.path.join(target_dir, i_extracted_file), new_resource_path)
+
+                # Remove the original download directory
+                root_extraction_sub_dir = os.path.join(target_dir, os.path.normpath(extraction_sub_directories[0]).split(os.sep)[0])
+                shutil.rmtree(root_extraction_sub_dir)
+                scan_directory = target_dir
+            else:
+                if multiple_resources:
+                    scan_directory = os.path.join(target_dir, os.path.dirname(os.path.normpath(unique_extraction_sub_directories[0])))
+                else:
+                    scan_directory = os.path.join(target_dir, unique_extraction_sub_directories[0])
 
         if verbose:
-            self.logger.info('Downloaded resource data to {}'.format(target_dir))
+            self.logger.info('Downloaded resource data to {}'.format(scan_directory))
+        return scan_directory
 
     def upload(self, data, remotepath, overwrite=False, extract=False, **kwargs):
         uri = '{}/files/{}'.format(self.uri, remotepath.lstrip('/'))
