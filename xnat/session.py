@@ -198,7 +198,9 @@ class XNATSession(object):
             self.delete('/data/JSESSION', headers={'Connection': 'close'})
 
         # Set the server and interface to None
-        self._interface = None
+        if self._interface is not None:
+            self._interface.close()
+            self._interface = None
         self._server = None
 
         # If this object is created using an automatically generated file
