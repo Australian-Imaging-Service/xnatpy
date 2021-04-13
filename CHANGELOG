@@ -9,6 +9,21 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Improved
+--------
+
+- Switched to cookie based login instead of basic auth with every requests (should be more performant)
+- Close underlying requests session when closing a connection
+- Added CI/CD infrastructure for testing and releasing
+- Improved import_dicom_inbox
+
+Fixed
+-----
+
+- InvestigatorData had nonsensical string conversion
+- Option to flatten directories when downloading an entire resource
+
+
 0.3.25 - 2020-09-24
 -------------------
 
