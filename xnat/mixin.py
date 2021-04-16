@@ -81,6 +81,17 @@ class ProjectData(XNATBaseObject):
                            secondary_lookup_field='label',
                            xsi_type='xnat:resourceCatalog')
 
+    def create_resource(self, label, format=None, data_dir=None, method=None):
+        uri = '{}/resources/{}'.format(self.fulluri, label)
+        self.xnat_session.put(uri, format=format)
+        self.clearcache()  # The resources changed, so we have to clear the cache
+        resource = self.xnat_session.create_object(uri, type_='xnat:resourceCatalog')
+
+        if data_dir is not None:
+            resource.upload_dir(data_dir, method=method)
+
+        return resource
+
     def download_dir(self, target_dir, verbose=True, progress_callback=None):
         """
         Download the entire project and unpack it in a given directory. Note
@@ -207,6 +218,17 @@ class SubjectData(XNATBaseObject):
 
         self.xnat_session.put(share_uri, query=query)
         self.clearcache()
+
+    def create_resource(self, label, format=None, data_dir=None, method=None):
+        uri = '{}/resources/{}'.format(self.fulluri, label)
+        self.xnat_session.put(uri, format=format)
+        self.clearcache()  # The resources changed, so we have to clear the cache
+        resource = self.xnat_session.create_object(uri, type_='xnat:resourceCatalog')
+
+        if data_dir is not None:
+            resource.upload_dir(data_dir, method=method)
+
+        return resource
 
 
 class ExperimentData(XNATBaseObject):
