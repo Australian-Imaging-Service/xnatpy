@@ -43,7 +43,7 @@ from .convert_xsd import SchemaParser
 
 GEN_MODULES = {}
 
-__version__ = '0.3.26'
+__version__ = '0.3.27'
 __all__ = ['connect', 'exceptions']
 
 

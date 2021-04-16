@@ -21,7 +21,7 @@ import sys
 from setuptools import setup
 
 # Get information about the version (polling mercurial if possible)
-version = '0.3.26'
+version = '0.3.27'
 
 # When building something else than a release (tag) append the job id to the version.
 if os.environ.get('CI_COMMIT_TAG'):
