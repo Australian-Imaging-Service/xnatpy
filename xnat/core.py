@@ -28,7 +28,6 @@ from .datatypes import convert_from, convert_to
 from .constants import TYPE_HINTS
 from .utils import mixedproperty, pythonize_attribute_name
 import six
-from six.moves.urllib.parse import quote
 
 
 def caching(func):
@@ -163,7 +162,6 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
 
             # Get extra required url part
             url_part = six.text_type(kwargs.get(url_part_argument))
-            url_part = quote(url_part)
 
             if url_part is not None:
                 uri = '{}/{}'.format(parent.uri, url_part)

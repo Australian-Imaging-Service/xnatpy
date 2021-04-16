@@ -39,6 +39,12 @@ class XNATResponseError(XNATValueError):
     """
 
 
+class XNATConnectionError(XNATValueError):
+    """
+    XNATpy error when the connection cannot be established
+    """
+
+
 class XNATIOError(XNATError, IOError):
     """
     XNATpy error for when there are IO problems

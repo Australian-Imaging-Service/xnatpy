@@ -21,7 +21,13 @@ import sys
 from setuptools import setup
 
 # Get information about the version (polling mercurial if possible)
-version = '0.3.25'
+version = '0.3.26'
+
+# When building something else than a release (tag) append the job id to the version.
+if os.environ.get('CI_COMMIT_TAG'):
+    pass
+elif os.environ.get('CI_JOB_ID'):
+    version += ".{}".format(os.environ['CI_JOB_ID'])
 
 if __name__ == '__main__':
     # Get the requirements
