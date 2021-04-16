@@ -57,7 +57,7 @@ def check_auth(requests_session, server, user, logger):
     :raises ValueError: Raises a ValueError if the login failed
     """
     logger.debug('Getting {} to test auth'.format(server))
-    test_auth_request = requests_session.get(server)
+    test_auth_request = requests_session.get(server, timeout=30)
     logger.debug('Status: {}'.format(test_auth_request.status_code))
 
     if test_auth_request.status_code == 401 or 'Login attempt failed. Please try again.' in test_auth_request.text:
@@ -235,17 +235,18 @@ def query_netrc(server, netrc_file, logger):
 
 def _query_jsession(requests_session, server, debug):
     try:
-        return requests_session.get(server.rstrip('/') + '/data/JSESSION')
-    except requests.ConnectionError:
+        return requests_session.get(server.rstrip('/') + '/data/JSESSION', timeout=10)
+    except (requests.ConnectionError, requests.ReadTimeout) as exception:
+        exception_type = type(exception).__name__
         # Do no raise here by default, it will make the error trace huge and scare of new users
         if debug:
-            raise exceptions.XNATConnectionError('Could not connect to {}'.format(server))
+            raise exceptions.XNATConnectionError('Could not connect to {}, encountered {} exception'.format(server, exception_type))
 
-    raise exceptions.XNATConnectionError('Could not connect to {}'.format(server))
+    raise exceptions.XNATConnectionError('Could not connect to {} (encountered {})'.format(server, exception_type))
 
 
 def _wipe_jsession(requests_session, server):
-    requests_session.delete(server.rstrip('/') + '/data/JSESSION')
+    requests_session.delete(server.rstrip('/') + '/data/JSESSION', timeout=10)
     requests_session.close()
 
 
