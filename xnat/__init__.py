@@ -47,6 +47,42 @@ __version__ = '0.3.27'
 __all__ = ['connect', 'exceptions']
 
 
+def check_auth_guest(requests_session, server, logger):
+    """
+    Try to figure out of the requests session is properly logged in as the desired user
+
+    :param requests.Session requests_session: requests session
+    :param str server: server test
+    :param str user: desired user (None for guest)
+    :raises ValueError: Raises a ValueError if the login failed
+    """
+    logger.debug('Getting {} to test guest auth'.format(server))
+    test_auth_request = requests_session.get(server, timeout=10)
+    logger.debug('Status: {}'.format(test_auth_request.status_code))
+
+    match = re.search(r'<span id="user_info">Logged in as: <span style="color:red;">Guest</span>',
+                      test_auth_request.text)
+
+    if match is not None:
+        logger.info('Logged in as guest successfully')
+        return 'guest'
+
+    match = re.search(r'<span id="user_info">Logged in as: &nbsp;<a (id="[^"]+" )?href="[^"]+">(?P<username>[^<]+)</a>',
+                      test_auth_request.text)
+
+    if match is None:
+        message = 'Could not determine if login was successful!'
+        logger.error(message)
+        raise exceptions.XNATAuthError(message)
+
+    username = match.group('username')
+    logger.warning('Detected (somewhat unexpected) login as "{username}" (expected "guest")'.format(
+        username=username
+    ))
+
+    return username
+
+
 def check_auth(requests_session, server, user, logger):
     """
     Try to figure out of the requests session is properly logged in as the desired user
@@ -56,8 +92,9 @@ def check_auth(requests_session, server, user, logger):
     :param str user: desired user (None for guest)
     :raises ValueError: Raises a ValueError if the login failed
     """
-    logger.debug('Getting {} to test auth'.format(server))
-    test_auth_request = requests_session.get(server, timeout=30)
+    logger.debug('Getting {} to test auth (user {})'.format(server, user))
+
+    test_auth_request = requests_session.get(server + '/data/auth', timeout=10)
     logger.debug('Status: {}'.format(test_auth_request.status_code))
 
     if test_auth_request.status_code == 401 or 'Login attempt failed. Please try again.' in test_auth_request.text:
@@ -69,8 +106,11 @@ def check_auth(requests_session, server, user, logger):
         logger.warning('Simple test requests did not return a 200 or 401 code! Server might not be functional!')
 
     if user is not None:
-        match = re.search(r'<span id="user_info">Logged in as: &nbsp;<a (id="[^"]+" )?href="[^"]+">(?P<username>[^<]+)</a>',
-                          test_auth_request.text)
+        match = re.search(r"User '(?P<username>[^<]+)' is logged in", test_auth_request.text)
+
+        if match is None:
+            match = re.search(r'<span id="user_info">Logged in as: &nbsp;<a (id="[^"]+" )?href="[^"]+">(?P<username>[^<]+)</a>',
+                              test_auth_request.text)
 
         if match is None:
             match = re.search(r'<span id="user_info">Logged in as: <span style="color:red;">Guest</span>',
@@ -99,26 +139,6 @@ def check_auth(requests_session, server, user, logger):
             username = match.group('username')
             logger.info('Logged in successfully as {}'.format(username))
             return username
-
-    match = re.search(r'<span id="user_info">Logged in as: <span style="color:red;">Guest</span>',
-                      test_auth_request.text)
-    if match is not None:
-        logger.info('Logged in as guest successfully')
-        return 'guest'
-
-    match = re.search(r'<span id="user_info">Logged in as: &nbsp;<a (id="[^"]+" )?href="[^"]+">(?P<username>[^<]+)</a>',
-                      test_auth_request.text)
-
-    if match is None:
-        message = 'Could not determine if login was successful!'
-        logger.error(message)
-        raise exceptions.XNATAuthError(message)
-
-    username = match.group('username')
-    logger.warning('Detected (somewhat unexpected) login as {username} (expected {expected_username})'.format(
-        username=username, expected_username=user or 'guest'
-    ))
-    return username
 
 
 def parse_schemas_16(parser, xnat_session, extension_types=True):
@@ -233,6 +253,39 @@ def query_netrc(server, netrc_file, logger):
     return user, password
 
 
+def _create_jsession(requests_session, server, user, password, provider, debug):
+    data = {
+        "username": user,
+        "password": password,
+    }
+
+    if provider:
+        data['provider'] = provider
+
+    try:
+        response = requests_session.put(server.rstrip('/') + '/data/services/auth', data=data, timeout=10)
+
+        # Try to give a clean error in case of login problems
+        if response.status_code != 200:
+            match = re.search('<h3>(.*)</h3>', response.text)
+            if match:
+                message = match.group(1)
+            elif debug:
+                message = response.text
+            else:
+                message = 'unknown error'
+            raise exceptions.XNATLoginFailedError('Encountered a problem logging in: {}'.format(message))
+
+        return response
+    except (requests.ConnectionError, requests.ReadTimeout) as exception:
+        exception_type = type(exception).__name__
+        # Do no raise here by default, it will make the error trace huge and scare of new users
+        if debug:
+            raise exceptions.XNATConnectionError('Could not connect to {}, encountered {} exception'.format(server, exception_type))
+
+    raise exceptions.XNATConnectionError('Could not connect to {} (encountered {})'.format(server, exception_type))
+
+
 def _query_jsession(requests_session, server, debug):
     try:
         return requests_session.get(server.rstrip('/') + '/data/JSESSION', timeout=10)
@@ -304,7 +357,7 @@ def build_model(xnat_session, extension_types, connection_id):
 
 def connect(server, user=None, password=None, verify=True, netrc_file=None, debug=False,
             extension_types=True, loglevel=None, logger=None, detect_redirect=True,
-            no_parse_model=False, default_timeout=300):
+            no_parse_model=False, default_timeout=300, auth_provider=None):
     """
     Connect to a server and generate the correct classed based on the servers xnat.xsd
     This function returns an object that can be used as a context operator. It will call
@@ -326,6 +379,8 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
                        want to debug your code using xnatpy, just set the loglevel to DEBUG
                        which will show you all requests being made, but spare you the
                        xnatpy internals.
+    :param bool extension_types: Flag to indicate whether or not to build an object model for
+                                 extension types added by plugins.
     :param str loglevel: Set the level of the logger to desired level
     :param logging.Logger logger: A logger to reuse instead of creating an own logger
     :param bool detect_redirect: Try to detect a redirect (via a 302 response) and short-cut
@@ -336,6 +391,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
                                 requiring the data model will file (e.g. any wrapped classes)
     :param int default_timeout: The default timeout of requests sent by xnatpy, is a 5 minutes
                                 per default.
+    :param str auth_provider: Set the auth provider to use to log in to XNAT.
     :return: XNAT session object
     :rtype: XNATSession
 
@@ -409,17 +465,26 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
 
     requests_session.headers.update({'User-Agent': user_agent})
 
-    if user is not None:
-        requests_session.auth = (user, password)
-
     if not verify:
         requests_session.verify = False
 
     # Check for redirects
     original_uri = server
 
-    # Get JSESSIONID and remove auth info again
-    response = _query_jsession(requests_session, server, debug=debug)
+    if user is not None:
+        # Get JSESSIONID and remove auth info again
+        response = _create_jsession(requests_session,
+                                    server=server,
+                                    user=user,
+                                    password=password,
+                                    provider=auth_provider,
+                                    debug=debug)
+        jsession_token = response.text
+    else:
+        response = _query_jsession(requests_session,
+                                   server=server,
+                                   debug=debug)
+        jsession_token = None
 
     # Use a try so that errors result in closing the JSESSION and requests session
     try:
@@ -428,7 +493,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
 
         # Resubmit auth to new uri, so the session handling works correctly
         if server != original_uri:
-            _query_jsession(requests_session, server, debug=debug)
+            _create_jsession(requests_session, server, debug=debug)
 
         # Wipe auth after successful login to let the server use the JSESSIONID instead
         requests_session.auth = None
@@ -438,13 +503,19 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
             user, password = query_netrc(server, netrc_file, logger)
 
         # Check if login is successful
-        logged_in_user = check_auth(requests_session, server=server, user=user, logger=logger)
+        if user is None:
+            logged_in_user = check_auth_guest(requests_session, server=server, logger=logger)
+        else:
+            logged_in_user = check_auth(requests_session, server=server, user=user, logger=logger)
 
         # Create the XNAT connection
         xnat_session = XNATSession(server=server, logger=logger,
                                    interface=requests_session, debug=debug,
                                    original_uri=original_uri, logged_in_user=logged_in_user,
                                    default_timeout=default_timeout)
+
+        # Store JSESSION for completeness
+        xnat_session.JSESSION = jsession_token
 
         # Parse data model and create classes
         if not no_parse_model:
