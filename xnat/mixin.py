@@ -600,11 +600,29 @@ class AbstractResource(XNATBaseObject):
             self.logger.info('Downloaded resource data to {}'.format(scan_directory))
         return scan_directory
 
-    def upload(self, data, remotepath, overwrite=False, extract=False, **kwargs):
+    def upload(self, data: str, remotepath: str, overwrite: bool=False, extract: bool=False, file_content: str=None, file_format: str = None, file_tags: str = None, **kwargs):
+        """
+        Upload a file as an XNAT resource.
+
+        :param str data: The path to the file to upload
+        :param str remotepath: The remote path to which to uploadt
+        :param bool overwrite: Flag to force overwriting of files
+        :param bool extract: Extract the files on the XNAT server
+        :param str file_content: Set the Content of the file on XNAT
+        :param str file_format: Set the format of the file on XNAT
+        :param str file_tags: Set the tags of the file on XNAT
+        """
         uri = '{}/files/{}'.format(self.uri, remotepath.lstrip('/'))
         query = {}
         if extract:
             query['extract'] = 'true'
+        if file_content is not None:
+            query['content'] = file_content
+        if file_format is not None:
+            query['format'] = file_format
+        if file_tags is not None:
+            query['tags'] = file_tags
+
         self.xnat_session.upload(uri, data, overwrite=overwrite, query=query, **kwargs)
         self.files.clearcache()
 
