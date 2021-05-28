@@ -600,7 +600,7 @@ class AbstractResource(XNATBaseObject):
             self.logger.info('Downloaded resource data to {}'.format(scan_directory))
         return scan_directory
 
-    def upload(self, data: str, remotepath: str, overwrite: bool=False, extract: bool=False, file_content: str=None, file_format: str = None, file_tags: str = None, **kwargs):
+    def upload(self, data, remotepath, overwrite=False, extract=False, file_content=None, file_format=None, file_tags=None, **kwargs):
         """
         Upload a file as an XNAT resource.
 
