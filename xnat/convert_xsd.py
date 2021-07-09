@@ -25,6 +25,8 @@ import os
 import re
 from xml.etree import ElementTree
 
+import six
+
 from . import core
 from . import mixin
 from .datatypes import TYPE_TO_PYTHON
@@ -912,11 +914,12 @@ class ListingPropertyWriter(AttributeWriter):
         if self.element_class is not None:
             element_class = self.element_class
             property_base += element_class.writer.create_listing(secondary_lookup=secondary_lookup, field_name=field_name)
-        elif not self.type.startswith('xs:'):
+        elif isinstance(self.type, six.string_types) and not self.type.startswith('xs:'):
             element_class = self.parser.class_list[self.type]
             property_base += element_class.writer.create_listing(secondary_lookup=secondary_lookup, field_name=field_name)
         else:
-            property_base += "\n        # TODO: Implement simple type listing! (type: {})\n".format(self.type) + \
+            type_spec = self.type or 'xs:string'
+            property_base += "\n        # TODO: Implement simple type listing! (type: {})\n".format(type_spec) + \
                              "        pass"
         return property_base
 
