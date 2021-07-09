@@ -889,6 +889,9 @@ class ListingPropertyWriter(AttributeWriter):
 
         if isinstance(type_def, ClassPrototype):
             type_string = 'xnat.classes.{}'.format(pythonize_class_name(type_def.name))
+        elif type_def is None:
+            # Default to str if no other type has been found
+            type_string = full_class_name(str)
         elif type_def.startswith('xs:'):
             type_string = full_class_name(TYPE_TO_PYTHON.get(type_def, str))
         else:
