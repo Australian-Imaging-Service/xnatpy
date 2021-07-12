@@ -664,6 +664,10 @@ class XNATBaseListing(Mapping, Sequence):
         return self._uri
 
     @property
+    def logger(self):
+        return self.parent.logger
+
+    @property
     def xnat_session(self):
         return self._xnat_session
 
@@ -726,11 +730,15 @@ class XNATListing(XNATBaseListing):
         listing = []
         non_unique = {None}
         for x in result:
+            xsi_type = x.get('xsiType', x.get('element_name', self._xsi_type)).strip()
+            if x['ID'].strip() == "" or xsi_type == "":
+                self.logger.warning(f"Found empty object {x.get['URI']}, skipping!")
+
             # HACK: xsi_type of resources is called element_name... yay!
             if self.secondary_lookup_field is not None:
                 secondary_lookup_value = x.get(self.secondary_lookup_field)
                 new_object = self.xnat_session.create_object(x['URI'],
-                                                             type_=x.get('xsiType', x.get('element_name', self._xsi_type)),
+                                                             type_=xsi_type,
                                                              id_=x['ID'],
                                                              fieldname=x.get('fieldname'),
                                                              **{self.secondary_lookup_field: secondary_lookup_value})
@@ -739,7 +747,7 @@ class XNATListing(XNATBaseListing):
                 key_map[secondary_lookup_value] = new_object
             else:
                 new_object = self.xnat_session.create_object(x['URI'],
-                                                             type_=x.get('xsiType', x.get('element_name', self._xsi_type)),
+                                                             type_=xsi_type,
                                                              id_=x['ID'],
                                                              fieldname=x.get('fieldname'))
 
