@@ -732,7 +732,7 @@ class XNATListing(XNATBaseListing):
         for x in result:
             xsi_type = x.get('xsiType', x.get('element_name', self._xsi_type)).strip()
             if x['ID'].strip() == "" or xsi_type == "":
-                self.logger.warning(f"Found empty object {x.get['URI']}, skipping!")
+                self.logger.warning("Found empty object {}, skipping!".format(x.get['URI']))
 
             # HACK: xsi_type of resources is called element_name... yay!
             if self.secondary_lookup_field is not None:
