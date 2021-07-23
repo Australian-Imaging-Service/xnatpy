@@ -39,8 +39,8 @@ class JSessionAuth(AuthBase):
     """ Create an Auth that disable basic auth and uses a JSession cookie instead """
     def __call__(self, r):
         if self.debug and self.jsession_id:
-            print(f'Prepared request headers: {r.headers}')
-            print(f'JSESSION should be: {self.jsession_id}')
+            print('Prepared request headers: {}'.format(r.headers))
+            print('JSESSION should be: {}'.format(self.jsession_id))
         return r
 
 

@@ -490,8 +490,8 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
                                    debug=debug)
         jsession_token = None
 
-    logger.debug(f"Retrieved JSESSION_TOKEN: {jsession_token}")
-    logger.debug(f"Requests session cookies: {requests_session.cookies}")
+    logger.debug("Retrieved JSESSION_TOKEN: {}".format(jsession_token))
+    logger.debug("Requests session cookies: {}".format(requests_session.cookies))
 
     # Set JSESSION token for rest of requests
     requests_session.auth = JSessionAuth(jsession_token, debug)
