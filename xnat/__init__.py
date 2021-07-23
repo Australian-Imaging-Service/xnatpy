@@ -493,7 +493,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
 
         # Resubmit auth to new uri, so the session handling works correctly
         if server != original_uri:
-            _create_jsession(requests_session, server, debug=debug)
+            _query_jsession(requests_session, server, debug=debug)
 
         # Wipe auth after successful login to let the server use the JSESSIONID instead
         requests_session.auth = None
