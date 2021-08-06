@@ -40,6 +40,7 @@ from . import exceptions
 from .session import XNATSession
 from .constants import DEFAULT_SCHEMAS
 from .convert_xsd import SchemaParser
+from .utils import JSessionAuth
 
 GEN_MODULES = {}
 
@@ -465,6 +466,9 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
 
     requests_session.headers.update({'User-Agent': user_agent})
 
+    # Start out with any accidental auth, fill token once retrieved
+    requests_session.auth = JSessionAuth()
+
     if not verify:
         requests_session.verify = False
 
@@ -486,6 +490,12 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
                                    debug=debug)
         jsession_token = None
 
+    logger.debug("Retrieved JSESSION_TOKEN: {}".format(jsession_token))
+    logger.debug("Requests session cookies: {}".format(requests_session.cookies))
+
+    # Set JSESSION token for rest of requests
+    requests_session.auth = JSessionAuth(jsession_token, debug)
+
     # Use a try so that errors result in closing the JSESSION and requests session
     try:
         if detect_redirect:
@@ -493,14 +503,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
 
         # Resubmit auth to new uri, so the session handling works correctly
         if server != original_uri:
-            _create_jsession(requests_session, server, debug=debug)
-
-        # Wipe auth after successful login to let the server use the JSESSIONID instead
-        requests_session.auth = None
-
-        # If no login was found, check if the new server has a known login as a backup
-        if original_uri != server and user is None and password is None:
-            user, password = query_netrc(server, netrc_file, logger)
+            _query_jsession(requests_session, server, debug=debug)
 
         # Check if login is successful
         if user is None:
