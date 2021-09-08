@@ -9,12 +9,17 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Fixed
+~~~~~
+
+- Added an special auth for requests to avoid it automatically reading the netrc and using
+  basic auth, ruining the efficiency from cookie based sessions.
 
 0.3.26 - 2021-04-16
 -------------------
 
 Improved
---------
+~~~~~~~~
 
 - Switched to cookie based login instead of basic auth with every requests (should be more performant)
 - Close underlying requests session when closing a connection
@@ -22,7 +27,7 @@ Improved
 - Improved import_dicom_inbox
 
 Fixed
------
+~~~~~
 
 - InvestigatorData had nonsensical string conversion
 - Option to flatten directories when downloading an entire resource
