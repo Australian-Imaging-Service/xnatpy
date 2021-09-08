@@ -12,6 +12,7 @@ UNRELEASED VERSION
 Fixed
 ~~~~~
 
+- Failure to connect with redirection when url has a trailing ``/``
 - Added an special auth for requests to avoid it automatically reading the netrc and using
   basic auth, ruining the efficiency from cookie based sessions.
 

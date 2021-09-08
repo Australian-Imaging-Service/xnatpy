@@ -54,7 +54,7 @@ def check_auth_guest(requests_session, server, logger):
 
     :param requests.Session requests_session: requests session
     :param str server: server test
-    :param str user: desired user (None for guest)
+    :param logger: logger to use
     :raises ValueError: Raises a ValueError if the login failed
     """
     logger.debug('Getting {} to test guest auth'.format(server))
@@ -93,9 +93,10 @@ def check_auth(requests_session, server, user, logger):
     :param str user: desired user (None for guest)
     :raises ValueError: Raises a ValueError if the login failed
     """
-    logger.debug('Getting {} to test auth (user {})'.format(server, user))
+    test_uri = server.rstrip('/') + '/data/auth'
+    logger.debug('Getting {} to test auth (user {})'.format(test_uri, user))
 
-    test_auth_request = requests_session.get(server + '/data/auth', timeout=10)
+    test_auth_request = requests_session.get(test_uri, timeout=10)
     logger.debug('Status: {}'.format(test_auth_request.status_code))
 
     if test_auth_request.status_code == 401 or 'Login attempt failed. Please try again.' in test_auth_request.text:
@@ -147,9 +148,7 @@ def parse_schemas_16(parser, xnat_session, extension_types=True):
     Retrieve and parse schemas for an XNAT version 1.6.x
 
     :param parser: The parser to use for the parsing
-    :param requests_session: the requests session used for the communication
-    :param str server: URI of the XNAT server
-    :param logger: logger to use for the logging
+    :param xnat_session: the requests session used for the communication
     :param bool extension_types: flag to enabled/disable scanning for extension types
     """
     # Retrieve schema from XNAT server
@@ -195,42 +194,41 @@ def parse_schemas_16(parser, xnat_session, extension_types=True):
                                     schema_uri=schema)
 
 
-def parse_schemas_17(parser, xnat_serssion, extension_types=True):
+def parse_schemas_17(parser, xnat_session, extension_types=True):
     """
     Retrieve and parse schemas for an XNAT version 1.7.x
 
     :param parser: The parser to use for the parsing
-    :param requests_session: the requests session used for the communication
-    :param str server: URI of the XNAT server
-    :param logger: logger to use for the logging
+    :param xnat_session: the requests session used for the communication
+    :param bool extension_types: flag to enabled/disable scanning for extension types
     """
     if extension_types:
         schemas_uri = '/xapi/schemas'
         try:
-            schema_list = xnat_serssion.get_json(schemas_uri)
+            schema_list = xnat_session.get_json(schemas_uri)
         except exceptions.XNATResponseError as exception:
             message = 'Problem retrieving schemas list: {}'.format(exception)
-            xnat_serssion.logger.critical(message)
+            xnat_session.logger.critical(message)
             raise ValueError(message)
     else:
         schema_list = DEFAULT_SCHEMAS
 
     for schema in schema_list:
         if extension_types or schema in ['xdat', 'xnat']:
-            parser.parse_schema_uri(xnat_session=xnat_serssion,
+            parser.parse_schema_uri(xnat_session=xnat_session,
                                     schema_uri='/xapi/schemas/{schema}'.format(schema=schema))
 
 
 def detect_redirection(response, server, logger):
     """
     Check if there is a redirect going on
+    :param response: requests response to extract the redirection from
     :param str server: server url
-    :param session: requests session to use for the connection
     :param logger:
     :return: the server url to use later
     """
     logger.debug('Response url: {}'.format(response.url))
-    response_url = re.match(r'(.*)/(app|data)/', response.url).group(1)
+    response_url = re.match(r'(.*/)(app|data)/', response.url).group(1)
     if response_url != server and response_url != server + '/':
         logger.warning('Detected a redirect from {0} to {1}, using {1} from now on'.format(server, response_url))
     return response_url
@@ -375,7 +373,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
                         potentially dangerous, but required for self-signed certificates.
     :param str netrc_file: alternative location to use for the netrc file (path pointing to
                            a file following the netrc syntax)
-    :param debug bool: Set debug information printing on and print extra debug information.
+    :param bool debug: Set debug information printing on and print extra debug information.
                        This is meant for xnatpy developers and not for normal users. If you
                        want to debug your code using xnatpy, just set the loglevel to DEBUG
                        which will show you all requests being made, but spare you the
