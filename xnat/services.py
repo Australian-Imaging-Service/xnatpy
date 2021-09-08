@@ -26,6 +26,7 @@ from six import BytesIO
 
 from .prearchive import PrearchiveSession
 from .exceptions import XNATResponseError, XNATValueError
+from .mixin import ProjectData, SubjectData, ExperimentData
 
 TokenResult = collections.namedtuple('TokenResult', ('alias', 'secret'))
 
@@ -186,12 +187,18 @@ class Services(object):
             query['dest'] = destination
 
         if project is not None:
+            if isinstance(project, ProjectData):
+                project = project.id
             query['project'] = project
 
         if subject is not None:
+            if isinstance(subject, SubjectData):
+                subject = subject.label
             query['subject'] = subject
 
         if experiment is not None:
+            if isinstance(experiment, ExperimentData):
+                experiment = experiment.label
             query['session'] = experiment
 
         if import_handler is not None:
@@ -298,12 +305,18 @@ class Services(object):
             query['cleanupAfterImport'] = 'false'
 
         if project is not None:
+            if isinstance(project, ProjectData):
+                project = project.id
             query['PROJECT_ID'] = project
 
         if subject is not None:
+            if isinstance(subject, SubjectData):
+                subject = subject.id
             query['SUBJECT_ID'] = subject
 
         if experiment is not None:
+            if isinstance(experiment, ExperimentData):
+                experiment = experiment.label
             query['EXPT_LABEL'] = experiment
 
         uri = '/data/services/import'

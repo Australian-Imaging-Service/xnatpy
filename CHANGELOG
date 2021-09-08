@@ -9,6 +9,11 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Changed
+~~~~~~~
+
+- Allow import functions to take project, subject and experiment as xnatpy objects as well as strings
+
 Fixed
 ~~~~~
 
