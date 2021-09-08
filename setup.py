@@ -42,6 +42,7 @@ if __name__ == '__main__':
     entry_points = {
         "console_scripts": [
             "xnat_cp_project = xnat.scripts.copy_project:main",
+            "xnat_import_experiment_dir = xnat.scripts.import_experiment_dir:main",
         ]
     }
 
