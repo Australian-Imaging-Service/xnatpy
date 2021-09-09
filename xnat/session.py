@@ -42,7 +42,7 @@ except NameError:
     FILE_TYPES = io.IOBase
 
 
-class XNATSession(object):
+class BaseXNATSession(object):
     """
     The main XNATSession session class. It keeps a connection to XNATSession alive and
     manages the main communication to XNATSession. To keep the connection alive
@@ -192,10 +192,6 @@ class XNATSession(object):
             if self._keepalive_thread.is_alive():
                 self._keepalive_thread.join(3.0)
             self._keepalive_thread = None
-
-        # Kill the session
-        if self._server is not None and self._interface is not None:
-            self.delete('/data/JSESSION', headers={'Connection': 'close'})
 
         # Set the server and interface to None
         if self._interface is not None:
@@ -923,3 +919,13 @@ def default_update_func(total):
             progress_bar.update(nbytes)
 
     return do_update
+
+
+class XNATSession(BaseXNATSession):
+    def disconnect(self):
+        # Kill the session
+        if self._server is not None and self._interface is not None:
+            self.delete('/data/JSESSION', headers={'Connection': 'close'})
+
+        # Call
+        super(XNATSession, self).disconnect()

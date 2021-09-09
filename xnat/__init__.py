@@ -37,7 +37,7 @@ import requests
 from six.moves.urllib import parse
 
 from . import exceptions
-from .session import XNATSession
+from .session import XNATSession, BaseXNATSession
 from .constants import DEFAULT_SCHEMAS
 from .convert_xsd import SchemaParser
 from .utils import JSessionAuth
@@ -362,7 +362,8 @@ def build_model(xnat_session, extension_types, connection_id):
 
 def connect(server, user=None, password=None, verify=True, netrc_file=None, debug=False,
             extension_types=True, loglevel=None, logger=None, detect_redirect=True,
-            no_parse_model=False, default_timeout=300, auth_provider=None):
+            no_parse_model=False, default_timeout=300, auth_provider=None, jsession=None,
+            cli=False):
     """
     Connect to a server and generate the correct classed based on the servers xnat.xsd
     This function returns an object that can be used as a context operator. It will call
@@ -452,12 +453,6 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
         logger.warning('means that your connection can be potentially unsafe!')
         requests.packages.urllib3.disable_warnings()
 
-    if user is None and password is None:
-        user, password = query_netrc(server, netrc_file, logger)
-
-    if user is not None and password is None:
-        password = getpass.getpass(prompt=str("Please enter the password for user '{}':".format(user)))
-
     # Create the correct requests session
     requests_session = requests.Session()
     user_agent = "xnatpy/{version} ({platform}/{release}; python/{python}; requests/{requests})".format(
@@ -470,11 +465,25 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
 
     requests_session.headers.update({'User-Agent': user_agent})
 
+    if not verify:
+        requests_session.verify = False
+
     # Start out with any accidental auth, fill token once retrieved
     requests_session.auth = JSessionAuth()
 
-    if not verify:
-        requests_session.verify = False
+    if jsession is not None:
+        cookie = requests.cookies.create_cookie(
+            domain=parse.urlparse(server).netloc,
+            name='JSESSIONID',
+            value=jsession,
+        )
+        requests_session.cookies.set_cookie(cookie)
+    else:
+        if user is None and password is None:
+            user, password = query_netrc(server, netrc_file, logger)
+
+        if user is not None and password is None:
+            password = getpass.getpass(prompt=str("Please enter the password for user '{}':".format(user)))
 
     # Check for redirects
     original_uri = server
@@ -487,23 +496,27 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     if user is None and password is None:
         user, password = query_netrc(server, netrc_file, logger)
 
-    if user is not None:
-        # Get JSESSIONID and remove auth info again
-        response = _create_jsession(requests_session,
-                                    server=server,
-                                    user=user,
-                                    password=password,
-                                    provider=auth_provider,
-                                    debug=debug)
-        jsession_token = response.text
-    else:
-        _query_jsession(requests_session,
-                        server=server,
-                        debug=debug)
-        jsession_token = None
+    if jsession is None:
+        if user is not None:
+            # Get JSESSIONID and remove auth info again
+            response = _create_jsession(requests_session,
+                                        server=server,
+                                        user=user,
+                                        password=password,
+                                        provider=auth_provider,
+                                        debug=debug)
+            jsession_token = response.text
+        else:
+            _query_jsession(requests_session,
+                            server=server,
+                            debug=debug)
+            jsession_token = None
 
-    logger.debug("Retrieved JSESSION_TOKEN: {}".format(jsession_token))
-    logger.debug("Requests session cookies: {}".format(requests_session.cookies))
+        logger.debug("Retrieved JSESSION_TOKEN: {}".format(jsession_token))
+        logger.debug("Requests session cookies: {}".format(requests_session.cookies))
+    else:
+        logger.debug("Set JSESSION_TOKEN to: {}".format(jsession))
+        jsession_token = jsession
 
     # Set JSESSION token for rest of requests
     requests_session.auth = JSessionAuth(jsession_token, debug)
@@ -517,7 +530,12 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
             logged_in_user = check_auth(requests_session, server=server, user=user, logger=logger)
 
         # Create the XNAT connection
-        xnat_session = XNATSession(server=server, logger=logger,
+        if cli:
+            SessionType = BaseXNATSession
+        else:
+            SessionType = XNATSession
+
+        xnat_session = SessionType(server=server, logger=logger,
                                    interface=requests_session, debug=debug,
                                    original_uri=original_uri, logged_in_user=logged_in_user,
                                    default_timeout=default_timeout)
