@@ -21,6 +21,7 @@ import keyword
 from functools import update_wrapper
 
 import six
+from requests.auth import AuthBase
 
 if six.PY3:
     from io import BufferedIOBase, SEEK_SET, SEEK_END
@@ -28,6 +29,19 @@ if six.PY3:
 else:
     from os import SEEK_SET, SEEK_END
     superclass = object
+
+
+class JSessionAuth(AuthBase):
+    def __init__(self, jsession_id=None, debug=False):
+        self.jsession_id = jsession_id
+        self.debug = debug
+
+    """ Create an Auth that disable basic auth and uses a JSession cookie instead """
+    def __call__(self, r):
+        if self.debug and self.jsession_id:
+            print('Prepared request headers: {}'.format(r.headers))
+            print('JSESSION should be: {}'.format(self.jsession_id))
+        return r
 
 
 class mixedproperty(object):
