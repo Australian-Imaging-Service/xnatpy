@@ -228,7 +228,13 @@ def detect_redirection(response, server, logger):
     :return: the server url to use later
     """
     logger.debug('Response url: {}'.format(response.url))
-    response_url = response.url
+    response_match = re.match(r'(.*/)(app|data)/', response.url)
+
+    if response_match is not None:
+        response_url = response_match.group(1)
+    else:
+        response_url = response.url
+
     if response_url != server and response_url != server + '/':
         logger.warning('Detected a redirect from {0} to {1}, using {1} from now on'.format(server, response_url))
     return response_url
