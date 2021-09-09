@@ -370,7 +370,7 @@ class PrearchiveScan(XNATBaseObject):
             file = dicom_files[0]
         else:
             if file not in self.files:
-                raise ValueError('File {} not part of scan {} DICOM resource'.format(file, self))
+                raise ValueError('File {} not part of scan {} prearchive session'.format(file, self))
 
         with file.open() as dicom_fh:
             dicom_data = pydicom.dcmread(dicom_fh,

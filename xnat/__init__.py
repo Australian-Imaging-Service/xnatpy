@@ -228,7 +228,7 @@ def detect_redirection(response, server, logger):
     :return: the server url to use later
     """
     logger.debug('Response url: {}'.format(response.url))
-    response_url = re.match(r'(.*/)(app|data)/', response.url).group(1)
+    response_url = response.url
     if response_url != server and response_url != server + '/':
         logger.warning('Detected a redirect from {0} to {1}, using {1} from now on'.format(server, response_url))
     return response_url
@@ -472,6 +472,14 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
 
     # Check for redirects
     original_uri = server
+    redirect_check_response = requests_session.get(server)
+
+    if detect_redirect:
+        server = detect_redirection(redirect_check_response, server, logger)
+
+    # If no username and password is found yet, re-query netrc after redirection
+    if user is None and password is None:
+        user, password = query_netrc(server, netrc_file, logger)
 
     if user is not None:
         # Get JSESSIONID and remove auth info again
@@ -483,9 +491,9 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
                                     debug=debug)
         jsession_token = response.text
     else:
-        response = _query_jsession(requests_session,
-                                   server=server,
-                                   debug=debug)
+        _query_jsession(requests_session,
+                        server=server,
+                        debug=debug)
         jsession_token = None
 
     logger.debug("Retrieved JSESSION_TOKEN: {}".format(jsession_token))
@@ -496,13 +504,6 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
 
     # Use a try so that errors result in closing the JSESSION and requests session
     try:
-        if detect_redirect:
-            server = detect_redirection(response, server, logger)
-
-        # Resubmit auth to new uri, so the session handling works correctly
-        if server != original_uri:
-            _query_jsession(requests_session, server, debug=debug)
-
         # Check if login is successful
         if user is None:
             logged_in_user = check_auth_guest(requests_session, server=server, logger=logger)
