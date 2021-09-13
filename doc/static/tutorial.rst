@@ -389,6 +389,43 @@ For the details see      :py:meth:`ScanData.dicom_dump <xnat.mixin.ImageScanData
     Only one file is loaded, so the pixel data will only contain a single slice
     unless it is a DICOM Enhanced file
 
+Re-using XNAT jsession
+----------------------
+
+In same cases you might want multiple instance of xnatpy share a login session
+on the XNAT server. This can be achieved by supplying the `jsession` argument on `connect`.
+This will bypass all login logic and create a JSESSION cookie.
+
+By default xnatpy actived closes a jsession on disconnect. If you want to be able to re-use
+the session after you disconnected xnatpy, you can set `cli=True` when creating the connection.
+However, if you do this, you have to actively destroy the jsession or it will time out after a
+set time (15 minutes by default).
+
+For example::
+
+    # Create a connection and get the JSESSION
+    >>> connection = xnat.connect('htpps://xnat.example.com', user=...)
+    >>> connection.JSESSION
+    '24FA18BFA3DD4EB9C634AD79FE050339'
+
+    # Create a connection with a shared JSESSION
+    >>> connection2 = xnat.connect('https://xnat.example.com', jsession=connection.JSESSION, cli=True)
+
+    # If the jsession is still alive it should be the same (if not an error will be raised)
+    >>> connection2.JSESSION
+    '24FA18BFA3DD4EB9C634AD79FE050339'
+
+    # We can close connection2 safely without affecting connection because of
+    # the cli=True, however closing connection will destroy the JSESSION on
+    # server and make connection2 fail
+    >>> connection2.disconnect()
+
+    # This should still work
+    >>> connection.projects[...].subjects
+    ...
+
+    >>> connection.disconnect
+
 
 Example scripts
 ---------------
