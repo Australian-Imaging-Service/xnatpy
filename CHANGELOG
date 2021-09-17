@@ -26,6 +26,7 @@ Fixed
 - Failure to connect with redirection when url has a trailing ``/``
 - Added an special auth for requests to avoid it automatically reading the netrc and using
   basic auth, ruining the efficiency from cookie based sessions.
+- Deleting an object should also remove it from the connection and listing caches
 
 0.3.26 - 2021-04-16
 -------------------

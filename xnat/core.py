@@ -400,7 +400,10 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
         if remove_files:
             query['removeFiles'] = 'true'
 
+        # Try to remove object thoroughly
         self.xnat_session.delete(self.fulluri, query=query)
+        self.xnat_session.remove_object(self)
+        self._uri = None
 
         # Make sure there is no cache, this will cause 404 erros on subsequent use
         # of this object, indicating that is has been in fact removed
@@ -531,7 +534,7 @@ class XNATBaseListing(Mapping, Sequence):
     def __init__(self, parent, field_name, secondary_lookup_field=None, xsi_type=None, **kwargs):
         # Cache fields
         self._cache = {}
-        self.caching = True
+        self._caching = None
 
         # Save the parent and field name
         self.parent = parent
@@ -672,19 +675,46 @@ class XNATBaseListing(Mapping, Sequence):
         return self._xnat_session
 
     def clearcache(self):
-        self.parent.clearcache()
         self._cache.clear()
+
+    # This needs to be at the end of the class because it shadows the caching
+    # decorator for the remainder of the scope.
+    @property
+    def caching(self):
+        if self._caching is not None:
+            return self._caching
+        else:
+            return self.xnat_session.caching
+
+    @caching.setter
+    def caching(self, value):
+        self._caching = value
+
+    @caching.deleter
+    def caching(self):
+        self._caching = None
 
 
 class XNATListing(XNATBaseListing):
+    __ALL_LISTINGS__ = []
+
     def __init__(self, uri, filter=None, **kwargs):
         # Important for communication, needed before superclass is called
         self._uri = uri
 
         super(XNATListing, self).__init__(**kwargs)
 
+        # Register listing
+        self.__ALL_LISTINGS__.append(self)
+
         # Manager the filters
         self._used_filters = filter or {}
+
+    @classmethod
+    def delete_item_from_listings(cls, obj):
+        for listing in cls.__ALL_LISTINGS__:
+            if obj in listing.listing:
+                listing.clearcache()
 
     @property
     @caching

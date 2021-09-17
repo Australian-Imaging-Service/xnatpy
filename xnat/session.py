@@ -800,6 +800,11 @@ class BaseXNATSession(object):
 
         return self._cache['__objects__'][uri, fieldname]
 
+    def remove_object(self, obj):
+        # Remove object from cache (so re-creation won't use cache object)
+        XNATListing.delete_item_from_listings(obj)
+        del self._cache['__objects__'][obj.uri, obj.fieldname]
+
     @property
     @caching
     def projects(self):
