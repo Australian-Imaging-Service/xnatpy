@@ -522,7 +522,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
         jsession_token = jsession
 
     # Set JSESSION token for rest of requests
-    requests_session.auth = JSessionAuth(jsession_token, debug)
+    requests_session.auth = JSessionAuth(jsession_token)
 
     # Use a try so that errors result in closing the JSESSION and requests session
     try:

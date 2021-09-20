@@ -341,8 +341,9 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
     @property
     @caching
     def id(self):
-        if 'ID' in self.data:
-            return self.data['ID']
+        object_id = self.data.get('ID', None)
+        if object_id is not None:
+            return object_id
         elif self.parent is not None:
             return '{}/{}'.format(self.parent.id, self.fieldname)
         elif hasattr(self, '_DISPLAY_IDENTIFIER') and self._DISPLAY_IDENTIFIER is not None:
@@ -651,8 +652,10 @@ class XNATBaseListing(Mapping, Sequence):
                 raise KeyError('Could not find ID/label {} in collection!'.format(item))
 
     def __iter__(self):
+        # Avoid re-requesting the data for every item
+        data = self.data
         for index, item in enumerate(self.listing):
-            if hasattr(item, 'id') and item.id in self.data:
+            if hasattr(item, 'id') and item.id in data:
                 yield item.id
             elif self.secondary_lookup_field is not None and hasattr(item, self.secondary_lookup_field):
                 yield getattr(item, self.secondary_lookup_field)
@@ -734,6 +737,7 @@ class XNATListing(XNATBaseListing):
         except KeyError:
             raise exceptions.XNATValueError('Query GET from {} returned invalid data: {}'.format(self.uri, result))
 
+        parent_id = None
         for entry in result:
             if 'URI' not in entry and 'ID' not in entry:
                 # HACK: This is a Resource, that misses the URI and ID field (let's fix that)
@@ -746,7 +750,9 @@ class XNATListing(XNATBaseListing):
                 if entry['URI'].startswith(self.parent.uri):
                     entry['path'] = entry['URI'].replace(self.parent.uri, '', 1)
                 else:
-                    entry['path'] = re.sub(r'^.*/resources/{}/files/'.format(self.parent.id), '', entry['URI'], 1)
+                    if parent_id is None:
+                        parent_id = self.parent.id
+                    entry['path'] = re.sub(r'^.*/resources/{}/files/'.format(parent_id), '', entry['URI'], 1)
             else:
                 entry['URI'] = '{}/{}'.format(self.uri, entry['ID'])
 

@@ -118,8 +118,15 @@ class FileData(XNATObjectMixin):
                                        fieldname=fieldname,
                                        overwrites=overwrites)
 
+        # Save id because we need it if cache gets wiped
+        self._id = id_
+        
         if path is not None:
             self._path = path
+            
+    @property
+    def id(self):
+        return self._id
 
     @property
     def path(self):
@@ -141,7 +148,7 @@ class FileData(XNATObjectMixin):
         
     @property
     @caching
-    def full_data(self):
+    def fulldata(self):
         listing_uri = self.uri[:-len(self.id)-1]
         data = self.xnat_session.get_json(listing_uri)
         data = data['ResultSet']['Result']
@@ -150,7 +157,7 @@ class FileData(XNATObjectMixin):
         
     @property
     def data(self):
-        return self.full_data
+        return self.fulldata
         
     @property
     def cat_id(self):
