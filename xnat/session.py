@@ -340,7 +340,7 @@ class BaseXNATSession(object):
         uri = self._format_uri(path, format, query=query)
         timeout = timeout or self.request_timeout
 
-        self.logger.debug('GET URI {}'.format(uri))
+        self.logger.info('GET URI {}'.format(uri))
 
         try:
             response = self.interface.get(uri, timeout=timeout, headers=headers)
@@ -369,7 +369,7 @@ class BaseXNATSession(object):
         uri = self._format_uri(path)
         timeout = timeout or self.request_timeout
 
-        self.logger.debug('GET URI {}'.format(uri))
+        self.logger.info('HEAD URI {}'.format(uri))
 
         try:
             response = self.interface.head(uri, allow_redirects=allow_redirects, timeout=timeout, headers=headers)
@@ -401,7 +401,7 @@ class BaseXNATSession(object):
         uri = self._format_uri(path, format, query=query)
         timeout = timeout or self.request_timeout
 
-        self.logger.debug('POST URI {}'.format(uri))
+        self.logger.info('POST URI {}'.format(uri))
         if self.debug:
             self.logger.debug('POST DATA {}'.format(data))
 
@@ -440,7 +440,7 @@ class BaseXNATSession(object):
         uri = self._format_uri(path, format, query=query)
         timeout = timeout or self.request_timeout
 
-        self.logger.debug('PUT URI {}'.format(uri))
+        self.logger.info('PUT URI {}'.format(uri))
         if self.debug:
             self.logger.debug('PUT DATA {}'.format(data))
             self.logger.debug('PUT FILES {}'.format(data))
@@ -472,7 +472,7 @@ class BaseXNATSession(object):
         uri = self._format_uri(path, query=query)
         timeout = timeout or self.request_timeout
 
-        self.logger.debug('DELETE URI {}'.format(uri))
+        self.logger.info('DELETE URI {}'.format(uri))
         if self.debug:
             self.logger.debug('DELETE HEADERS {}'.format(headers))
 
@@ -608,7 +608,7 @@ class BaseXNATSession(object):
         self._check_connection()
 
         uri = self._format_uri(uri, format=format)
-        self.logger.debug('DOWNLOAD STREAM {}'.format(uri))
+        self.logger.info('DOWNLOAD STREAM {}'.format(uri))
 
         # Stream the get and write to file
         response = self.interface.get(uri, stream=True, timeout=timeout)
@@ -688,7 +688,7 @@ class BaseXNATSession(object):
             query['overwrite'] = 'true'
 
         uri = self._format_uri(uri, query=query)
-        self.logger.debug('UPLOAD URI {}'.format(uri))
+        self.logger.info('UPLOAD URI {}'.format(uri))
         attempt = 0
         file_handle = None
         opened_file = False

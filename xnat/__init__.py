@@ -315,6 +315,7 @@ def build_model(xnat_session, extension_types, connection_id):
     debug = xnat_session.debug
 
     # Check XNAT version
+    logger.info('Determining XNAT version')
     version = xnat_session.xnat_version
 
     # Generate module
@@ -322,16 +323,24 @@ def build_model(xnat_session, extension_types, connection_id):
 
     if xnat_session.xnat_version.startswith('1.6'):
         logger.info('Found an 1.6 version ({})'.format(version))
-        parse_schemas_16(parser, xnat_session, extension_types=extension_types)
+        build_function = parse_schemas_16
     elif version.startswith('1.7'):
         logger.info('Found an 1.7 version ({})'.format(version))
-        parse_schemas_17(parser, xnat_session, extension_types=extension_types)
+        build_function = parse_schemas_17
+    elif version.startswith('1.8'):
+        # Can use the same builder as 1.7 for now
+        logger.info('Found an 1.8 version ({})'.format(version))
+        build_function = parse_schemas_17
     elif version.startswith('ML-BETA'):
+        # Can use the same builder as 1.7 for now
         logger.info('Found an ML beta version ({})'.format(version))
-        parse_schemas_17(parser, xnat_session, extension_types=extension_types)
+        build_function = parse_schemas_17
     else:
         logger.warning('Found an unsupported version ({}), trying 1.7 compatible model builder'.format(version))
-        parse_schemas_17(parser, xnat_session, extension_types=extension_types)
+        build_function = parse_schemas_17
+
+    logger.info('Start parsing schemas and building object model')
+    build_function(parser, xnat_session, extension_types=extension_types)
 
     # Write code to temp file
     with tempfile.NamedTemporaryFile(mode='w', suffix='_generated_xnat.py', delete=False) as code_file:
@@ -357,6 +366,7 @@ def build_model(xnat_session, extension_types, connection_id):
     xnat_session.XNAT_CLASS_LOOKUP.update(xnat_module.XNAT_CLASS_LOOKUP)
     xnat_session.classes = xnat_module
     xnat_session._source_code_file = code_file.name
+    logger.info('Object model created successfully')
 
 
 def connect(server, user=None, password=None, verify=True, netrc_file=None, debug=False,

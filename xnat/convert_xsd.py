@@ -996,7 +996,7 @@ class SchemaParser(object):
         self.parse_schema_xmlstring(data, schema_uri=schema_uri)
 
     def parse_schema_uri(self, xnat_session, schema_uri):
-        self.logger.info('=== Retrieving schema from {} ==='.format(schema_uri))
+        self.logger.debug('Retrieving schema from {}'.format(schema_uri))
 
         resp = xnat_session.get(schema_uri, headers={'Accept-Encoding': None})
         data = resp.text
@@ -1057,7 +1057,7 @@ class SchemaParser(object):
 
                 visited.add(key)
                 yielded_anything = True
-                self.logger.info('Processing {} (base class {})'.format(value.name, value.base_class))
+                self.logger.debug('Processing {} (base class {})'.format(value.name, value.base_class))
                 yield value
 
             tries += 1
@@ -1447,7 +1447,7 @@ class SchemaParser(object):
             self.logger.debug('namespaces: {}'.format(self.namespaces))
             self.logger.debug('namespace prefixes: {}'.format(self.namespace_prefixes))
 
-        self.logger.info('=== Pruning data structure ===')
+        self.logger.info('Pruning data structure')
         before = set(self.class_list.keys())
         if self.debug:
             self.logger.debug('Classed before prune: {}'.format(before))
@@ -1457,7 +1457,7 @@ class SchemaParser(object):
             self.logger.debug('Classed after prune: {}'.format(after))
             self.logger.info('Classes removed by pruning: {}'.format(sorted(before - after)))
 
-        self.logger.info('=== Writing result ===')
+        self.logger.info('Writing result')
         schemas = '\n'.join('# - {}'.format(s) for s in self.schemas)
         code_file.write(FILE_HEADER.format(schemas=schemas,
                                            file_secondary_lookup=SECONDARY_LOOKUP_FIELDS['xnat:fileData']))
