@@ -365,10 +365,16 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
 
     @property
     def xnat_session(self):
+        if self._uri is None:
+            raise exceptions.XNATObjectDestroyedError('This object is delete and cannot be used anymore!')
+
         return self._xnat_session
 
     @property
     def uri(self):
+        if self._uri is None:
+            raise exceptions.XNATObjectDestroyedError('This object is delete and cannot be used anymore!')
+
         return self._uri
 
     def clearcache(self):
@@ -405,8 +411,9 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
         self.xnat_session.delete(self.fulluri, query=query)
         self.xnat_session.remove_object(self)
         self._uri = None
+        self._xnat_session = None
 
-        # Make sure there is no cache, this will cause 404 erros on subsequent use
+        # Make sure there is no cache, this will cause XNATObjectDestroyedError on subsequent use
         # of this object, indicating that is has been in fact removed
         self.clearcache()
 
@@ -532,6 +539,8 @@ class XNATSubObject(XNATBaseObject):
 
 @six.python_2_unicode_compatible
 class XNATBaseListing(Mapping, Sequence):
+    __ALL_LISTINGS__ = []
+
     def __init__(self, parent, field_name, secondary_lookup_field=None, xsi_type=None, **kwargs):
         # Cache fields
         self._cache = {}
@@ -560,6 +569,9 @@ class XNATBaseListing(Mapping, Sequence):
             secondary_lookup_field = self.xnat_session.XNAT_CLASS_LOOKUP.get(self._xsi_type).SECONDARY_LOOKUP_FIELD
 
         self.secondary_lookup_field = secondary_lookup_field
+
+        # Register listing
+        self.__ALL_LISTINGS__.append(self)
 
     def sanitize_name(self, name):
         name = re.sub('[^0-9a-zA-Z]+', '_', name)
@@ -697,27 +709,33 @@ class XNATBaseListing(Mapping, Sequence):
     def caching(self):
         self._caching = None
 
+    # These two methods allow for wiping the cache of all listings that had obj in them
+    # this is required for object deletions so that the objects are no longer presented
+    # in the listings
+    @classmethod
+    def delete_item_from_listings(cls, obj):
+        for listing in cls.__ALL_LISTINGS__:
+            listing.delete_item_from_cache(obj)
+
+    def delete_item_from_cache(self, obj):
+        data_maps = self._cache.get('data_maps', None)
+
+        if data_maps is None:
+            return
+
+        if obj in data_maps[0].values() or obj in data_maps[1].values() or obj in data_maps[3]:
+            self.clearcache()
+
 
 class XNATListing(XNATBaseListing):
-    __ALL_LISTINGS__ = []
-
     def __init__(self, uri, filter=None, **kwargs):
         # Important for communication, needed before superclass is called
         self._uri = uri
 
         super(XNATListing, self).__init__(**kwargs)
 
-        # Register listing
-        self.__ALL_LISTINGS__.append(self)
-
         # Manager the filters
         self._used_filters = filter or {}
-
-    @classmethod
-    def delete_item_from_listings(cls, obj):
-        for listing in cls.__ALL_LISTINGS__:
-            if obj in listing.listing:
-                listing.clearcache()
 
     @property
     @caching
