@@ -14,6 +14,7 @@ Added
 
 - Options to create a session with re-using a JSESSION ID instead of logging in and a BaseXNATSession that does
   not destroy the session on disconnect
+- Catalog refresh method for resources
 
 Changed
 ~~~~~~~

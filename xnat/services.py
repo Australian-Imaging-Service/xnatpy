@@ -24,6 +24,7 @@ from zipfile import ZipFile
 
 from six import BytesIO
 
+from .core import XNATBaseObject
 from .prearchive import PrearchiveSession
 from .exceptions import XNATResponseError, XNATValueError
 from .mixin import ProjectData, SubjectData, ExperimentData
@@ -348,3 +349,55 @@ class Services(object):
         result = self.xnat_session.get_json(uri)
 
         return TokenResult(result['alias'], result['secret'])
+
+    def refresh_catalog(self, resource, checksum=False, delete=False, append=False, populate_stats=False):
+        """
+        Call for a refresh of the catalog, see https://wiki.xnat.org/display/XAPI/Catalog+Refresh+API for
+        details.
+
+        Introduced with XNAT 1.6.2, the refresh catalog service is used to update catalog xmls that are out of
+        sync with the file system.  This service can be used to store checksums for entries that are missing the,
+        remove entries that no longer have valid files, or add new entries for files that have been manually
+        added to the archive directory.
+
+        When using this feature to add files that have been manually added to the archive directory, you must
+        have placed the files in the appropriate archive directory (in the same directory as the generated
+        catalog xml or a sub-directory).  The catalog xml should already exist before triggering this service.
+        If you haven't generated the catalog yet, you can do so by doing a PUT to the resource URL
+        (i.e. /data/archive/experiments/ID/resources/TEST).
+
+        Extra parameters indicate operations to perform on the specified resource(s) during the refresh.
+        If non are given, then the catalog will be reviewed and updated for validity, but nothing else.
+
+        :param resource: XNATObject or uri indicating the resource to use
+        :param bool checksum: generate checksums for any entries that are missing them
+        :param bool delete: remove entries that do not reference valid files
+        :param bool append: add entries for files in the catalog directory (or sub-directory)
+        :param bool populate_stats: updates the statistics for the resource in the XNAT abstract resource table.
+        :return:
+        """
+        if isinstance(resource, XNATBaseObject):
+            resource = resource.fulluri
+
+        options = []
+
+        # Check which options to add
+        if checksum:
+            options.append('checksum')
+
+        if delete:
+            options.append('delete')
+
+        if append:
+            options.append('append')
+
+        if populate_stats:
+            options.append('populateStats')
+
+        # Make query that only contains options if any are given
+        query = {'resource': resource}
+
+        if options:
+            query['options'] = options
+
+        self.xnat_session.post('/data/services/refresh/catalog', query=query)

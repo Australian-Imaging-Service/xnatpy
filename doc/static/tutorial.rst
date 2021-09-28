@@ -98,6 +98,54 @@ following::
 As soon as the scope of the with exists (even if because of an exception thrown!)
 the session will be disconnected automatically.
 
+Low level REST directives
+-------------------------
+
+Though xnatpy is designed to offer a high level pythonic interface, it also easily
+exposes all default REST verbs using the following functions:
+
+* :py:meth:`xnat.session.BaseXNATSession.get`
+* :py:meth:`xnat.session.BaseXNATSession.head`
+* :py:meth:`xnat.session.BaseXNATSession.put`
+* :py:meth:`xnat.session.BaseXNATSession.post`
+* :py:meth:`xnat.session.BaseXNATSession.delete`
+
+These methods take a (partial) uri and return a requests response. However they do
+make use of the session established by xnatpy, so user auth and default error checking
+are still in place, for example::
+
+  >>> connection.get('/data/projects')
+  # Note that 'https://xnat.example.com/data/projects' would also work but is not needed
+  # as the connection already knows the server connected to
+  <Response [200]>
+
+These methods also accept arguments for query strings and data (for ``put`` and ``post``). The details
+can be found in the documentation of the separate methods.
+
+There is also a useful helper method that gets and unpacks json data :py:meth:`xnat.session.BaseXNATSession.get_json`::
+
+  >>> connection.get_json('/data/project/PROJECT_ID')
+  {'items': [{'children':  ..... }]}
+
+Finally there are also methods for data upload and download:
+
+* :py:meth:`xnat.session.BaseXNATSession.download`
+* :py:meth:`xnat.session.BaseXNATSession.download_zip`
+* :py:meth:`xnat.session.BaseXNATSession.download_stream`
+* :py:meth:`xnat.session.BaseXNATSession.upload`
+
+These methods can help you implement arbitrary functionality without limitations.
+
+.. warning::
+  A lot of functionality has higher level interfaces which are easier to use and
+  it is recommended to use those instead.
+
+.. note::
+  The requests session used by xnatpy can be accessed via ``connection.interface``.
+  This allows you to anything that requests can but bypasses all error checking of
+  xnatpy and is not recommended.
+
+
 Exploring your xnat server
 --------------------------
 
@@ -145,6 +193,28 @@ and most things will work naturally. For example::
   >>> for subject in sandbox_project.subjects.values():
   ...     print(subject.label)
   test001
+
+Selecting an object based on its uri
+------------------------------------
+
+If you already have the uri for an object you can easily fetch the correct xnatpy
+object. For example::
+
+  >>> experiment_object = connection.create_object('/data/projects/$PROJECT_ID/experiments/$EXPERIMENT_ID')
+  >>> experiment_object
+  <MrSessionData EXPERIMENT_LABEL (EXPERIMENT_ID)>
+
+This object is exactly the same as if it would be acquired from a listing, so you can
+reference the parameters, fields, etc.
+
+This works for any valid url of which xnatpy can retrieve the data and figure out the xsitype, see
+:py:meth:`xnat.session.BaseXNATSession.create_object` for details.
+
+.. note::
+    xnatpy can also be called using urls that start with the uri connected to, e.g. if
+    given ``https://xnat.example.com`` as argument when connecting, using the uri
+    ``https://xnat.example.com/data/projects/$PROJECT_ID/experiments/$EXPERIMENT_ID`` would
+    also work.
 
 Downloading data
 ----------------

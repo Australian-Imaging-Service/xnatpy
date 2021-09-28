@@ -541,6 +541,12 @@ class AbstractResource(XNATBaseObject):
         else:
             return int(file_count)
 
+    def refresh_catalog(self):
+        """
+        Call refresh catalog on this object, see :py:meth:`xnat.services.Services.refresh_catalog` for details.
+        """
+        self.xnat_session.services.refresh_catalog(self)
+
     @property
     @caching
     def files(self):

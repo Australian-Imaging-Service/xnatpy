@@ -43,7 +43,7 @@ if __name__ == '__main__':
         "console_scripts": [
             "xnat_cp_project = xnat.scripts.copy_project:main",
             "xnat_import_experiment_dir = xnat.scripts.import_experiment_dir:main",
-            "xnat_data_integirty-check = xnat.scripts.data_integrity_check:main" ,
+            "xnat_data_integrity-check = xnat.scripts.data_integrity_check:main" ,
         ]
     }
 
