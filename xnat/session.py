@@ -763,7 +763,7 @@ class BaseXNATSession(object):
 
     def create_object(self, uri, type_=None, fieldname=None, **kwargs):
         """
-        Create an xnatpy object for a given uri. This does ***not*** create anything server sided, but rather
+        Create an xnatpy object for a given uri. This does **not** create anything server sided, but rather
         wraps and uri (and optionally data) in an object. It allows you to create an xnatpy object from an
         arbitrary uri to something on the xnat server and continue as normal from there on.
 
@@ -771,7 +771,7 @@ class BaseXNATSession(object):
         :param str type_: the xsi_type to select the object type (this is option, by default it will be auto retrieved)
         :param fieldname: indicate the name of the field that was used to retrieved this object
         :param kwargs: arguments to pass to object creation
-        :return: newly created xnat object
+        :return: newly created xnatpy object
         :rtype: XNATObject
         """
         if (uri, fieldname) not in self._cache['__objects__']:
