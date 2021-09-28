@@ -28,15 +28,17 @@ from xnat.exceptions import XNATLoginFailedError
 
 
 class FileObject:
-    def __init__(self, project, subject, experiment, scan, resource, filename, count, location):
+    # def __init__(self, project, subject, experiment, scan, resource, filename, count, location):
+    def __init__(self, location, parent_info, filename=None, count=1):
         self.count = count
         self._location = location
         self._data = {
-            'project': project,
-            'subject': subject,
-            'experiment': experiment,
-            'scan': scan,
-            'resource': resource,
+            'project': parent_info.get('project'),
+            'subject': parent_info.get('subject'),
+            'experiment': parent_info.get('experiment'),
+            'scan': parent_info.get('scan'),
+            'resource': parent_info.get('resource'),
+            'assessor': parent_info.get('assessor'),
             'filename': filename,
         }
 
@@ -47,6 +49,7 @@ class FileObject:
             self._data['experiment'],
             self._data['scan'],
             self._data['resource'],
+            self._data['assessor'],
             self._data['filename'],
         ))
 
@@ -55,12 +58,15 @@ class FileObject:
 
     def __str__(self):
         value_list = [
+            self._location,
             str(self._data['project']),
             str(self._data['subject']),
             str(self._data['experiment']),
             str(self._data['scan']),
             str(self._data['resource']),
+            str(self._data['assessor']),
             str(self._data['filename']),
+            str(self.count),
         ]
         return '\t'.join(value_list)
 
@@ -121,36 +127,27 @@ class XNATFileScraper(BaseScraper):
     def _check_xnat_resource(self, parent_info, xnat_resource):
         parent_info['resource'] = xnat_resource.label
         if xnat_resource.file_count != len(xnat_resource.files):
-            xnat_file_info = FileObject(
-                parent_info.get('project'),
-                parent_info.get('subject'),
-                parent_info.get('experiment'),
-                parent_info.get('scan'),
-                parent_info.get('resource'),
-                None,
-                xnat_resource.file_count - len(xnat_resource.files),
-                'xnat'
-            )
+            xnat_file_info = FileObject('xnat', parent_info, count=xnat_resource.file_count - len(xnat_resource.files))
             self.files.add(xnat_file_info)
         for file_id, xnat_file in xnat_resource.files.items():
-            xnat_file_info = FileObject(
-                parent_info.get('project'),
-                parent_info.get('subject'),
-                parent_info.get('experiment'),
-                parent_info.get('scan'),
-                parent_info.get('resource'),
-                xnat_file.path,
-                1,
-                'xnat'
-            )
+            xnat_file_info = FileObject('xnat', parent_info, filename=xnat_file.path)
             self.files.add(xnat_file_info)
 
     def _check_xnat_experiment(self, parent_info, xnat_experiment):
         parent_info['experiment'] = xnat_experiment.label
         for resource_id, xnat_resource in xnat_experiment.resources.items():
             result = self._check_xnat_resource(dict(parent_info), xnat_resource)
+
+        for assessor_id, xnat_assessor in xnat_experiment.assessors.items():
+            result = self._check_xnat_assessor(dict(parent_info), xnat_assessor)
+            
         for scan_id, xnat_scan in xnat_experiment.scans.items():
             self._check_xnat_scan(dict(parent_info), xnat_scan)
+
+    def _check_xnat_assessor(self, parent_info, xnat_assessor):
+        parent_info['assessor'] = xnat_assessor.label
+        for resource_id, xnat_resource in xnat_assessor.resources.items():
+            result = self._check_xnat_resource(dict(parent_info), xnat_resource) 
 
     def _check_xnat_scan(self, parent_info, xnat_scan):
         parent_info['scan'] = xnat_scan.id
@@ -206,16 +203,7 @@ class FileSystemFileScraper(BaseScraper):
         for file in files:
             if file.name.endswith('catalog.xml'):
                 continue
-            xnat_file_info = FileObject(
-                parent_info.get('project'),
-                parent_info.get('subject'),
-                parent_info.get('experiment'),
-                parent_info.get('scan'),
-                parent_info.get('resource'),
-                str(file.name),
-                1,
-                'filesystem'
-            )
+            xnat_file_info = FileObject('filesystem', parent_info, filename=str(file.name))
             self.files.add(xnat_file_info)
 
     def _fs_subject_check(self, parent_info, subject):
@@ -229,15 +217,27 @@ class FileSystemFileScraper(BaseScraper):
 
         resources_dir = experiment / 'RESOURCES'
         if resources_dir.is_dir():
-            resources = [x for x in (experiment / 'RESOURCES').iterdir() if x.is_dir()]
+            resources = [x for x in resources_dir.iterdir() if x.is_dir()]
             for resource in resources:
                 self._fs_resource_check(dict(parent_info), resource)
 
+        assessors_dir = experiment / 'ASSESSORS'
+        if assessors_dir.is_dir():
+            assessors = [x for x in assessors_dir.iterdir() if x.is_dir()]
+            for assessor in assessors:
+                self._fs_assessor_check(dict(parent_info), assessor)
+
         scans_dir = experiment / 'SCANS'
         if scans_dir.is_dir():
-            scans = [x for x in (experiment / 'SCANS').iterdir() if x.is_dir()]
+            scans = [x for x in scans_dir.iterdir() if x.is_dir()]
             for scan in scans:
                 self._fs_scan_check(dict(parent_info), scan)
+
+    def _fs_assessor_check(self, parent_info, assessor):
+        parent_info['assessor'] = assessor.name
+        resources = [x for x in assessor.iterdir() if x.is_dir()]
+        for resource in resources:
+            self._fs_resource_check(dict(parent_info), resource)
 
     def _fs_scan_check(self, parent_info, scan):
         parent_info['scan'] = scan.name
@@ -262,22 +262,25 @@ class XNATIntegrityCheck:
         return (self._xnat_file_scraper.progress(), self._filesystem_scraper.progress())
 
     def write_report(self, filename):
-        print(f'Files scanned on XNAT: {len(self._xnat_file_scraper.files)}')
-        print(f'Files scanned on FS: {len(self._filesystem_scraper.files)}')
+        files_on_xnat = sum(file_object.count for file_object in self._xnat_file_scraper.files)
+        files_on_fs = sum(file_object.count for file_object in self._filesystem_scraper.files)
+        print(f'Files scanned on XNAT: {files_on_xnat}')
+        print(f'Files scanned on FS: {files_on_fs}')
+
+        missing_on_xnat = self._filesystem_scraper.files.difference(self._xnat_file_scraper.files)
+        missing_on_xnat_count = sum(missing.count for missing in missing_on_xnat)
+        print(f'Files missing on XNAT: {missing_on_xnat_count}')
 
         missing_on_fs = self._xnat_file_scraper.files.difference(self._filesystem_scraper.files)
         missing_on_fs_count = sum(missing.count for missing in missing_on_fs)
         print(f'Files missing on FS: {missing_on_fs_count}')
 
-        missing_on_xnat = self._filesystem_scraper.files.difference(self._xnat_file_scraper.files)
-        missing_on_xnat_count = sum(missing.count for missing in missing_on_xnat)
-        print(f'Files missing on XNAT: {missing_on_fs_count}')
-
         with open(filename, 'w') as fo:
-            fo.write(f"Missing on XNAT:\n")
+            header = 'location\tproject\tsubject\texperiment\tscan\tresource\tassessor\tfilename\tcount'
+            fo.write(f"{header}\n")
             for file in missing_on_xnat:
                 fo.write(f"{file}\n")
-            fo.write(f'Missing on Filesystem:\n')
+            # fo.write(f'Missing on Filesystem:\n')
             for file in missing_on_fs:
                 fo.write(f"{file}\n")
 
