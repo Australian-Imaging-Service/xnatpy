@@ -21,7 +21,7 @@ import sys
 from setuptools import setup
 
 # Get information about the version (polling mercurial if possible)
-version = '0.3.26'
+version = '0.3.27'
 
 # When building something else than a release (tag) append the job id to the version.
 if os.environ.get('CI_COMMIT_TAG'):
@@ -42,6 +42,8 @@ if __name__ == '__main__':
     entry_points = {
         "console_scripts": [
             "xnat_cp_project = xnat.scripts.copy_project:main",
+            "xnat_import_experiment_dir = xnat.scripts.import_experiment_dir:main",
+            "xnat_data_integrity-check = xnat.scripts.data_integrity_check:main" ,
         ]
     }
 
@@ -69,6 +71,8 @@ if __name__ == '__main__':
             "Programming Language :: Python :: 3.5",
             "Programming Language :: Python :: 3.6",
             "Programming Language :: Python :: 3.7",
+            "Programming Language :: Python :: 3.8",
+            "Programming Language :: Python :: 3.9",
             "Topic :: Scientific/Engineering :: Bio-Informatics",
             "Topic :: Scientific/Engineering :: Medical Science Apps.",
             ]

@@ -6,11 +6,34 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <http://keepachangelog.com/>`_
 and this project adheres to `Semantic Versioning <http://semver.org/>`_
 
+UNRELEASED VERSION
+------------------
+
+Added
+~~~~~
+
+- Options to create a session with re-using a JSESSION ID instead of logging in and a BaseXNATSession that does
+  not destroy the session on disconnect
+- Catalog refresh method for resources
+
+Changed
+~~~~~~~
+
+- Allow import functions to take project, subject and experiment as xnatpy objects as well as strings
+
+Fixed
+~~~~~
+
+- Failure to connect with redirection when url has a trailing ``/``
+- Added an special auth for requests to avoid it automatically reading the netrc and using
+  basic auth, ruining the efficiency from cookie based sessions.
+- Deleting an object should also remove it from the connection and listing caches
+
 0.3.26 - 2021-04-16
 -------------------
 
 Improved
---------
+~~~~~~~~
 
 - Switched to cookie based login instead of basic auth with every requests (should be more performant)
 - Close underlying requests session when closing a connection
@@ -18,7 +41,7 @@ Improved
 - Improved import_dicom_inbox
 
 Fixed
------
+~~~~~
 
 - InvestigatorData had nonsensical string conversion
 - Option to flatten directories when downloading an entire resource

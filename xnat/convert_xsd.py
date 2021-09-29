@@ -25,6 +25,8 @@ import os
 import re
 from xml.etree import ElementTree
 
+import six
+
 from . import core
 from . import mixin
 from .datatypes import TYPE_TO_PYTHON
@@ -116,8 +118,15 @@ class FileData(XNATObjectMixin):
                                        fieldname=fieldname,
                                        overwrites=overwrites)
 
+        # Save id because we need it if cache gets wiped
+        self._id = id_
+        
         if path is not None:
             self._path = path
+            
+    @property
+    def id(self):
+        return self._id
 
     @property
     def path(self):
@@ -139,7 +148,7 @@ class FileData(XNATObjectMixin):
         
     @property
     @caching
-    def full_data(self):
+    def fulldata(self):
         listing_uri = self.uri[:-len(self.id)-1]
         data = self.xnat_session.get_json(listing_uri)
         data = data['ResultSet']['Result']
@@ -148,7 +157,7 @@ class FileData(XNATObjectMixin):
         
     @property
     def data(self):
-        return self.full_data
+        return self.fulldata
         
     @property
     def cat_id(self):
@@ -889,6 +898,9 @@ class ListingPropertyWriter(AttributeWriter):
 
         if isinstance(type_def, ClassPrototype):
             type_string = 'xnat.classes.{}'.format(pythonize_class_name(type_def.name))
+        elif type_def is None:
+            # Default to str if no other type has been found
+            type_string = full_class_name(str)
         elif type_def.startswith('xs:'):
             type_string = full_class_name(TYPE_TO_PYTHON.get(type_def, str))
         else:
@@ -909,11 +921,12 @@ class ListingPropertyWriter(AttributeWriter):
         if self.element_class is not None:
             element_class = self.element_class
             property_base += element_class.writer.create_listing(secondary_lookup=secondary_lookup, field_name=field_name)
-        elif not self.type.startswith('xs:'):
+        elif isinstance(self.type, six.string_types) and not self.type.startswith('xs:'):
             element_class = self.parser.class_list[self.type]
             property_base += element_class.writer.create_listing(secondary_lookup=secondary_lookup, field_name=field_name)
         else:
-            property_base += "\n        # TODO: Implement simple type listing! (type: {})\n".format(self.type) + \
+            type_spec = self.type or 'xs:string'
+            property_base += "\n        # TODO: Implement simple type listing! (type: {})\n".format(type_spec) + \
                              "        pass"
         return property_base
 
@@ -983,7 +996,7 @@ class SchemaParser(object):
         self.parse_schema_xmlstring(data, schema_uri=schema_uri)
 
     def parse_schema_uri(self, xnat_session, schema_uri):
-        self.logger.info('=== Retrieving schema from {} ==='.format(schema_uri))
+        self.logger.debug('Retrieving schema from {}'.format(schema_uri))
 
         resp = xnat_session.get(schema_uri, headers={'Accept-Encoding': None})
         data = resp.text
@@ -1044,7 +1057,7 @@ class SchemaParser(object):
 
                 visited.add(key)
                 yielded_anything = True
-                self.logger.info('Processing {} (base class {})'.format(value.name, value.base_class))
+                self.logger.debug('Processing {} (base class {})'.format(value.name, value.base_class))
                 yield value
 
             tries += 1
@@ -1434,7 +1447,7 @@ class SchemaParser(object):
             self.logger.debug('namespaces: {}'.format(self.namespaces))
             self.logger.debug('namespace prefixes: {}'.format(self.namespace_prefixes))
 
-        self.logger.info('=== Pruning data structure ===')
+        self.logger.info('Pruning data structure')
         before = set(self.class_list.keys())
         if self.debug:
             self.logger.debug('Classed before prune: {}'.format(before))
@@ -1444,7 +1457,7 @@ class SchemaParser(object):
             self.logger.debug('Classed after prune: {}'.format(after))
             self.logger.info('Classes removed by pruning: {}'.format(sorted(before - after)))
 
-        self.logger.info('=== Writing result ===')
+        self.logger.info('Writing result')
         schemas = '\n'.join('# - {}'.format(s) for s in self.schemas)
         code_file.write(FILE_HEADER.format(schemas=schemas,
                                            file_secondary_lookup=SECONDARY_LOOKUP_FIELDS['xnat:fileData']))

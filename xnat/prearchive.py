@@ -370,7 +370,7 @@ class PrearchiveScan(XNATBaseObject):
             file = dicom_files[0]
         else:
             if file not in self.files:
-                raise ValueError('File {} not part of scan {} DICOM resource'.format(file, self))
+                raise ValueError('File {} not part of scan {} prearchive session'.format(file, self))
 
         with file.open() as dicom_fh:
             dicom_data = pydicom.dcmread(dicom_fh,
@@ -478,6 +478,10 @@ class Prearchive(object):
 
         result = []
         for session_data in data['ResultSet']['Result']:
+            # You can't query receiving sessions via the REST API yet, so don't show them
+            if session_data.get('status', 'unknown') == 'RECEIVING':
+                continue
+
             uri = '/data{}'.format(session_data['url'])
 
             session = self._cache.get(uri, None)
