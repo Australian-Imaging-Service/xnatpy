@@ -8,6 +8,7 @@ from .search import search
 
 
 @click.group()
+@click.version_option()
 def cli():
     pass
 
