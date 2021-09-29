@@ -17,6 +17,8 @@ from __future__ import absolute_import
 from __future__ import unicode_literals
 import fnmatch
 
+from .core import XNATBaseObject
+
 
 class Inspect(object):
     def __init__(self, xnat_session):
@@ -41,6 +43,9 @@ class Inspect(object):
             return [field for element in elements for field in self.datafields(datatype=element, pattern=fields_pattern)]
 
     def datafields(self, datatype, pattern='*', prepend_type=True):
+        if isinstance(datatype, XNATBaseObject):
+            datatype = datatype.__xsi_type__
+
         search_fields = self.xnat_session.get_json('/data/search/elements/{}'.format(datatype))
 
         # Select data from JSON

@@ -341,8 +341,9 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
     @property
     @caching
     def id(self):
-        if 'ID' in self.data:
-            return self.data['ID']
+        object_id = self.data.get('ID', None)
+        if object_id is not None:
+            return object_id
         elif self.parent is not None:
             return '{}/{}'.format(self.parent.id, self.fieldname)
         elif hasattr(self, '_DISPLAY_IDENTIFIER') and self._DISPLAY_IDENTIFIER is not None:
@@ -364,10 +365,16 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
 
     @property
     def xnat_session(self):
+        if self._uri is None:
+            raise exceptions.XNATObjectDestroyedError('This object is delete and cannot be used anymore!')
+
         return self._xnat_session
 
     @property
     def uri(self):
+        if self._uri is None:
+            raise exceptions.XNATObjectDestroyedError('This object is delete and cannot be used anymore!')
+
         return self._uri
 
     def clearcache(self):
@@ -400,9 +407,13 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
         if remove_files:
             query['removeFiles'] = 'true'
 
+        # Try to remove object thoroughly
         self.xnat_session.delete(self.fulluri, query=query)
+        self.xnat_session.remove_object(self)
+        self._uri = None
+        self._xnat_session = None
 
-        # Make sure there is no cache, this will cause 404 erros on subsequent use
+        # Make sure there is no cache, this will cause XNATObjectDestroyedError on subsequent use
         # of this object, indicating that is has been in fact removed
         self.clearcache()
 
@@ -528,10 +539,12 @@ class XNATSubObject(XNATBaseObject):
 
 @six.python_2_unicode_compatible
 class XNATBaseListing(Mapping, Sequence):
+    __ALL_LISTINGS__ = []
+
     def __init__(self, parent, field_name, secondary_lookup_field=None, xsi_type=None, **kwargs):
         # Cache fields
         self._cache = {}
-        self.caching = True
+        self._caching = None
 
         # Save the parent and field name
         self.parent = parent
@@ -556,6 +569,9 @@ class XNATBaseListing(Mapping, Sequence):
             secondary_lookup_field = self.xnat_session.XNAT_CLASS_LOOKUP.get(self._xsi_type).SECONDARY_LOOKUP_FIELD
 
         self.secondary_lookup_field = secondary_lookup_field
+
+        # Register listing
+        self.__ALL_LISTINGS__.append(self)
 
     def sanitize_name(self, name):
         name = re.sub('[^0-9a-zA-Z]+', '_', name)
@@ -648,8 +664,10 @@ class XNATBaseListing(Mapping, Sequence):
                 raise KeyError('Could not find ID/label {} in collection!'.format(item))
 
     def __iter__(self):
+        # Avoid re-requesting the data for every item
+        data = self.data
         for index, item in enumerate(self.listing):
-            if hasattr(item, 'id') and item.id in self.data:
+            if hasattr(item, 'id') and item.id in data:
                 yield item.id
             elif self.secondary_lookup_field is not None and hasattr(item, self.secondary_lookup_field):
                 yield getattr(item, self.secondary_lookup_field)
@@ -664,12 +682,49 @@ class XNATBaseListing(Mapping, Sequence):
         return self._uri
 
     @property
+    def logger(self):
+        return self.parent.logger
+
+    @property
     def xnat_session(self):
         return self._xnat_session
 
     def clearcache(self):
-        self.parent.clearcache()
         self._cache.clear()
+
+    # This needs to be at the end of the class because it shadows the caching
+    # decorator for the remainder of the scope.
+    @property
+    def caching(self):
+        if self._caching is not None:
+            return self._caching
+        else:
+            return self.xnat_session.caching
+
+    @caching.setter
+    def caching(self, value):
+        self._caching = value
+
+    @caching.deleter
+    def caching(self):
+        self._caching = None
+
+    # These two methods allow for wiping the cache of all listings that had obj in them
+    # this is required for object deletions so that the objects are no longer presented
+    # in the listings
+    @classmethod
+    def delete_item_from_listings(cls, obj):
+        for listing in cls.__ALL_LISTINGS__:
+            listing.delete_item_from_cache(obj)
+
+    def delete_item_from_cache(self, obj):
+        data_maps = self._cache.get('data_maps', None)
+
+        if data_maps is None:
+            return
+
+        if obj in data_maps[0].values() or obj in data_maps[1].values() or obj in data_maps[3]:
+            self.clearcache()
 
 
 class XNATListing(XNATBaseListing):
@@ -700,6 +755,7 @@ class XNATListing(XNATBaseListing):
         except KeyError:
             raise exceptions.XNATValueError('Query GET from {} returned invalid data: {}'.format(self.uri, result))
 
+        parent_id = None
         for entry in result:
             if 'URI' not in entry and 'ID' not in entry:
                 # HACK: This is a Resource, that misses the URI and ID field (let's fix that)
@@ -712,7 +768,9 @@ class XNATListing(XNATBaseListing):
                 if entry['URI'].startswith(self.parent.uri):
                     entry['path'] = entry['URI'].replace(self.parent.uri, '', 1)
                 else:
-                    entry['path'] = re.sub(r'^.*/resources/{}/files/'.format(self.parent.id), '', entry['URI'], 1)
+                    if parent_id is None:
+                        parent_id = self.parent.id
+                    entry['path'] = re.sub(r'^.*/resources/{}/files/'.format(parent_id), '', entry['URI'], 1)
             else:
                 entry['URI'] = '{}/{}'.format(self.uri, entry['ID'])
 
@@ -726,11 +784,16 @@ class XNATListing(XNATBaseListing):
         listing = []
         non_unique = {None}
         for x in result:
+            xsi_type = x.get('xsiType', x.get('element_name', self._xsi_type)).strip()
+            if x['ID'].strip() == "" or xsi_type == "":
+                self.logger.warning("Found empty object {}, skipping!".format(x.get('URI')))
+                continue
+
             # HACK: xsi_type of resources is called element_name... yay!
             if self.secondary_lookup_field is not None:
                 secondary_lookup_value = x.get(self.secondary_lookup_field)
                 new_object = self.xnat_session.create_object(x['URI'],
-                                                             type_=x.get('xsiType', x.get('element_name', self._xsi_type)),
+                                                             type_=xsi_type,
                                                              id_=x['ID'],
                                                              fieldname=x.get('fieldname'),
                                                              **{self.secondary_lookup_field: secondary_lookup_value})
@@ -739,7 +802,7 @@ class XNATListing(XNATBaseListing):
                 key_map[secondary_lookup_value] = new_object
             else:
                 new_object = self.xnat_session.create_object(x['URI'],
-                                                             type_=x.get('xsiType', x.get('element_name', self._xsi_type)),
+                                                             type_=xsi_type,
                                                              id_=x['ID'],
                                                              fieldname=x.get('fieldname'))
 

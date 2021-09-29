@@ -42,7 +42,7 @@ except NameError:
     FILE_TYPES = io.IOBase
 
 
-class XNATSession(object):
+class BaseXNATSession(object):
     """
     The main XNATSession session class. It keeps a connection to XNATSession alive and
     manages the main communication to XNATSession. To keep the connection alive
@@ -193,10 +193,6 @@ class XNATSession(object):
                 self._keepalive_thread.join(3.0)
             self._keepalive_thread = None
 
-        # Kill the session
-        if self._server is not None and self._interface is not None:
-            self.delete('/data/JSESSION', headers={'Connection': 'close'})
-
         # Set the server and interface to None
         if self._interface is not None:
             self._interface.close()
@@ -344,7 +340,7 @@ class XNATSession(object):
         uri = self._format_uri(path, format, query=query)
         timeout = timeout or self.request_timeout
 
-        self.logger.debug('GET URI {}'.format(uri))
+        self.logger.info('GET URI {}'.format(uri))
 
         try:
             response = self.interface.get(uri, timeout=timeout, headers=headers)
@@ -373,7 +369,7 @@ class XNATSession(object):
         uri = self._format_uri(path)
         timeout = timeout or self.request_timeout
 
-        self.logger.debug('GET URI {}'.format(uri))
+        self.logger.info('HEAD URI {}'.format(uri))
 
         try:
             response = self.interface.head(uri, allow_redirects=allow_redirects, timeout=timeout, headers=headers)
@@ -405,7 +401,7 @@ class XNATSession(object):
         uri = self._format_uri(path, format, query=query)
         timeout = timeout or self.request_timeout
 
-        self.logger.debug('POST URI {}'.format(uri))
+        self.logger.info('POST URI {}'.format(uri))
         if self.debug:
             self.logger.debug('POST DATA {}'.format(data))
 
@@ -444,7 +440,7 @@ class XNATSession(object):
         uri = self._format_uri(path, format, query=query)
         timeout = timeout or self.request_timeout
 
-        self.logger.debug('PUT URI {}'.format(uri))
+        self.logger.info('PUT URI {}'.format(uri))
         if self.debug:
             self.logger.debug('PUT DATA {}'.format(data))
             self.logger.debug('PUT FILES {}'.format(data))
@@ -476,7 +472,7 @@ class XNATSession(object):
         uri = self._format_uri(path, query=query)
         timeout = timeout or self.request_timeout
 
-        self.logger.debug('DELETE URI {}'.format(uri))
+        self.logger.info('DELETE URI {}'.format(uri))
         if self.debug:
             self.logger.debug('DELETE HEADERS {}'.format(headers))
 
@@ -612,7 +608,7 @@ class XNATSession(object):
         self._check_connection()
 
         uri = self._format_uri(uri, format=format)
-        self.logger.debug('DOWNLOAD STREAM {}'.format(uri))
+        self.logger.info('DOWNLOAD STREAM {}'.format(uri))
 
         # Stream the get and write to file
         response = self.interface.get(uri, stream=True, timeout=timeout)
@@ -692,7 +688,7 @@ class XNATSession(object):
             query['overwrite'] = 'true'
 
         uri = self._format_uri(uri, query=query)
-        self.logger.debug('UPLOAD URI {}'.format(uri))
+        self.logger.info('UPLOAD URI {}'.format(uri))
         attempt = 0
         file_handle = None
         opened_file = False
@@ -766,6 +762,18 @@ class XNATSession(object):
             return self.get_json('/xapi/siteConfig/buildInfo')['version']
 
     def create_object(self, uri, type_=None, fieldname=None, **kwargs):
+        """
+        Create an xnatpy object for a given uri. This does **not** create anything server sided, but rather
+        wraps and uri (and optionally data) in an object. It allows you to create an xnatpy object from an
+        arbitrary uri to something on the xnat server and continue as normal from there on.
+
+        :param str uri: url of the object
+        :param str type_: the xsi_type to select the object type (this is option, by default it will be auto retrieved)
+        :param fieldname: indicate the name of the field that was used to retrieved this object
+        :param kwargs: arguments to pass to object creation
+        :return: newly created xnatpy object
+        :rtype: XNATObject
+        """
         if (uri, fieldname) not in self._cache['__objects__']:
             if type_ is None:
                 if self.xnat_session.debug:
@@ -803,6 +811,11 @@ class XNATSession(object):
             self.logger.debug('Fetching object {} from cache'.format(uri))
 
         return self._cache['__objects__'][uri, fieldname]
+
+    def remove_object(self, obj):
+        # Remove object from cache (so re-creation won't use cache object)
+        XNATListing.delete_item_from_listings(obj)
+        del self._cache['__objects__'][obj.uri, obj.fieldname]
 
     @property
     @caching
@@ -923,3 +936,13 @@ def default_update_func(total):
             progress_bar.update(nbytes)
 
     return do_update
+
+
+class XNATSession(BaseXNATSession):
+    def disconnect(self):
+        # Kill the session
+        if self._server is not None and self._interface is not None:
+            self.delete('/data/JSESSION', headers={'Connection': 'close'})
+
+        # Call
+        super(XNATSession, self).disconnect()

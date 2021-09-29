@@ -86,3 +86,9 @@ class XNATNotConnectedError(XNATError):
     """
     The connection is not open, either it was never established or it was disconnected.
     """
+
+
+class XNATObjectDestroyedError(XNATError):
+    """
+    The object manipulated is deleted and therefore destroyed. It should not be used anymore!
+    """
