@@ -3,5 +3,6 @@ import xnat
 
 
 @click.group(name="import")
-def importing():
+@click.pass_context
+def importing(ctx):
     pass

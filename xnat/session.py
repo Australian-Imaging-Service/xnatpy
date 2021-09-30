@@ -83,7 +83,8 @@ class BaseXNATSession(object):
 
     def __init__(self, server, logger, interface=None, user=None,
                  password=None, keepalive=None, debug=False,
-                 original_uri=None, logged_in_user=None, default_timeout=300):
+                 original_uri=None, logged_in_user=None, default_timeout=300,
+                 jsession=None):
         # Class lookup to populate (session specific, as all session have their
         # own classes based on the server xsd)
         self.XNAT_CLASS_LOOKUP = {}
@@ -97,6 +98,8 @@ class BaseXNATSession(object):
         else:
             self._original_uri = server.rstrip('/')
         self._logged_in_user = logged_in_user
+        self._jsession = jsession
+
         self._cache = {'__objects__': {}}
         self.caching = True
         self._source_code_file = None
@@ -250,6 +253,10 @@ class BaseXNATSession(object):
     @property
     def logged_in_user(self):
         return self._logged_in_user
+
+    @property
+    def jsession(self):
+        return self._jsession
 
     @property
     def debug(self):

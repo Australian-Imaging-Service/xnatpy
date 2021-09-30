@@ -556,10 +556,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
         xnat_session = SessionType(server=server, logger=logger,
                                    interface=requests_session, debug=debug,
                                    original_uri=original_uri, logged_in_user=logged_in_user,
-                                   default_timeout=default_timeout)
-
-        # Store JSESSION for completeness
-        xnat_session.JSESSION = jsession_token
+                                   default_timeout=default_timeout, jsession=jsession_token)
 
         # Parse data model and create classes
         if not no_parse_model:

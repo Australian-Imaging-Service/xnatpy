@@ -3,5 +3,6 @@ import xnat
 
 
 @click.group()
-def search():
+@click.pass_context
+def search(ctx):
     pass

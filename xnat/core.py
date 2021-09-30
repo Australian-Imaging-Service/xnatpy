@@ -16,7 +16,8 @@
 from __future__ import absolute_import
 from __future__ import unicode_literals
 from abc import ABCMeta, abstractproperty
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
+import csv
 from six.moves.collections_abc import MutableMapping, MutableSequence, Mapping, Sequence
 import fnmatch
 import keyword
@@ -811,7 +812,7 @@ class XNATListing(XNATBaseListing):
 
         return id_map, key_map, non_unique, listing
 
-    def tabulate(self, columns=None, filter=None):
+    def _tabulate(self, columns=None, filter=None):
         """
         Create a table (tuple of namedtuples) from this listing. It is possible
         to choose the columns and add a filter to the tabulation.
@@ -844,13 +845,39 @@ class XNATListing(XNATBaseListing):
                 result_columns = [x for x in columns if x in result_columns]
 
             # Replace all non-alphanumeric characters with an underscore
-            result_columns = {s: re.sub('[^0-9a-zA-Z]+', '_', s) for s in result_columns}
-            rowtype = namedtuple('TableRow', list(result_columns.values()))
+            result_columns = [(s, re.sub('[^0-9a-zA-Z]+', '_', s)) for s in result_columns]
 
             # Replace all non-alphanumeric characters in each key of the keyword dictionary
-            return tuple(rowtype(**{result_columns[k]: v for k, v in x.items() if k in result_columns}) for x in result['ResultSet']['Result'])
+            return tuple(OrderedDict([(result_column, x.get(source_column)) for source_column, result_column in result_columns]) for x in result['ResultSet']['Result'])
         else:
             return ()
+
+    def tabulate(self, columns=None, filter=None):
+        data = self._tabulate(columns=columns, filter=filter)
+
+        if data:
+            # Set the result type
+            rowtype = namedtuple('TableRow', data[0].keys())
+
+            # Replace all non-alphanumeric characters in each key of the keyword dictionary
+            return tuple(rowtype(**x) for x in data)
+        else:
+            return ()
+
+    def tabulate_csv(self, columns=None, filter=None, header=True):
+        output = six.StringIO()
+        data = self._tabulate(columns=columns, filter=filter)
+        writer = csv.DictWriter(output, data[0].keys())
+        if header:
+            writer.writeheader()
+
+        for row in data:
+            writer.writerow(row)
+        result = output.getvalue()
+
+        # FIXME: A context would be nicer, but doesn't work in Python 2.7
+        output.close()
+        return result
 
     @property
     def used_filters(self):
