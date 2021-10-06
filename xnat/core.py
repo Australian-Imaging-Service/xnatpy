@@ -198,10 +198,19 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
             # Parent is no longer needed after creation
             self._uri = uri
             self._parent = None
+
+            # Add url part to overwrites (it should be safe) but rest should be retrieved from server to be sure
+            # the creation went correctly
+            self._overwrites = overwrites or {}
+            self._overwrites[url_part_argument] = url_part
         else:
             # This is the creation of a Python proxy for an existing XNAT object
             self._uri = uri
             self._parent = parent
+
+            # Cache the kwargs in the object already
+            self._overwrites = overwrites or {}
+            self._overwrites.update(kwargs)
 
         self._xnat_session = xnat_session
         self._fieldname = fieldname
@@ -216,8 +225,6 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
 
         if datafields is not None:
             self._cache['data'] = datafields
-
-        self._overwrites = overwrites or {}
 
     def __str__(self):
         if self.SECONDARY_LOOKUP_FIELD is None:
