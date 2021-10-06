@@ -171,8 +171,10 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
                     'req_format': 'qs',
                 }
 
-                # Add all kwargs to query
-                query.update(kwargs)
+                # Add all kwargs to query with correct xpath to set the fields
+                for name, value in kwargs.items():
+                    xpath = '{}/{}'.format(self.xpath, name)
+                    query[xpath] = value
 
                 self.logger.debug('query: {}'.format(query))
                 result = self.xnat_session.put(uri, query=query)
@@ -216,7 +218,6 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
             self._cache['data'] = datafields
 
         self._overwrites = overwrites or {}
-        self._overwrites.update(kwargs)
 
     def __str__(self):
         if self.SECONDARY_LOOKUP_FIELD is None:
