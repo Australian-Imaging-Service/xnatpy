@@ -9,6 +9,16 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Fixed
+~~~~~
+
+- Additional parameters were not set properly during object creation
+
+Changed
+~~~~~~~
+
+- Updated upload_dir and import_dir to default use a SpooledTemporaryFile and improved the zip and tar functionality
+
 0.3.27 - 2021-09-29
 -------------------
 
