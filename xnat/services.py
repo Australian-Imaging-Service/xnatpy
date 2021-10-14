@@ -22,6 +22,7 @@ import os
 import tempfile
 from zipfile import ZipFile, ZIP_DEFLATED
 
+import six
 from six import BytesIO
 
 from .core import XNATBaseObject
@@ -206,7 +207,7 @@ class Services(object):
             query['import-handler'] = import_handler
 
         # Get mimetype of file
-        if content_type is None:
+        if content_type is None and isinstance(path, six.string_types):
             content_type = self.guess_content_type(path)
 
         uri = '/data/services/import'
@@ -266,13 +267,14 @@ class Services(object):
 
         content_type = 'application/zip'
         if method == 'zip_file':
-            fh = tempfile.SpooledTemporaryFile('wb+')
+            # Max-size is 256 MB
+            fh = tempfile.SpooledTemporaryFile(max_size=268435456, mode='wb+')
             self._zip_directory(directory=directory, fh=fh)
         elif method == 'zip_memory':
             fh = BytesIO()
             self._zip_directory(directory=directory, fh=fh)
         else:
-            message = 'Selected invalid import directory method: {method}!'.format(method)
+            message = 'Selected invalid import directory method: {}!'.format(method)
             self.xnat_session.logger.error(message)
             raise XNATValueError(message)
 

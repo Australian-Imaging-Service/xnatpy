@@ -17,9 +17,8 @@ from __future__ import absolute_import
 from __future__ import unicode_literals
 import os
 import tempfile
-from gzip import GzipFile
 from zipfile import ZipFile
-from tarfile import TarFile
+import tarfile
 import shutil
 
 from six import BytesIO
@@ -672,30 +671,30 @@ class AbstractResource(XNATBaseObject):
                     self.upload(file_path, target_path, overwrite=overwrite, **kwargs)
         elif method == 'tar_memory':
             fh = BytesIO()
-            with TarFile(name='upload.tar', mode='w', fileobj=fh) as tar_file:
+            with tarfile.open(mode='w', fileobj=fh) as tar_file:
                 tar_file.add(directory, '')
             fh.seek(0)
             self.upload(fh, 'upload.tar', overwrite=overwrite, extract=True, **kwargs)
             fh.close()
         elif method == 'tgz_memory':
             fh = BytesIO()
-            with GzipFile(filename='upload.tar.gz', mode='w', fileobj=fh) as gzip_file:
-                with TarFile(name='upload.tar', mode='w', fileobj=gzip_file) as tar_file:
-                    tar_file.add(directory, '')
+            with tarfile.open(mode='w:gz', fileobj=fh) as tar_file:
+                tar_file.add(directory, '')
 
             fh.seek(0)
             self.upload(fh, 'upload.tar.gz', overwrite=overwrite, extract=True, **kwargs)
             fh.close()
         elif method == 'tar_file':
-            with tempfile.SpooledTemporaryFile('wb+') as fh:
-                with TarFile(name='upload.tar', mode='w', fileobj=fh) as tar_file:
+            # Max-size is 256 MB
+            with tempfile.SpooledTemporaryFile(max_size=268435456, mode='wb+') as fh:
+                with tarfile.open(mode='w', fileobj=fh) as tar_file:
                     tar_file.add(directory, '')
                 fh.seek(0)
                 self.upload(fh, 'upload.tar', overwrite=overwrite, extract=True, **kwargs)
         elif method == 'tgz_file':
-            with tempfile.SpooledTemporaryFile('wb+') as fh:
-                with GzipFile(filename='upload.tar.gz', mode='w', fileobj=fh) as gzip_file:
-                    with TarFile(name='upload.tar', mode='w', fileobj=gzip_file) as tar_file:
+            # Max-size is 256 MB
+            with tempfile.SpooledTemporaryFile(max_size=268435456, mode='wb+') as fh:
+                with tarfile.open(mode='w:gz', fileobj=fh) as tar_file:
                         tar_file.add(directory, '')
 
                 fh.seek(0)
