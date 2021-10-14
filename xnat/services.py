@@ -222,6 +222,19 @@ class Services(object):
 
         return self.xnat_session.create_object(response_text)
 
+    def _zip_directory(self, directory, fh):
+        """
+        Zip a directory into a file(-like) obj given
+
+        :param directory: directory to zip
+        :param fh: output file handle
+        """
+        with ZipFile(fh, 'w', ZIP_DEFLATED) as zip_file:
+            for dirpath, dirs, files in os.walk(directory):
+                for f in files:
+                    fn = os.path.join(dirpath, f)
+                    zip_file.write(fn)
+
     def import_dir(self, directory, overwrite=None, quarantine=False, destination=None,
                 trigger_pipelines=None, project=None, subject=None,
                 experiment=None, method='zip_file', import_handler=None):
@@ -251,26 +264,18 @@ class Services(object):
         # Make sure that a None or empty string is replaced by the default
         method = method or 'zip_file'
 
+        content_type = 'application/zip'
         if method == 'zip_file':
-            content_type = 'application/zip'
             fh = tempfile.SpooledTemporaryFile('wb+')
-            with ZipFile(fh, 'w', ZIP_DEFLATED) as zip_file:
-                for dirpath, dirs, files in os.walk(directory):
-                    for f in files:
-                        fn = os.path.join(dirpath, f)
-                        zip_file.write(fn)
+            self._zip_directory(directory=directory, fh=fh)
         elif method == 'zip_memory':
-            content_type = 'application/zip'
             fh = BytesIO()
-            with ZipFile(fh, 'w') as zip_file:
-                for dirpath, dirs, files in os.walk(directory):
-                    for f in files:
-                        fn = os.path.join(dirpath, f)
-                        zip_file.write(fn)
-
+            self._zip_directory(directory=directory, fh=fh)
         else:
-            print('Selected invalid import directory method!')
-            return
+            message = 'Selected invalid import directory method: {method}!'.format(method)
+            self.xnat_session.logger.error(message)
+            raise XNATValueError(message)
+
         fh.seek(0)
         session = self.import_(fh, overwrite, quarantine, destination,
                                trigger_pipelines, project, subject,
