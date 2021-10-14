@@ -20,7 +20,7 @@ import mimetypes
 import collections
 import os
 import tempfile
-from zipfile import ZipFile
+from zipfile import ZipFile, ZIP_DEFLATED
 
 from six import BytesIO
 
@@ -253,8 +253,8 @@ class Services(object):
 
         if method == 'zip_file':
             content_type = 'application/zip'
-            fh = tempfile.TemporaryFile('wb+')
-            with ZipFile(fh, 'w') as zip_file:
+            fh = tempfile.SpooledTemporaryFile('wb+')
+            with ZipFile(fh, 'w', ZIP_DEFLATED) as zip_file:
                 for dirpath, dirs, files in os.walk(directory):
                     for f in files:
                         fn = os.path.join(dirpath, f)

@@ -687,13 +687,13 @@ class AbstractResource(XNATBaseObject):
             self.upload(fh, 'upload.tar.gz', overwrite=overwrite, extract=True, **kwargs)
             fh.close()
         elif method == 'tar_file':
-            with tempfile.TemporaryFile('wb+') as fh:
+            with tempfile.SpooledTemporaryFile('wb+') as fh:
                 with TarFile(name='upload.tar', mode='w', fileobj=fh) as tar_file:
                     tar_file.add(directory, '')
                 fh.seek(0)
                 self.upload(fh, 'upload.tar', overwrite=overwrite, extract=True, **kwargs)
         elif method == 'tgz_file':
-            with tempfile.TemporaryFile('wb+') as fh:
+            with tempfile.SpooledTemporaryFile('wb+') as fh:
                 with GzipFile(filename='upload.tar.gz', mode='w', fileobj=fh) as gzip_file:
                     with TarFile(name='upload.tar', mode='w', fileobj=gzip_file) as tar_file:
                         tar_file.add(directory, '')
