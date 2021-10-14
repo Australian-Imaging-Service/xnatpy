@@ -833,12 +833,18 @@ class XNATListing(XNATBaseListing):
         else:
             filter = self.merge_filters(self.used_filters, filter)
 
-        query = dict(filter)
+        query = dict()
         query['columns'] = ','.join(columns)
 
         result = self.xnat_session.get_json(self.uri, query=query)
-        if len(result['ResultSet']['Result']) > 0:
-            result_columns = list(result['ResultSet']['Result'][0].keys())
+        result = result['ResultSet']['Result']
+
+        if filter:
+            result = [x for x in result if all(fnmatch.fnmatch(x[k], v) for k, v in filter.items() if k in x)]
+
+        if len(result) > 0:
+
+            result_columns = list(result[0].keys())
 
             # Retain requested order
             if columns != ('DEFAULT',):
@@ -848,7 +854,7 @@ class XNATListing(XNATBaseListing):
             result_columns = [(s, re.sub('[^0-9a-zA-Z]+', '_', s)) for s in result_columns]
 
             # Replace all non-alphanumeric characters in each key of the keyword dictionary
-            return tuple(OrderedDict([(result_column, x.get(source_column)) for source_column, result_column in result_columns]) for x in result['ResultSet']['Result'])
+            return tuple(OrderedDict([(result_column, x.get(source_column)) for source_column, result_column in result_columns]) for x in result)
         else:
             return ()
 
@@ -867,6 +873,10 @@ class XNATListing(XNATBaseListing):
     def tabulate_csv(self, columns=None, filter=None, header=True):
         output = six.StringIO()
         data = self._tabulate(columns=columns, filter=filter)
+
+        if not data:
+            return ""
+
         writer = csv.DictWriter(output, data[0].keys())
         if header:
             writer.writeheader()

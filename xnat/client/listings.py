@@ -18,7 +18,13 @@ def projects(ctx, column, filter, header):
     if not column:
         column = None
 
+    if filter:
+        filter = filter.split('=')
+        filter = {filter[0]: filter[1]}
+
     with xnat.connect(host, user=user, netrc_file=netrc, jsession=jsession, cli=True) as session:
         result = session.projects.tabulate_csv(columns=column, filter=filter, header=header)
-        print(result)
+
+        # Print result without trailing newline/whitespace
+        print(result.strip())
 
