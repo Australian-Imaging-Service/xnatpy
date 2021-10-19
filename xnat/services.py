@@ -233,8 +233,9 @@ class Services(object):
         with ZipFile(fh, 'w', ZIP_DEFLATED) as zip_file:
             for dirpath, dirs, files in os.walk(directory):
                 for f in files:
-                    fn = os.path.join(dirpath, f)
-                    zip_file.write(fn)
+                    zip_file.write(os.path.join(dirpath, f),
+                                   os.path.relpath(os.path.join(dirpath, f),
+                                                   os.path.join(directory, '..')))
 
     def import_dir(self, directory, overwrite=None, quarantine=False, destination=None,
                 trigger_pipelines=None, project=None, subject=None,
