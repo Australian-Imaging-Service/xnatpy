@@ -6,6 +6,7 @@ from .importing import importing
 from .listings import listings
 from .search import search
 from .rest import rest
+from .scripts import script
 
 
 @click.group()
@@ -28,6 +29,7 @@ cli.add_command(listings)
 cli.add_command(importing)
 cli.add_command(search)
 cli.add_command(rest)
+cli.add_command(script)
 
 
 @cli.command()
