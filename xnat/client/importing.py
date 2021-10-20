@@ -30,10 +30,10 @@ def experiment(ctx,
                quarantine,
                trigger_pipelines):
     try:
-        host, user, netrc, jsession = ctx.obj['host'], ctx.obj['user'], ctx.obj['netrc'], ctx.obj['jsession']
-
+        host, user, netrc, jsession, loglevel = ctx.obj['host'], ctx.obj['user'], ctx.obj['netrc'], ctx.obj['jsession'], ctx.obj['loglevel']
+    
         with xnat.connect(host, user=user, netrc_file=netrc, jsession=jsession,
-                          cli=True, no_parse_model=True) as session:
+                          cli=True, no_parse_model=True, loglevel=loglevel) as session:
             session.services.import_dir(folder, quarantine=quarantine, destination=destination,
                                           trigger_pipelines=trigger_pipelines, project=project, subject=subject,
                                           experiment=experiment, import_handler=import_handler)

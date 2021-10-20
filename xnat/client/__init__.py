@@ -15,13 +15,15 @@ from .scripts import script
 @click.option('--user', '-u')
 @click.option('--host', '-h', required=True, envvar='XNATPY_HOST')
 @click.option('--netrc', '-n', required=False)
+@click.option('--loglevel', envvar='XNATPY_LOGLEVEL')
 @click.pass_context
-def cli(ctx, host, jsession, user, netrc):
+def cli(ctx, host, jsession, user, netrc, loglevel):
     ctx.ensure_object(dict)
     ctx.obj['host'] = host
     ctx.obj['jsession'] = jsession
     ctx.obj['user'] = user
     ctx.obj['netrc'] = netrc
+    ctx.obj['loglevel'] = loglevel
 
 
 cli.add_command(download)
