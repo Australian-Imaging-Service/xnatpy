@@ -9,12 +9,17 @@ def rest(ctx):
 
 @rest.command()
 @click.argument('path')
+@click.option('--query', multiple=True)
 @click.pass_context
-def get(ctx, path):
+def get(ctx, path, query):
     host, user, netrc, jsession = ctx.obj['host'], ctx.obj['user'], ctx.obj['netrc'], ctx.obj['jsession']
+    
+    if query:
+        query = {arg[0]:arg[1] for arg in map(lambda x: x.split("="), query)}
+    
     with xnat.connect(host, user=user, netrc_file=netrc, jsession=jsession,
                       cli=True, no_parse_model=True) as session:
-        result = session.get(path)
+        result = session.get(path, query=query)
         click.echo(f'Result: {result.text}')
         click.echo(f'Path {path} {user}')
 
@@ -38,8 +43,9 @@ def head(ctx, path):
 @click.argument('path')
 @click.option('--jsonpath', '-j')
 @click.option('--datapath', '-d')
+@click.option('--query')
 @click.pass_context
-def post(ctx, path, jsonpath, datapath):
+def post(ctx, path, jsonpath, datapath, query):
     host, user, netrc, jsession = ctx.obj['host'], ctx.obj['user'], ctx.obj['netrc'], ctx.obj['jsession']
 
     if jsonpath is not None:
@@ -54,9 +60,12 @@ def post(ctx, path, jsonpath, datapath):
     else:
         data_payload = None
 
+    if query:
+        query = {arg[0]:arg[1] for arg in map(lambda x: x.split("="), query)}
+
     with xnat.connect(host, user=user, netrc_file=netrc, jsession=jsession,
                       cli=True, no_parse_model=True) as session:
-        result = session.post(path, json=json_payload, data=data_payload)
+        result = session.post(path, json=json_payload, data=data_payload, query=query)
         click.echo(f'Result: {result.text}')
         click.echo(f'Path {path} {user}')
 
@@ -65,8 +74,9 @@ def post(ctx, path, jsonpath, datapath):
 @click.argument('path')
 @click.option('--jsonpath', '-j')
 @click.option('--datapath', '-d')
+@click.option('--query', multiple=True)
 @click.pass_context
-def put(ctx, path, jsonpath, datapath):
+def put(ctx, path, jsonpath, datapath, query):
     host, user, netrc, jsession = ctx.obj['host'], ctx.obj['user'], ctx.obj['netrc'], ctx.obj['jsession']
 
     if jsonpath is not None:
@@ -80,10 +90,13 @@ def put(ctx, path, jsonpath, datapath):
             data_payload = data_file.read()
     else:
         data_payload = None
+    
+    if query:
+        query = {arg[0]:arg[1] for arg in map(lambda x: x.split("="), query)}
 
     with xnat.connect(host, user=user, netrc_file=netrc, jsession=jsession,
                       cli=True, no_parse_model=True) as session:
-        result = session.put(path, json=json_payload, data=data_payload)
+        result = session.put(path, json=json_payload, data=data_payload, query=query)
         click.echo(f'Result: {result.text}')
         click.echo(f'Path {path} {user}')
 
