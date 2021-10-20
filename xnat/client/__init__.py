@@ -16,14 +16,16 @@ from .scripts import script
 @click.option('--host', '-h', required=True, envvar='XNATPY_HOST')
 @click.option('--netrc', '-n', required=False)
 @click.option('--loglevel', envvar='XNATPY_LOGLEVEL')
+@click.option('--timeout', envvar="XNATPY_TIMEOUT", type=float)
 @click.pass_context
-def cli(ctx, host, jsession, user, netrc, loglevel):
+def cli(ctx, host, jsession, user, netrc, loglevel, timeout):
     ctx.ensure_object(dict)
     ctx.obj['host'] = host
     ctx.obj['jsession'] = jsession
     ctx.obj['user'] = user
     ctx.obj['netrc'] = netrc
     ctx.obj['loglevel'] = loglevel
+    ctx.obj['timeout'] = timeout
 
 
 cli.add_command(download)
@@ -42,19 +44,19 @@ def login(ctx):
     The session is purposefully not closed so will live for next commands to use until it will
     time-out.
     """
-    host, user, netrc, jsession = ctx.obj['host'], ctx.obj['user'], ctx.obj['netrc'], ctx.obj['jsession']
-    with xnat.connect(host, user=user, netrc_file=netrc, cli=True, no_parse_model=True) as session:
-        print(session.jsession)
+    host, user, netrc, jsession, loglevel, timeout = ctx.obj['host'], ctx.obj['user'], ctx.obj['netrc'], ctx.obj['jsession'], ctx.obj['loglevel'], ctx.obj['timeout']
+    with xnat.connect(host, user=user, netrc_file=netrc, cli=True, no_parse_model=True, loglevel=loglevel) as session:
+        click.echo(session.jsession)
 
 
 @cli.command()
 @click.pass_context
 def logout(ctx):
-    host, user, netrc, jsession = ctx.obj['host'], ctx.obj['user'], ctx.obj['netrc'], ctx.obj['jsession']
+    host, user, netrc, jsession, loglevel, timeout = ctx.obj['host'], ctx.obj['user'], ctx.obj['netrc'], ctx.obj['jsession'], ctx.obj['loglevel'], ctx.obj['timeout']
     with xnat.connect(host, user=user, netrc_file=netrc, jsession=jsession,
-                      no_parse_model=True) as session:
+                      no_parse_model=True, loglevel=loglevel) as session:
         pass
-    print('Disconnected from {host}!'.format(host=host))
+    click.echo('Disconnected from {host}!'.format(host=host))
 
 
 if __name__ == '__main__':
