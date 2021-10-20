@@ -235,7 +235,7 @@ class Services(object):
                 for f in files:
                     zip_file.write(os.path.join(dirpath, f),
                                    os.path.relpath(os.path.join(dirpath, f),
-                                                   os.path.join(directory, '..')))
+                                                   os.path.dirname(directory)))
 
     def import_dir(self, directory, overwrite=None, quarantine=False, destination=None,
                 trigger_pipelines=None, project=None, subject=None,
