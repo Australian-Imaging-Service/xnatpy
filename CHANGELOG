@@ -13,6 +13,7 @@ Fixed
 ~~~~~
 
 - Additional parameters were not set properly during object creation
+- It was impossible to login using tokens because the auth provides could not be found, added workaround
 
 Changed
 ~~~~~~~
