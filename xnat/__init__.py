@@ -44,7 +44,7 @@ from .utils import JSessionAuth
 
 GEN_MODULES = {}
 
-__version__ = '0.3.28'
+__version__ = '0.3.29'
 __all__ = ['connect', 'exceptions']
 
 
