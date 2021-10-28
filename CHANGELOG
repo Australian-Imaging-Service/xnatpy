@@ -6,6 +6,20 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <http://keepachangelog.com/>`_
 and this project adheres to `Semantic Versioning <http://semver.org/>`_
 
+UNRELEASED VERSION
+------------------
+
+Fixed
+~~~~~
+
+- Additional parameters were not set properly during object creation
+- It was impossible to login using tokens because the auth provides could not be found, added workaround
+
+Changed
+~~~~~~~
+
+- Updated upload_dir and import_dir to default use a SpooledTemporaryFile and improved the zip and tar functionality
+
 0.3.27 - 2021-09-29
 -------------------
 

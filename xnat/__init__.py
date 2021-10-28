@@ -44,7 +44,7 @@ from .utils import JSessionAuth
 
 GEN_MODULES = {}
 
-__version__ = '0.3.27'
+__version__ = '0.3.28'
 __all__ = ['connect', 'exceptions']
 
 
@@ -258,6 +258,8 @@ def query_netrc(server, netrc_file, logger):
 
 
 def _create_jsession(requests_session, server, user, password, provider, debug):
+    # Check if a token login is used, and  use basic auth to set the login if so
+
     data = {
         "username": user,
         "password": password,
@@ -266,28 +268,32 @@ def _create_jsession(requests_session, server, user, password, provider, debug):
     if provider:
         data['provider'] = provider
 
-    try:
-        response = requests_session.put(server.rstrip('/') + '/data/services/auth', data=data, timeout=10)
+    if re.match(r"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}", user):
+        response = requests_session.put(server.rstrip('/'), timeout=10, auth=(user, password))
+        return response.cookies["JSESSIONID"]
+    else:
+        try:
+            response = requests_session.put(server.rstrip('/') + '/data/services/auth', data=data, timeout=10)
 
-        # Try to give a clean error in case of login problems
-        if response.status_code != 200:
-            match = re.search('<h3>(.*)</h3>', response.text)
-            if match:
-                message = match.group(1)
-            elif debug:
-                message = response.text
-            else:
-                message = 'unknown error'
-            raise exceptions.XNATLoginFailedError('Encountered a problem logging in: {}'.format(message))
+            # Try to give a clean error in case of login problems
+            if response.status_code != 200:
+                match = re.search('<h3>(.*)</h3>', response.text)
+                if match:
+                    message = match.group(1)
+                elif debug:
+                    message = response.text
+                else:
+                    message = 'unknown error'
+                raise exceptions.XNATLoginFailedError('Encountered a problem logging in: {}'.format(message))
 
-        return response
-    except (requests.ConnectionError, requests.ReadTimeout) as exception:
-        exception_type = type(exception).__name__
-        # Do no raise here by default, it will make the error trace huge and scare of new users
-        if debug:
-            raise exceptions.XNATConnectionError('Could not connect to {}, encountered {} exception'.format(server, exception_type))
+            return response.text
+        except (requests.ConnectionError, requests.ReadTimeout) as exception:
+            exception_type = type(exception).__name__
+            # Do no raise here by default, it will make the error trace huge and scare of new users
+            if debug:
+                raise exceptions.XNATConnectionError('Could not connect to {}, encountered {} exception'.format(server, exception_type))
 
-    raise exceptions.XNATConnectionError('Could not connect to {} (encountered {})'.format(server, exception_type))
+        raise exceptions.XNATConnectionError('Could not connect to {} (encountered {})'.format(server, exception_type))
 
 
 def _query_jsession(requests_session, server, debug):
@@ -506,15 +512,15 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
         if user is None and password is None:
             user, password = query_netrc(server, netrc_file, logger)
 
+
         if user is not None:
             # Get JSESSIONID and remove auth info again
-            response = _create_jsession(requests_session,
-                                        server=server,
-                                        user=user,
-                                        password=password,
-                                        provider=auth_provider,
-                                        debug=debug)
-            jsession_token = response.text
+            jsession_token = _create_jsession(requests_session,
+                                              server=server,
+                                              user=user,
+                                              password=password,
+                                              provider=auth_provider,
+                                              debug=debug)
         else:
             _query_jsession(requests_session,
                             server=server,
