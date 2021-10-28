@@ -20,8 +20,9 @@ import mimetypes
 import collections
 import os
 import tempfile
-from zipfile import ZipFile
+from zipfile import ZipFile, ZIP_DEFLATED
 
+import six
 from six import BytesIO
 
 from .core import XNATBaseObject
@@ -206,7 +207,7 @@ class Services(object):
             query['import-handler'] = import_handler
 
         # Get mimetype of file
-        if content_type is None:
+        if content_type is None and isinstance(path, six.string_types):
             content_type = self.guess_content_type(path)
 
         uri = '/data/services/import'
@@ -221,6 +222,20 @@ class Services(object):
             return PrearchiveSession(response_text, self.xnat_session)
 
         return self.xnat_session.create_object(response_text)
+
+    def _zip_directory(self, directory, fh):
+        """
+        Zip a directory into a file(-like) obj given
+
+        :param directory: directory to zip
+        :param fh: output file handle
+        """
+        with ZipFile(fh, 'w', ZIP_DEFLATED) as zip_file:
+            for dirpath, dirs, files in os.walk(directory):
+                for f in files:
+                    zip_file.write(os.path.join(dirpath, f),
+                                   os.path.relpath(os.path.join(dirpath, f),
+                                                   os.path.dirname(directory)))
 
     def import_dir(self, directory, overwrite=None, quarantine=False, destination=None,
                 trigger_pipelines=None, project=None, subject=None,
@@ -251,26 +266,19 @@ class Services(object):
         # Make sure that a None or empty string is replaced by the default
         method = method or 'zip_file'
 
+        content_type = 'application/zip'
         if method == 'zip_file':
-            content_type = 'application/zip'
-            fh = tempfile.TemporaryFile('wb+')
-            with ZipFile(fh, 'w') as zip_file:
-                for dirpath, dirs, files in os.walk(directory):
-                    for f in files:
-                        fn = os.path.join(dirpath, f)
-                        zip_file.write(fn)
+            # Max-size is 256 MB
+            fh = tempfile.SpooledTemporaryFile(max_size=268435456, mode='wb+')
+            self._zip_directory(directory=directory, fh=fh)
         elif method == 'zip_memory':
-            content_type = 'application/zip'
             fh = BytesIO()
-            with ZipFile(fh, 'w') as zip_file:
-                for dirpath, dirs, files in os.walk(directory):
-                    for f in files:
-                        fn = os.path.join(dirpath, f)
-                        zip_file.write(fn)
-
+            self._zip_directory(directory=directory, fh=fh)
         else:
-            print('Selected invalid import directory method!')
-            return
+            message = 'Selected invalid import directory method: {}!'.format(method)
+            self.xnat_session.logger.error(message)
+            raise XNATValueError(message)
+
         fh.seek(0)
         session = self.import_(fh, overwrite, quarantine, destination,
                                trigger_pipelines, project, subject,

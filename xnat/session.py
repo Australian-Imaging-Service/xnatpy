@@ -314,8 +314,10 @@ class BaseXNATSession(object):
         if not self.skip_response_check:
             if accepted_status is None:
                 accepted_status = [200, 201, 202, 203, 204, 205, 206]  # All successful responses of HTML
-            if response.status_code not in accepted_status or (not self.skip_response_content_check and response.text.startswith(('<!DOCTYPE', '<html>'))):
-                raise exceptions.XNATResponseError('Invalid response from XNATSession for url {} (status {}):\n{}'.format(uri, response.status_code, response.text))
+            if response.status_code not in accepted_status:
+                raise exceptions.XNATResponseError('Invalid status for response from XNATSession for url {} (status {}, accepted status: {})'.format(uri, response.status_code, accepted_status))
+            if (not self.skip_response_content_check) and response.text.startswith(('<!DOCTYPE', '<html>')):
+                raise exceptions.XNATResponseError('Invalid content in response from XNATSession for url {} (status {}):\n{}'.format(uri, response.status_code, response.text))
 
     def _check_connection(self):
         """
