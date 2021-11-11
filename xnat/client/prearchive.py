@@ -12,10 +12,10 @@ def prearchive(ctx):
 @prearchive.command()
 @click.pass_context
 def list(ctx):
-    host, user, netrc, jsession, loglevel, timeout = ctx.obj['host'], ctx.obj['user'], ctx.obj['netrc'], ctx.obj['jsession'], ctx.obj['loglevel'], ctx.obj['timeout']
+    ctx = unpack_context(ctx)
 
-    with xnat.connect(host, user=user, netrc_file=netrc, jsession=jsession,
-                      cli=True, loglevel=loglevel) as session:
+    with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,
+                      cli=True, no_parse_model=True, loglevel=ctx.loglevel) as session:
         click.echo(session.prearchive.sessions())
 
 
@@ -91,7 +91,7 @@ prearchive.command()
 @click.option('--quarantine')
 @click.option('--trigger-pipelines', is_flag=True)
 @click.pass_context
-def bulk_archive(ctx, project, dest_project, label, subject, status, overwrite, quarantine, trigger_pipelines):
+def bulk_archive(ctx, project, label, subject, status, overwrite, quarantine, trigger_pipelines):
     ctx = unpack_context(ctx)
 
     with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,

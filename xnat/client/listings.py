@@ -1,6 +1,7 @@
 import click
 import xnat
 
+from .utils import unpack_context
 
 @click.group(name="list")
 @click.pass_context
@@ -13,8 +14,8 @@ def listings(ctx):
 @click.option('--column', multiple=True)
 @click.pass_context
 def projects(ctx, column, filter, header):
-    host, user, netrc, jsession, loglevel = ctx.obj['host'], ctx.obj['user'], ctx.obj['netrc'], ctx.obj['jsession'], ctx.obj['loglevel']
-    
+    ctx = unpack_context(ctx)
+
     if not column:
         column = None
 
@@ -22,7 +23,8 @@ def projects(ctx, column, filter, header):
         filter = filter.split('=')
         filter = {filter[0]: filter[1]}
 
-    with xnat.connect(host, user=user, netrc_file=netrc, jsession=jsession, cli=True, loglevel=loglevel) as session:
+    with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,
+                      cli=True, no_parse_model=True, loglevel=ctx.loglevel) as session:
         result = session.projects.tabulate_csv(columns=column, filter=filter, header=header)
 
         # Print result without trailing newline/whitespace
@@ -35,7 +37,7 @@ def projects(ctx, column, filter, header):
 @click.option('--column', multiple=True)
 @click.pass_context
 def subjects(ctx, column, filter, header):
-    host, user, netrc, jsession, loglevel = ctx.obj['host'], ctx.obj['user'], ctx.obj['netrc'], ctx.obj['jsession'], ctx.obj['loglevel']
+    ctx = unpack_context(ctx)
     
     if not column:
         column = None
@@ -44,7 +46,8 @@ def subjects(ctx, column, filter, header):
         filter = filter.split('=')
         filter = {filter[0]: filter[1]}
 
-    with xnat.connect(host, user=user, netrc_file=netrc, jsession=jsession, cli=True, loglevel=loglevel) as session:
+    with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,
+                      cli=True, no_parse_model=True, loglevel=ctx.loglevel) as session:
         result = session.subjects.tabulate_csv(columns=column, filter=filter, header=header)
 
         # Print result without trailing newline/whitespace

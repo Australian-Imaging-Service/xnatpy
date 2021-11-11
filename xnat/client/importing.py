@@ -2,7 +2,7 @@ import click
 import xnat
 
 from xnat import exceptions
-
+from .utils import unpack_context
 
 @click.group(name="import")
 @click.pass_context
@@ -30,10 +30,9 @@ def experiment(ctx,
                quarantine,
                trigger_pipelines):
     try:
-        host, user, netrc, jsession, loglevel = ctx.obj['host'], ctx.obj['user'], ctx.obj['netrc'], ctx.obj['jsession'], ctx.obj['loglevel']
-    
-        with xnat.connect(host, user=user, netrc_file=netrc, jsession=jsession,
-                          cli=True, no_parse_model=True, loglevel=loglevel) as session:
+        ctx = unpack_context(ctx)
+        with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,
+                      cli=True, no_parse_model=True, loglevel=ctx.loglevel) as session:
             session.services.import_dir(folder, quarantine=quarantine, destination=destination,
                                           trigger_pipelines=trigger_pipelines, project=project, subject=subject,
                                           experiment=experiment, import_handler=import_handler)
