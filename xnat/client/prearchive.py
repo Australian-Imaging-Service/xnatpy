@@ -1,6 +1,3 @@
-import collections
-from os import O_WRONLY, stat
-from re import sub
 import click
 import xnat
 
