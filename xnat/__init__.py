@@ -486,9 +486,17 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     # Start out with any accidental auth, fill token once retrieved
     requests_session.auth = JSessionAuth()
 
+    # Remove port and add .local to the domain in case there is no . in host
+    # See issue #5388 in psf/requests for more info 
+    domain = parse.urlparse(server).netloc
+    if ":" in domain:
+        domain = domain.split(":")[0]
+    if "." not in domain:
+        domain = f"{domain}.local"
+
     if jsession is not None:
         cookie = requests.cookies.create_cookie(
-            domain=parse.urlparse(server).netloc,
+            domain=domain,
             name='JSESSIONID',
             value=jsession,
         )
@@ -531,7 +539,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
         logger.debug("Requests session cookies: {}".format(requests_session.cookies))
     else:
         logger.debug("Set JSESSION_TOKEN to: {}".format(jsession))
-        if requests_session.cookies['JSESSIONID'] != jsession:
+        if requests_session.cookies.get('JSESSIONID', domain=domain) != jsession:
             message = 'Failed to login by re-using existing jsession, the session is probably close on the server!'
             logger.error(message)
             raise exceptions.XNATLoginFailedError(message)

@@ -20,7 +20,7 @@ def list(ctx):
 
 
 @prearchive.command()
-@click.argument('--project', '-p')
+@click.option('--project', '-p')
 @click.option('--label', '-l')
 @click.option('--subject', '-s')
 @click.option('--status')
@@ -38,8 +38,8 @@ def delete(ctx, project, label, subject, status):
                 sess.delete()
 
 @prearchive.command()
-@click.argument('--project', '-p')
-@click.argument('--dest-project')
+@click.option('--project', '-p')
+@click.option('--dest-project')
 @click.option('--label', '-l')
 @click.option('--subject', '-s')
 @click.option('--status')
@@ -83,7 +83,7 @@ def archive(ctx, sessionid, project, subject, experiment, overwrite, quarantine,
 
 
 prearchive.command()
-@click.argument('--project', '-p')
+@click.option('--project', '-p')
 @click.option('--label', '-l')
 @click.option('--subject', '-s')
 @click.option('--status')
