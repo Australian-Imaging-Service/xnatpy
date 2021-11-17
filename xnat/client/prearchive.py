@@ -6,7 +6,9 @@ from .utils import unpack_context
 @click.group(name="prearchive")
 @click.pass_context
 def prearchive(ctx):
-    pass
+    """
+    Commands for prearchive management.
+    """
 
 
 @prearchive.command()

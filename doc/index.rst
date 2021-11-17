@@ -35,10 +35,11 @@ Alternatively, you can get yourself a copy of the source code:
 XNAT Client Documentation
 =========================
 .. toctree::
-    :maxdepth: 3
+    :maxdepth: 4
 
     static/introduction.rst
     static/tutorial.rst
+    static/cli.rst
     static/changelog.rst
     xnat
     xsd

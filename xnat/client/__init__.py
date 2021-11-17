@@ -14,12 +14,12 @@ from .prearchive import prearchive
 
 @click.group()
 @click.version_option()
-@click.option('--jsession', envvar='XNATPY_JSESSION')
-@click.option('--user', '-u')
-@click.option('--host', '-h', envvar='XNATPY_HOST')
-@click.option('--netrc', '-n')
-@click.option('--loglevel', envvar='XNATPY_LOGLEVEL')
-@click.option('--timeout', envvar="XNATPY_TIMEOUT", type=float)
+@click.option('--jsession', envvar='XNATPY_JSESSION', help="JSESSION value")
+@click.option('--user', '-u', help="Username to connect to XNAT with.")
+@click.option('--host', '-h', envvar='XNATPY_HOST', help="XNAT host to connect to.")
+@click.option('--netrc', '-n', help=".netrc file location.")
+@click.option('--loglevel', envvar='XNATPY_LOGLEVEL', help="Logging verbosity level.")
+@click.option('--timeout', envvar="XNATPY_TIMEOUT", type=float, help="Timeout for the command in ms.")
 @click.pass_context
 def cli(ctx, host, jsession, user, netrc, loglevel, timeout):
     ctx.ensure_object(dict)
@@ -56,6 +56,9 @@ def login(ctx):
 @cli.command()
 @click.pass_context
 def logout(ctx):
+    """
+    Close your current connection to XNAT.
+    """
     ctx = unpack_context(ctx)
     with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,
                       no_parse_model=True, loglevel=ctx.loglevel) as session:

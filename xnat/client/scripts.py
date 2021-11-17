@@ -8,6 +8,9 @@ from ..scripts.data_integrity_check import XNATIntegrityCheck
 
 @click.group(name="script")
 def script():
+    """
+    Collection of various XNAT-related scripts.
+    """
     pass
 
 @script.command()
@@ -32,7 +35,7 @@ def copy_project(source_host, source_project, dest_host, dest_project):
 @click.option("--host", required=True, help="XNAT URL")
 @click.option("--xnat-home-dir", required=True, help="Path to XNAT home directory")
 @click.option("--report", required=True, help="Path to report file")
-def data_integrity_check(host, xnat_home_dir, report): 
+def data_integrity_check(host, xnat_home_dir, report):
     xnat_integrity_checker = XNATIntegrityCheck(host, xnat_home_dir)
     xnat_integrity_checker.start()
     print('progress\t FS\tXNAT')

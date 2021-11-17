@@ -6,12 +6,15 @@ from .utils import unpack_context
 @click.group(name="list")
 @click.pass_context
 def listings(ctx):
+    """
+    Commands to list different XNAT objects either in machine- or human-readable formats.
+    """
     pass
 
 @listings.command()
-@click.option('--filter')
-@click.option('--header/--no-header', default=True)
-@click.option('--column', multiple=True)
+@click.option('--filter', help="Filter criteria to select subjects.")
+@click.option('--header/--no-header', default=True, help="Include header in the listing or not.")
+@click.option('--column', multiple=True, help="Columns to include in the listing.")
 @click.pass_context
 def projects(ctx, column, filter, header):
     ctx = unpack_context(ctx)
@@ -32,9 +35,9 @@ def projects(ctx, column, filter, header):
 
 
 @listings.command()
-@click.option('--filter')
-@click.option('--header/--no-header', default=True)
-@click.option('--column', multiple=True)
+@click.option('--filter', help="Filter criteria to select subjects.")
+@click.option('--header/--no-header', default=True, help="Include header in the listing or not.")
+@click.option('--column', multiple=True, help="Columns to include in the listing.")
 @click.pass_context
 def subjects(ctx, column, filter, header):
     ctx = unpack_context(ctx)

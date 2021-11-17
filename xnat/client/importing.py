@@ -7,18 +7,21 @@ from .utils import unpack_context
 @click.group(name="import")
 @click.pass_context
 def importing(ctx):
-    pass
+    """
+    Commands to import data from your machine into XNAT
+    """
+
 
 
 @importing.command()
 @click.argument('folder')
-@click.option('--destination')
-@click.option('--project')
-@click.option('--subject')
-@click.option('--experiment')
+@click.option('--destination', help="The destination to upload the scan to.")
+@click.option('--project', help="The project in the archive to assign the session to (only accepts project ID, not a label).")
+@click.option('--subject', help="The subject in the archive to assign the session to.")
+@click.option('--experiment', help="The experiment in the archive to assign the session content to.")
 @click.option('--import_handler')
-@click.option('--quarantine', is_flag=True)
-@click.option('--trigger_pipelines', is_flag=True)
+@click.option('--quarantine', is_flag=True, help="Flag to indicate session should be quarantined.")
+@click.option('--trigger_pipelines', is_flag=True, help="Indicate that importing should trigger pipelines.")
 @click.pass_context
 def experiment(ctx,
                folder,

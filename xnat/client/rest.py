@@ -6,12 +6,14 @@ from .utils import unpack_context
 @click.group(name="rest")
 @click.pass_context
 def rest(ctx):
-    pass
+    """
+    Perform various REST requests to your XNAT.
+    """
 
 @rest.command()
 @click.argument('path')
-@click.option('--query', multiple=True)
-@click.option('--headers', multiple=True)
+@click.option('--query', multiple=True, help="The values to be added to the query string in the URI.")
+@click.option('--headers', multiple=True, help="HTTP headers to include.")
 @click.pass_context
 def get(ctx, path, query, headers):
     ctx = unpack_context(ctx)
@@ -31,29 +33,33 @@ def get(ctx, path, query, headers):
 
 @rest.command()
 @click.argument('path')
-@click.option('--headers', multiple=True)
+@click.option('--query', multiple=True, help="The values to be added to the query string in the URI.")
+@click.option('--headers', multiple=True, help="HTTP headers to include.")
 @click.pass_context
-def head(ctx, path, headers):
+def head(ctx, path, query, headers):
     ctx = unpack_context(ctx)
+
+    if query:
+        query = {arg[0]:arg[1] for arg in map(lambda x: x.split("="), query)}
 
     if headers:
         headers = {arg[0]:arg[1] for arg in map(lambda x: x.split("="), headers)}
     
     with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,
                       cli=True, no_parse_model=True, loglevel=ctx.loglevel) as session:
-        result = session.head(path, timeout=ctx.timeout, headers=headers)
+        result = session.head(path, timeout=ctx.timeout, query=query, headers=headers)
         click.echo(f'Result: {result.text}')
         click.echo(f'Path {path} {ctx.user}')
 
 
 @rest.command()
 @click.argument('path')
-@click.option('--jsonpath', '-j')
-@click.option('--datapath', '-d')
-@click.option('--headers', multiple=True)
-@click.option('--query', multiple=True)
+@click.option('--jsonpath', '-j', help="JSON payload file location.")
+@click.option('--datapath', '-d', help="Data payload file location.")
+@click.option('--query', multiple=True, help="The values to be added to the query string in the URI.")
+@click.option('--headers', multiple=True, help="HTTP headers to include.")
 @click.pass_context
-def post(ctx, path, jsonpath, datapath, headers, query):
+def post(ctx, path, jsonpath, datapath, query, headers):
     ctx = unpack_context(ctx)
     
     if jsonpath is not None:
@@ -83,11 +89,12 @@ def post(ctx, path, jsonpath, datapath, headers, query):
 
 @rest.command()
 @click.argument('path')
-@click.option('--jsonpath', '-j')
-@click.option('--datapath', '-d')
-@click.option('--query', multiple=True)
+@click.option('--jsonpath', '-j', help="JSON payload file location.")
+@click.option('--datapath', '-d', help="Data payload file location.")
+@click.option('--query', multiple=True, help="The values to be added to the query string in the URI.")
+@click.option('--headers', multiple=True, help="HTTP headers to include.")
 @click.pass_context
-def put(ctx, path, jsonpath, datapath, query):
+def put(ctx, path, jsonpath, datapath, query, headers):
     ctx = unpack_context(ctx)
     
     if jsonpath is not None:
@@ -105,21 +112,32 @@ def put(ctx, path, jsonpath, datapath, query):
     if query:
         query = {arg[0]:arg[1] for arg in map(lambda x: x.split("="), query)}
 
+    if headers:
+        headers = {arg[0]:arg[1] for arg in map(lambda x: x.split("="), headers)} 
+
     with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,
                       cli=True, no_parse_model=True, loglevel=ctx.loglevel) as session:
-        result = session.put(path, json=json_payload, data=data_payload, query=query, timeout=ctx.timeout)
+        result = session.put(path, json=json_payload, data=data_payload, query=query, timeout=ctx.timeout, headers=headers)
         click.echo(f'Result: {result.text}')
         click.echo(f'Path {path} {ctx.user}')
 
 
 @rest.command()
 @click.argument('path')
+@click.option('--query', multiple=True, help="The values to be added to the query string in the URI.")
+@click.option('--headers', multiple=True, help="HTTP headers to include.")
 @click.pass_context
-def delete(ctx, path):
+def delete(ctx, path, query, headers):
     ctx = unpack_context(ctx)
-    
+
+    if query:
+        query = {arg[0]:arg[1] for arg in map(lambda x: x.split("="), query)}
+
+    if headers:
+        headers = {arg[0]:arg[1] for arg in map(lambda x: x.split("="), headers)} 
+
     with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,
                       cli=True, no_parse_model=True, loglevel=ctx.loglevel) as session:
-        result = session.delete(path, timeout=ctx.timeout)
+        result = session.delete(path, timeout=ctx.timeout, query=query, headers=headers)
         click.echo(f'Result: {result.text}')
         click.echo(f'Path {path} {ctx.user}')
