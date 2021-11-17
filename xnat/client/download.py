@@ -14,6 +14,7 @@ def download(ctx):
 @click.argument('targetdir')
 @click.pass_context
 def project(ctx, project, targetdir):
+    """This command downloads an XNAT project to the target directory"""
     ctx = unpack_context(ctx)
 
     with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,

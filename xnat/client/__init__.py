@@ -1,6 +1,8 @@
 import click
 import xnat
 
+from .utils import unpack_context
+
 from .download import download
 from .importing import importing
 from .listings import listings
@@ -14,8 +16,8 @@ from .prearchive import prearchive
 @click.version_option()
 @click.option('--jsession', envvar='XNATPY_JSESSION')
 @click.option('--user', '-u')
-@click.option('--host', '-h', required=True, envvar='XNATPY_HOST')
-@click.option('--netrc', '-n', required=False)
+@click.option('--host', '-h', envvar='XNATPY_HOST')
+@click.option('--netrc', '-n')
 @click.option('--loglevel', envvar='XNATPY_LOGLEVEL')
 @click.option('--timeout', envvar="XNATPY_TIMEOUT", type=float)
 @click.pass_context
@@ -46,19 +48,19 @@ def login(ctx):
     The session is purposefully not closed so will live for next commands to use until it will
     time-out.
     """
-    host, user, netrc, jsession, loglevel, timeout = ctx.obj['host'], ctx.obj['user'], ctx.obj['netrc'], ctx.obj['jsession'], ctx.obj['loglevel'], ctx.obj['timeout']
-    with xnat.connect(host, user=user, netrc_file=netrc, cli=True, no_parse_model=True, loglevel=loglevel) as session:
+    ctx = unpack_context(ctx)
+    with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, cli=True, no_parse_model=True, loglevel=ctx.loglevel) as session:
         click.echo(session.jsession)
 
 
 @cli.command()
 @click.pass_context
 def logout(ctx):
-    host, user, netrc, jsession, loglevel, timeout = ctx.obj['host'], ctx.obj['user'], ctx.obj['netrc'], ctx.obj['jsession'], ctx.obj['loglevel'], ctx.obj['timeout']
-    with xnat.connect(host, user=user, netrc_file=netrc, jsession=jsession,
-                      no_parse_model=True, loglevel=loglevel) as session:
+    ctx = unpack_context(ctx)
+    with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,
+                      no_parse_model=True, loglevel=ctx.loglevel) as session:
         pass
-    click.echo('Disconnected from {host}!'.format(host=host))
+    click.echo('Disconnected from {host}!'.format(host=ctx.host))
 
 
 if __name__ == '__main__':
