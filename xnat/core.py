@@ -52,77 +52,6 @@ def caching(func):
     return wrapper
 
 
-class VariableMap(MutableMapping):
-    def __init__(self, parent, field):
-        self._cache = {}
-        self.caching = True
-        self.parent = parent
-        self._field = field
-
-    def __repr__(self):
-        return "<VariableMap {}>".format(dict(self))
-
-    @property
-    @caching
-    def data(self):
-        try:
-            variables = next(x for x in self.parent.fulldata['children'] if x['field'] == self.field)
-            variables_map = {x['data_fields']['name']: x['data_fields']['field'] for x in variables['items'] if 'field' in x['data_fields']}
-        except StopIteration:
-            variables_map = {}
-
-        return variables_map
-
-    def __getitem__(self, item):
-        return self.data[item]
-
-    def __setitem__(self, key, value):
-        query = {'xsiType': self.parent.__xsi_type__,
-                 '{parent_type_}/{field}[@xsi_type={type}]/{key}'.format(parent_type_=self.parent.__xsi_type__,
-                                                                         field=self.field,
-                                                                         type=self.parent.__xsi_type__,
-                                                                         key=key): value}
-        self.xnat.put(self.parent.fulluri, query=query)
-
-        # Remove cache and make sure the reload the data
-        if 'data' in self._cache:
-            self.clearcache()
-
-    def __delitem__(self, key):
-        self.parent.logger.warning('Deleting of variables is currently not supported!')
-
-    def __iter__(self):
-        for key in self.data.keys():
-            yield key
-
-    def __len__(self):
-        return len(self.data)
-
-    @property
-    def field(self):
-        return self._field
-
-    @property
-    def xnat(self):
-        return self.parent.xnat_session
-
-    def clearcache(self):
-        self._cache.clear()
-        self.parent.clearcache()
-
-
-class CustomVariableMap(VariableMap):
-    def __setitem__(self, key, value):
-        query = {'xsiType': self.parent.__xsi_type__,
-                 '{type_}/fields/field[name={key}]/field'.format(type_=self.parent.__xsi_type__,
-                                                                 key=key): value}
-        self.xnat.put(self.parent.fulluri, query=query)
-
-        # Remove cache and make sure the reload the data
-        if 'data' in self._cache:
-            self.clearcache()
-
-
 @six.python_2_unicode_compatible
 class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
     SECONDARY_LOOKUP_FIELD = None
@@ -214,11 +143,6 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
 
         self._xnat_session = xnat_session
         self._fieldname = fieldname
-
-        if self._HAS_FIELDS:
-            self._fields = CustomVariableMap(self, field='fields/field')
-        else:
-            self._fields = None
 
         if id_ is not None:
             self._cache['id'] = id_
