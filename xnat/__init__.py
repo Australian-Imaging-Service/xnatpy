@@ -492,7 +492,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     if ":" in domain:
         domain = domain.split(":")[0]
     if "." not in domain:
-        domain = f"{domain}.local"
+        domain = "{domain}.local".format(domain=domain)
 
     if jsession is not None:
         cookie = requests.cookies.create_cookie(
