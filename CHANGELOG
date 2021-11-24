@@ -9,6 +9,16 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Fixed
+~~~~~
+
+- Nested SimpleListing failed to recognise correct parent, breaking `scan.parameters.add_param`
+
+Added
+~~~~~
+
+- A `scan.fields` shortcut to `scan.parameters.add_param` for convenience
+
 0.3.28 -2021-10-28
 ------------------
 

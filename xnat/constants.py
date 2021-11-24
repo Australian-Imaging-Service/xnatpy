@@ -42,6 +42,10 @@ FIELD_HINTS = {
     'xnat:fileData': 'files',
 }
 
+DATA_FIELD_HINTS = {
+    'addParam': 'addField'
+}
+
 # The following xsi_types are objects with their own REST paths, the
 # other are nested in the xml of their parent.
 CORE_REST_OBJECTS = {

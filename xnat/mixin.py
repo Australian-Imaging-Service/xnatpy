@@ -382,6 +382,10 @@ class ImageScanData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'type'
 
     @property
+    def fields(self):
+        return self.parameters.add_param
+
+    @property
     @caching
     def files(self):
         return XNATListing(self.uri + '/files',

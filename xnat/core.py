@@ -25,7 +25,7 @@ from functools import update_wrapper
 
 from . import exceptions
 from .datatypes import convert_from, convert_to
-from .constants import TYPE_HINTS
+from .constants import TYPE_HINTS, DATA_FIELD_HINTS
 from .utils import mixedproperty, pythonize_attribute_name
 import six
 
@@ -909,6 +909,21 @@ class XNATListing(XNATBaseListing):
 
 
 class XNATSimpleListing(XNATBaseListing, MutableMapping, MutableSequence):
+    def __init__(self, parent, field_name, secondary_lookup_field=None, xsi_type=None, data_field_name=None, **kwargs):
+        super(XNATSimpleListing, self).__init__(parent,
+                                                field_name,
+                                                secondary_lookup_field=secondary_lookup_field,
+                                                xsi_type=xsi_type,
+                                                **kwargs)
+
+        self._data_field_name = data_field_name
+
+        if self._data_field_name is None:
+            self._data_field_name = self.field_name.rsplit('/', 1)[-1]
+
+            if self._data_field_name in DATA_FIELD_HINTS:
+                self._data_field_name = DATA_FIELD_HINTS[self._data_field_name]
+
     def __str__(self):
         if self.secondary_lookup_field is not None:
             content = ', '.join('{!r}: {!r}'.format(key, value) for key, value in self.items())
@@ -926,10 +941,23 @@ class XNATSimpleListing(XNATBaseListing, MutableMapping, MutableSequence):
     def xnat_session(self):
         return self.parent.xnat_session
 
+    def _resolve_parent(self):
+        parent = self.parent
+        fieldname = self.field_name
+
+        # Make sure we are looking at a proper Object and not a SubObject (which might had part of the data we need)
+        while isinstance(parent, XNATSubObject):
+            fieldname = '{}/{}'.format(parent.fieldname, fieldname)
+            parent = parent.parent
+
+        return parent, fieldname
+
     @property
     def fulldata(self):
-        for child in self.parent.fulldata['children']:
-            if child['field'] == self.field_name:
+        parent, fieldname = self._resolve_parent()
+
+        for child in parent.fulldata['children']:
+            if child['field'] == fieldname:
                 return child['items']
         return []
 
@@ -943,12 +971,15 @@ class XNATSimpleListing(XNATBaseListing, MutableMapping, MutableSequence):
 
         for index, element in enumerate(self.fulldata):
             if self.secondary_lookup_field is not None:
-                key = element['data_fields'][self.secondary_lookup_field]
+                key = element['data_fields'].get(self.secondary_lookup_field)
+                # Make sure wiped fields are ignored
+                if key is None:
+                    continue
             else:
                 key = index
 
             try:
-                value = element['data_fields'][self.field_name.split('/')[-1]]
+                value = element['data_fields'][self._data_field_name]
             except KeyError:
                 continue
 
@@ -963,27 +994,32 @@ class XNATSimpleListing(XNATBaseListing, MutableMapping, MutableSequence):
         return id_map, key_map, non_unique_keys, listing
 
     def __setitem__(self, key, value):
-        query = {'xsiType': self.parent.__xsi_type__,
-                 '{type_}/{fieldname}[{lookup}={key}]/{fieldpart}'.format(type_=self.parent.__xsi_type__,
-                                                                          fieldname=self.field_name,
+        parent, fieldname = self._resolve_parent()
+
+        query = {'xsiType': parent.__xsi_type__,
+                 '{type_}/{fieldname}[{lookup}={key}]/{fieldpart}'.format(type_=parent.__xsi_type__,
+                                                                          fieldname=fieldname,
                                                                           lookup=self.secondary_lookup_field,
-                                                                          fieldpart=self.field_name.split('/')[-1],
+                                                                          fieldpart=self._data_field_name,
                                                                           key=key): value}
-        self.xnat_session.put(self.parent.fulluri, query=query)
+        self.xnat_session.put(parent.fulluri, query=query)
 
         # Remove cache and make sure the reload the data
         self.clearcache()
+        parent.clearcache()
 
     def __delitem__(self, key):
+        parent, fieldname = self._resolve_parent()
+
         query = {
             'xsiType': self.parent.__xsi_type__,
-            '{type_}/{fieldname}[{lookup}={key}]/{fieldpart}'.format(type_=self.parent.__xsi_type__,
-                                                                     fieldname=self.field_name,
+            '{type_}/{fieldname}[{lookup}={key}]/{fieldpart}'.format(type_=parent.__xsi_type__,
+                                                                     fieldname=fieldname,
                                                                      lookup=self.secondary_lookup_field,
-                                                                     fieldpart=self.field_name.split('/')[-1],
+                                                                     fieldpart=self._data_field_name,
                                                                      key=key): 'NULL',
-            '{type_}/{fieldname}[{lookup}={key}]/{lookup}'.format(type_=self.parent.__xsi_type__,
-                                                                  fieldname=self.field_name,
+            '{type_}/{fieldname}[{lookup}={key}]/{lookup}'.format(type_=parent.__xsi_type__,
+                                                                  fieldname=fieldname,
                                                                   lookup=self.secondary_lookup_field,
                                                                   key=key): 'NULL',
         }
