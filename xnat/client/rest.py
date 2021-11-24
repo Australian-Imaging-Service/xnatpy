@@ -7,7 +7,7 @@ from .utils import unpack_context
 @click.pass_context
 def rest(ctx):
     """
-    Perform various REST requests to your XNAT.
+    Perform various REST requests to the target XNAT.
     """
 
 @rest.command()
@@ -16,6 +16,7 @@ def rest(ctx):
 @click.option('--headers', multiple=True, help="HTTP headers to include.")
 @click.pass_context
 def get(ctx, path, query, headers):
+    """Perform GET request to the target XNAT."""
     ctx = unpack_context(ctx)
     
     if query:
@@ -37,6 +38,7 @@ def get(ctx, path, query, headers):
 @click.option('--headers', multiple=True, help="HTTP headers to include.")
 @click.pass_context
 def head(ctx, path, query, headers):
+    """Perform HEAD request to the target XNAT."""
     ctx = unpack_context(ctx)
 
     if query:
@@ -60,6 +62,7 @@ def head(ctx, path, query, headers):
 @click.option('--headers', multiple=True, help="HTTP headers to include.")
 @click.pass_context
 def post(ctx, path, jsonpath, datapath, query, headers):
+    """Perform POST request to the target XNAT."""
     ctx = unpack_context(ctx)
     
     if jsonpath is not None:
@@ -95,6 +98,7 @@ def post(ctx, path, jsonpath, datapath, query, headers):
 @click.option('--headers', multiple=True, help="HTTP headers to include.")
 @click.pass_context
 def put(ctx, path, jsonpath, datapath, query, headers):
+    """Perform PUT request to the target XNAT."""
     ctx = unpack_context(ctx)
     
     if jsonpath is not None:
@@ -128,6 +132,7 @@ def put(ctx, path, jsonpath, datapath, query, headers):
 @click.option('--headers', multiple=True, help="HTTP headers to include.")
 @click.pass_context
 def delete(ctx, path, query, headers):
+    """Perform DELETE request to the target XNAT."""
     ctx = unpack_context(ctx)
 
     if query:

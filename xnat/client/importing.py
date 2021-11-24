@@ -32,6 +32,7 @@ def experiment(ctx,
                import_handler,
                quarantine,
                trigger_pipelines):
+    """Import experiment from the target folder to XNAT"""
     try:
         ctx = unpack_context(ctx)
         with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,

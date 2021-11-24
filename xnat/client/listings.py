@@ -17,6 +17,7 @@ def listings(ctx):
 @click.option('--column', multiple=True, help="Columns to include in the listing.")
 @click.pass_context
 def projects(ctx, column, filter, header):
+    """List projects in the target XNAT."""
     ctx = unpack_context(ctx)
 
     if not column:
@@ -40,6 +41,7 @@ def projects(ctx, column, filter, header):
 @click.option('--column', multiple=True, help="Columns to include in the listing.")
 @click.pass_context
 def subjects(ctx, column, filter, header):
+    """List subjects in the target XNAT."""
     ctx = unpack_context(ctx)
     
     if not column:

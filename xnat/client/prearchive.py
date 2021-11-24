@@ -14,6 +14,9 @@ def prearchive(ctx):
 @prearchive.command()
 @click.pass_context
 def list(ctx):
+    """
+    List all sessions currently in prearchive.
+    """
     ctx = unpack_context(ctx)
 
     with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,
@@ -22,12 +25,13 @@ def list(ctx):
 
 
 @prearchive.command()
-@click.option('--project', '-p')
-@click.option('--label', '-l')
-@click.option('--subject', '-s')
-@click.option('--status')
+@click.option('--project', '-p', help="Project the session belongs to.")
+@click.option('--label', '-l', help="Session label.")
+@click.option('--subject', '-s', help="Session subject.")
+@click.option('--status', help="Session status.")
 @click.pass_context
 def delete(ctx, project, label, subject, status):
+    """Delete selected prearchive sessions."""
     ctx = unpack_context(ctx)
 
     with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,
@@ -40,13 +44,14 @@ def delete(ctx, project, label, subject, status):
                 sess.delete()
 
 @prearchive.command()
-@click.option('--project', '-p')
-@click.option('--dest-project')
-@click.option('--label', '-l')
-@click.option('--subject', '-s')
-@click.option('--status')
+@click.option('--project', '-p', help="Project the sessions currently belong to.")
+@click.option('--dest-project', help="Destination project.")
+@click.option('--label', '-l', "Session label.")
+@click.option('--subject', '-s', "Session subject.")
+@click.option('--status', "Session status.")
 @click.pass_context
 def move(ctx, project, dest_project, label, subject, status):
+    """Move selected prearchive sessions."""
     ctx = unpack_context(ctx)
 
     with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,
@@ -61,13 +66,14 @@ def move(ctx, project, dest_project, label, subject, status):
 @prearchive.command()
 @click.argument('--sessionid')
 @click.argument('--project')
-@click.option('--subject')
-@click.option('--experiment')
-@click.option('--overwrite', is_flag=True)
-@click.option('--quarantine')
-@click.option('--trigger-pipelines', is_flag=True)
+@click.option('--subject', help="The subject in the archive to assign the content to.")
+@click.option('--experiment', help="The experiment in the archive to assign the session content to.")
+@click.option('--overwrite', help="Action to take in case data already exists. Possible values: none, append, delete.")
+@click.option('--quarantine', is_flag=True, help="Indicate whether the session should be quarantined.")
+@click.option('--trigger-pipelines', is_flag=True, help="Indicate whether archiving should trigger pipelines.")
 @click.pass_context
 def archive(ctx, sessionid, project, subject, experiment, overwrite, quarantine, trigger_pipelines):
+    """Archive selected prearchive session."""
     ctx = unpack_context(ctx)
 
     with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,
@@ -85,15 +91,16 @@ def archive(ctx, sessionid, project, subject, experiment, overwrite, quarantine,
 
 
 prearchive.command()
-@click.option('--project', '-p')
-@click.option('--label', '-l')
-@click.option('--subject', '-s')
-@click.option('--status')
-@click.option('--overwrite', is_flag=True)
-@click.option('--quarantine')
-@click.option('--trigger-pipelines', is_flag=True)
+@click.option('--project', '-p', help="Project the session belongs to.")
+@click.option('--label', '-l', help="Session label.")
+@click.option('--subject', '-s', help="Session subject.")
+@click.option('--status', help="Session status.")
+@click.option('--overwrite', help="Action to take in case data already exists. Possible values: none, append, delete.")
+@click.option('--quarantine', is_flag=True, help="Indicate whether the session should be quarantined.")
+@click.option('--trigger-pipelines', is_flag=True, help="Indicate whether archiving should trigger pipelines.")
 @click.pass_context
 def bulk_archive(ctx, project, label, subject, status, overwrite, quarantine, trigger_pipelines):
+    """Archive multiple selected prearchive sessions."""
     ctx = unpack_context(ctx)
 
     with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,
