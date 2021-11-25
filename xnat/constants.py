@@ -40,6 +40,7 @@ FIELD_HINTS = {
     'xnat:imageAssessorData': 'assessors',
     'xnat:abstractResource': 'resources',
     'xnat:fileData': 'files',
+    'addParam': 'parameters/addParam',
 }
 
 DATA_FIELD_HINTS = {
