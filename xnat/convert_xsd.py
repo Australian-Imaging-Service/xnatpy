@@ -1311,7 +1311,7 @@ class SchemaParser(object):
         new_class = ClassPrototype(self,
                                    name=name,
                                    logger=self.logger,
-                                   simple=False)
+                                   simple=True)
 
         new_property = AttributePrototype(self,
                                           name="value",
@@ -1428,13 +1428,14 @@ class SchemaParser(object):
                 if prop.element_class.simple:
                     if self.debug:
                         self.logger.debug('Found simple mapping {}.{} -> {}'.format(cls.name,
-                                                                                        property_key,
-                                                                                        prop.element_class.name))
+                                                                                    property_key,
+                                                                                    prop.element_class.name))
 
                     if len(prop.element_class.attributes) > 2:
                         if self.debug:
                             self.logger.debug(
-                                'Too many attributes to simplify (found {} attributed)'.format(
+                                'Too many attributes to simplify {} (found {} attributed)'.format(
+                                    prop.element_class.name,
                                     len(prop.element_class.attributes)
                                 )
                             )

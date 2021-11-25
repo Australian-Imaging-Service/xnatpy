@@ -37,6 +37,11 @@ except ImportError:
 class ProjectData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'name'
 
+    # just for consistency with subject/experiment for custom variable map
+    @property
+    def project(self):
+        return self.id
+
     @property
     def fulluri(self):
         return '{}/projects/{}'.format(self.xnat_session.fulluri, self.id)
@@ -380,6 +385,10 @@ class DerivedData(XNATBaseObject):
 
 class ImageScanData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'type'
+
+    @property
+    def fields(self):
+        return self.parameters.add_param
 
     @property
     @caching

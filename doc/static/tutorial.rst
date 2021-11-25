@@ -72,18 +72,28 @@ source code, command history or just on your screen. If you only give a
 user, but not a password xnatpy will prompt you for your password. This is
 fine for interactive use, but for automated scripts this is useless.
 
-To store credentials this xnatpy uses the .netrc file. On linux the file is
-located in ``~/.netrc``. This file contains login information and should be
-accessible ONLY by the user (if not, the module with throw an error to let
-you know the file is unsafe). For example::
+To store credentials this xnatpy uses the .netrc file on Linux and the _netrc
+file on Windows. On linux the file is located in ``~/.netrc`` and on Windows
+the file is located in ``%USERPROFILE%\_netrc`` (which typically resolves to
+``C:\Users\YourUsername\_netrc``). This file contains login information and
+should be accessible ONLY by the user (if not, the module with throw an error
+to let you know the file is unsafe). For example, on Linux use::
 
   echo "machine images.xnat.org
-  >     login admin
-  >     password admin" > ~/.netrc
+  >     login USERNAME
+  >     password PASSWORD" > ~/.netrc
   chmod 600 ~/.netrc
 
 This will create the netrc file with the correct contents and set the
 permission correct.
+
+On Windows you can use the command prompt to do the same::
+
+  (echo machine images.xnat.org & echo login USERNAME & echo password PASSWORD) > %userprofile%/_netrc
+
+.. note::
+
+    Replace 'images.xnat.org' with your XNAT server, 'USERNAME' with your username and 'PASSWORD' with your password
 
 Self-closing sessions
 ^^^^^^^^^^^^^^^^^^^^^

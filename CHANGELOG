@@ -9,6 +9,19 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Fixed
+~~~~~
+
+- Nested SimpleListing failed to recognise correct parent, breaking `scan.parameters.add_param`
+- Fixes in xpath and xsi_type resolving
+
+Added
+~~~~~
+
+- A `scan.fields` shortcut to `scan.parameters.add_param` for convenience
+- Objects with custom variables now have the `obj.custom_variables` property which gives access to the custom
+  variable defined in the interface, including some type casting and value checking when updating them.
+
 0.3.28 -2021-10-28
 ------------------
 

@@ -26,7 +26,7 @@ from functools import update_wrapper
 
 from . import exceptions
 from .datatypes import convert_from, convert_to
-from .constants import TYPE_HINTS
+from .constants import TYPE_HINTS, DATA_FIELD_HINTS
 from .utils import mixedproperty, pythonize_attribute_name
 import six
 
@@ -53,75 +53,135 @@ def caching(func):
     return wrapper
 
 
-class VariableMap(MutableMapping):
-    def __init__(self, parent, field):
+class CustomVariableMap(Mapping):
+    def __init__(self, parent):
+        # Caching targets
         self._cache = {}
-        self.caching = True
+        self._caching = None
+
+        # Set import information
         self.parent = parent
-        self._field = field
+
+        # TODO: Fix the xsi type in this request when trying to change field datatype
+        # sandboxhakim?xsiType=xnatpy:fieldDefinitionGroupFields&xnat:projectData/studyProtocol[ID=sandboxhakim_xnat_mrSessionData]/definitions[None=1]/fields/field[name=test]/datatype=integer
+        #              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                                                                                ^^^^^^
+        #                This is the problem due to xsi mess                                                                                     and xpath mess with index
 
     def __repr__(self):
-        return "<VariableMap {}>".format(dict(self))
-
-    @property
-    @caching
-    def data(self):
-        try:
-            variables = next(x for x in self.parent.fulldata['children'] if x['field'] == self.field)
-            variables_map = {x['data_fields']['name']: x['data_fields']['field'] for x in variables['items'] if 'field' in x['data_fields']}
-        except StopIteration:
-            variables_map = {}
-
-        return variables_map
+        return '<CustomVariableMap groups: [{}]>'.format(', '.join(self.definitions.keys()))
 
     def __getitem__(self, item):
-        return self.data[item]
-
-    def __setitem__(self, key, value):
-        query = {'xsiType': self.parent.__xsi_type__,
-                 '{parent_type_}/{field}[@xsi_type={type}]/{key}'.format(parent_type_=self.parent.__xsi_type__,
-                                                                         field=self.field,
-                                                                         type=self.parent.__xsi_type__,
-                                                                         key=key): value}
-        self.xnat.put(self.parent.fulluri, query=query)
-
-        # Remove cache and make sure the reload the data
-        if 'data' in self._cache:
-            self.clearcache()
-
-    def __delitem__(self, key):
-        self.parent.logger.warning('Deleting of variables is currently not supported!')
+        return self.definitions[item]
 
     def __iter__(self):
-        for key in self.data.keys():
+        for key in self.definitions:
             yield key
 
     def __len__(self):
-        return len(self.data)
+        return len(self.definitions)
+
+    # The next 3 cache properties are to avoid a loop on object creation for Projects (it would try to self-reference)
+    # by lazy loading these properties, we ensure the project object is fully created before referencing it
+    @property
+    @caching
+    def project(self):
+        return self.parent.xnat_session.projects[self.parent.project]
 
     @property
-    def field(self):
-        return self._field
+    @caching
+    def protocol(self):
+        protocol_name = '{}_{}'.format(self.project.id, self.parent.__xsi_type__.replace(':', '_'))
+        print(protocol_name)
+        if protocol_name in self.project.study_protocol.key_map:
+            return self.project.study_protocol[protocol_name]
+        else:
+            return None
 
     @property
-    def xnat(self):
-        return self.parent.xnat_session
+    @caching
+    def definitions(self):
+        if self.protocol is None:
+            return {}
+
+        definitions = {}
+        for definition in self.protocol.definitions.values():
+            definitions[definition.id] = CustomVariableGroup(parent=self.parent, definition=definition)
+
+        return definitions
+
+    @property
+    def fields(self):
+        return self.parent.fields
+
+    @property
+    def caching(self):
+        if self._caching is not None:
+            return self._caching
+        else:
+            return self.parent.xnat_session.caching
 
     def clearcache(self):
         self._cache.clear()
-        self.parent.clearcache()
 
 
-class CustomVariableMap(VariableMap):
+class CustomVariableGroup(MutableMapping):
+    def __init__(self, parent, definition):
+        self.definition = definition
+        self.parent = parent
+        self.fields = {}
+
+        for key, value in definition.fields.items():
+            self.fields[key] = CustomVariableDef(name=value.name,
+                                                 datatype=value.datatype,
+                                                 options=value.possible_values.listing)
+
+    def __repr__(self):
+        return '<CustomVariableGroup {} {{{}}}>'.format(
+            self.definition.id,
+            ', '.join('{} ({}): {!r}'.format(x.name, x.datatype, self[x.name]) for x in self.fields.values())
+        )
+
+    def __getitem__(self, key):
+        field = self.fields[key]
+        value = self.parent.fields.get(key)
+
+        if value is None:
+            return None
+
+        # Check type and convert
+        value = convert_to(value, 'xs:{}'.format(field.datatype))
+
+        return value
+
     def __setitem__(self, key, value):
-        query = {'xsiType': self.parent.__xsi_type__,
-                 '{type_}/fields/field[name={key}]/field'.format(type_=self.parent.__xsi_type__,
-                                                                 key=key): value}
-        self.xnat.put(self.parent.fulluri, query=query)
+        field = self.fields[key]
+        value = convert_from(value, 'xs:{}'.format(field.datatype))
 
-        # Remove cache and make sure the reload the data
-        if 'data' in self._cache:
-            self.clearcache()
+        if field.options and value not in field.options:
+            raise exceptions.XNATValueError('Cannot set custom variable, value should be one of {}, found {}'.format(field.options, value))
+
+        self.parent.fields[key] = value
+
+    def __delitem__(self, key):
+        self.parent.logger.warning('Deletion of custom variable is not possible!')
+
+    def __iter__(self):
+        for field in self.fields.keys():
+            yield field
+
+    def __len__(self):
+        return len(self.fields)
+
+    @property
+    def name(self):
+        return self.definition.id
+
+
+class CustomVariableDef:
+    def __init__(self, name, datatype, options):
+        self.name = name
+        self.datatype = datatype
+        self.options = options
 
 
 @six.python_2_unicode_compatible
@@ -217,9 +277,7 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
         self._fieldname = fieldname
 
         if self._HAS_FIELDS:
-            self._fields = CustomVariableMap(self, field='fields/field')
-        else:
-            self._fields = None
+            self.custom_variables = CustomVariableMap(parent=self)
 
         if id_ is not None:
             self._cache['id'] = id_
@@ -303,14 +361,17 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
         """
         return self.xnat_session.url_for(self, query=query, scheme=scheme)
 
+    def _resolve_xsi_type(self):
+        parent = self
+        while not isinstance(parent, XNATObject):
+            parent = parent.parent
+        return parent.__xsi_type__
+
     def mset(self, values=None, timeout=None, **kwargs):
         if not isinstance(values, dict):
             values = kwargs
 
-        if self.parent is not None:
-            xsi_type = self.parent.__xsi_type__
-        else:
-            xsi_type = self.__xsi_type__
+        xsi_type = self._resolve_xsi_type()
 
         # Add xpaths to query
         query = {'xsiType': xsi_type}
@@ -477,6 +538,9 @@ class XNATNestedObject(XNATBaseObject):
             return '{}/{}[@xsi:type={}]'.format(self.parent.xpath,
                                                 self.fieldname,
                                                 self.__xsi_type__)
+        elif isinstance(self.fieldname, int) or self.parent.secondary_lookup_field is None:
+            return '{}[{}]'.format(self.parent.xpath,
+                                   self.fieldname + 1)
         else:
             return '{}[{}={}]'.format(self.parent.xpath,
                                       self.parent.secondary_lookup_field,
@@ -496,7 +560,10 @@ class XNATSubObject(XNATBaseObject):
 
     @property
     def __xsi_type__(self):
-        return self.parent.__xsi_type__
+        parent = self.parent
+        while not isinstance(parent, XNATBaseObject):
+            parent = parent.parent
+        return parent.__xsi_type__
 
     @property
     def xpath(self):
@@ -505,9 +572,9 @@ class XNATSubObject(XNATBaseObject):
             return '{}/{}'.format(self.parent.xpath, self.fieldname)
         elif isinstance(self.parent, XNATBaseListing):
             # XPath is an index in a list
-            if isinstance(self.fieldname, int):
+            if isinstance(self.fieldname, int) or self.parent.secondary_lookup_field is None:
                 return '{}[{}]'.format(self.parent.xpath,
-                                       self.fieldname)
+                                       self.fieldname + 1)
             else:
                 return '{}[{}={}]'.format(self.parent.xpath,
                                           self.parent.secondary_lookup_field,
@@ -522,8 +589,12 @@ class XNATSubObject(XNATBaseObject):
         result = self.parent.fulldata
 
         if isinstance(result, dict):
-            result = {k[len(prefix):]: v for k, v in result['data_fields'].items() if k.startswith(prefix)}
-            result = {'data_fields': result}
+            data_fields = {k[len(prefix):]: v for k, v in result['data_fields'].items() if k.startswith(prefix)}
+            children = [child for child in result['children'] if child['field'].startswith(prefix)]
+            result = {
+                'data_fields': data_fields,
+                'children': children,
+            }
         elif isinstance(result, list):
             try:
                 if self.parent.secondary_lookup_field is not None:
@@ -574,7 +645,7 @@ class XNATBaseListing(Mapping, Sequence):
             self._xsi_type = TYPE_HINTS[field_name]
 
         # If Needed, try again
-        if secondary_lookup_field is None:
+        if secondary_lookup_field is None and self._xsi_type is not None:
             secondary_lookup_field = self.xnat_session.XNAT_CLASS_LOOKUP.get(self._xsi_type).SECONDARY_LOOKUP_FIELD
 
         self.secondary_lookup_field = secondary_lookup_field
@@ -946,12 +1017,27 @@ class XNATListing(XNATBaseListing):
 
 
 class XNATSimpleListing(XNATBaseListing, MutableMapping, MutableSequence):
+    def __init__(self, parent, field_name, secondary_lookup_field=None, xsi_type=None, data_field_name=None, **kwargs):
+        super(XNATSimpleListing, self).__init__(parent,
+                                                field_name,
+                                                secondary_lookup_field=secondary_lookup_field,
+                                                xsi_type=xsi_type,
+                                                **kwargs)
+
+        self._data_field_name = data_field_name
+
+        if self._data_field_name is None:
+            self._data_field_name = self.field_name.rsplit('/', 1)[-1]
+
+            if self._data_field_name in DATA_FIELD_HINTS:
+                self._data_field_name = DATA_FIELD_HINTS[self._data_field_name]
+
     def __str__(self):
         if self.secondary_lookup_field is not None:
             content = ', '.join('{!r}: {!r}'.format(key, value) for key, value in self.items())
             content = '{{{}}}'.format(content)
         else:
-            content = ', '.join(repr(v) for v in self.values())
+            content = ', '.join(repr(v) for v in self.listing)
             content = '[{}]'.format(content)
         return '<{} {}>'.format(type(self).__name__, content)
 
@@ -963,10 +1049,23 @@ class XNATSimpleListing(XNATBaseListing, MutableMapping, MutableSequence):
     def xnat_session(self):
         return self.parent.xnat_session
 
+    def _resolve_fieldname(self):
+        parent = self.parent
+        fieldname = self.field_name
+
+        # Make sure we are looking at a proper Object and not a SubObject (which might had part of the data we need)
+        while isinstance(parent, XNATSubObject) and isinstance(parent.parent, XNATBaseObject):
+            fieldname = '{}/{}'.format(parent.fieldname, fieldname)
+            parent = parent.parent
+
+        return fieldname
+
     @property
     def fulldata(self):
+        fieldname = self._resolve_fieldname()
+
         for child in self.parent.fulldata['children']:
-            if child['field'] == self.field_name:
+            if child['field'] == fieldname:
                 return child['items']
         return []
 
@@ -980,12 +1079,15 @@ class XNATSimpleListing(XNATBaseListing, MutableMapping, MutableSequence):
 
         for index, element in enumerate(self.fulldata):
             if self.secondary_lookup_field is not None:
-                key = element['data_fields'][self.secondary_lookup_field]
+                key = element['data_fields'].get(self.secondary_lookup_field)
+                # Make sure wiped fields are ignored
+                if key is None:
+                    continue
             else:
                 key = index
 
             try:
-                value = element['data_fields'][self.field_name.split('/')[-1]]
+                value = element['data_fields'][self._data_field_name]
             except KeyError:
                 continue
 
@@ -1000,30 +1102,47 @@ class XNATSimpleListing(XNATBaseListing, MutableMapping, MutableSequence):
         return id_map, key_map, non_unique_keys, listing
 
     def __setitem__(self, key, value):
-        query = {'xsiType': self.parent.__xsi_type__,
-                 '{type_}/{fieldname}[{lookup}={key}]/{fieldpart}'.format(type_=self.parent.__xsi_type__,
-                                                                          fieldname=self.field_name,
-                                                                          lookup=self.secondary_lookup_field,
-                                                                          fieldpart=self.field_name.split('/')[-1],
-                                                                          key=key): value}
-        self.xnat_session.put(self.parent.fulluri, query=query)
+        parent = self.parent
+
+        if self.secondary_lookup_field:
+            lookup = '{}={}'.format(self.secondary_lookup_field, key)
+        else:
+            lookup = key + 1
+
+        query = {'xsiType': parent.__xsi_type__,
+                 '{xpath}/{fieldname}[{lookup}]/{fieldpart}'.format(xpath=parent.xpath,
+                                                                    fieldname=self.field_name,
+                                                                    lookup=lookup,
+                                                                    fieldpart=self._data_field_name): value}
+
+        self.xnat_session.put(parent.fulluri, query=query)
 
         # Remove cache and make sure the reload the data
         self.clearcache()
+        parent.clearcache()
 
     def __delitem__(self, key):
+        fieldname = self._resolve_fieldname()
+        parent = self.parent
+
+        if self.secondary_lookup_field:
+            lookup = '{}={}'.format(self.secondary_lookup_field, key)
+        else:
+            lookup = key + 1
+
         query = {
             'xsiType': self.parent.__xsi_type__,
-            '{type_}/{fieldname}[{lookup}={key}]/{fieldpart}'.format(type_=self.parent.__xsi_type__,
-                                                                     fieldname=self.field_name,
-                                                                     lookup=self.secondary_lookup_field,
-                                                                     fieldpart=self.field_name.split('/')[-1],
-                                                                     key=key): 'NULL',
-            '{type_}/{fieldname}[{lookup}={key}]/{lookup}'.format(type_=self.parent.__xsi_type__,
-                                                                  fieldname=self.field_name,
-                                                                  lookup=self.secondary_lookup_field,
-                                                                  key=key): 'NULL',
+            '{xpath}/{fieldname}[{lookup}]/{fieldpart}'.format(xpath=parent.xpath,
+                                                               fieldname=fieldname,
+                                                               lookup=lookup,
+                                                               fieldpart=self._data_field_name): 'NULL',
         }
+        if self.secondary_lookup_field:
+            query['{xpath}/{fieldname}[{lookup}]/{key}'.format(xpath=parent.xpath,
+                                                                fieldname=fieldname,
+                                                                lookup=lookup,
+                                                                key=key)] = 'NULL'
+
         self.xnat_session.put(self.parent.fulluri, query=query)
 
         # Remove cache and make sure the reload the data
@@ -1031,6 +1150,10 @@ class XNATSimpleListing(XNATBaseListing, MutableMapping, MutableSequence):
 
     def insert(self, index, value):
         pass
+
+    def clearcache(self):
+        super(XNATSimpleListing, self).clearcache()
+        self.parent.clearcache()
 
 
 class XNATSubListing(XNATBaseListing, MutableMapping, MutableSequence):
@@ -1118,7 +1241,7 @@ class XNATSubListing(XNATBaseListing, MutableMapping, MutableSequence):
         # Determine XPATH of item to remove
         if isinstance(key, int):
             xpath = '{}[{}]'.format(self.xpath,
-                                   key)
+                                   key + 1)
         else:
             xpath = '{}[{}={}]'.format(self.xpath,
                                       self.secondary_lookup_field,
@@ -1140,3 +1263,7 @@ class XNATSubListing(XNATBaseListing, MutableMapping, MutableSequence):
 
     def insert(self, index, value):
         pass
+
+    def clearcache(self):
+        super(XNATSubListing, self).clearcache()
+        self.parent.clearcache()
