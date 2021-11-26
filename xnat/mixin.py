@@ -125,6 +125,9 @@ class ProjectData(XNATBaseObject):
         if verbose:
             self.logger.info('Downloaded project to {}'.format(project_dir))
 
+    def cli_str(self):
+        return "Project {name}: id={id}, full URI:{uri}".format(name=self.name, id=self.id, uri=self.fulluri)
+
 
 class InvestigatorData(XNATBaseObject):
     def __str__(self):
@@ -233,6 +236,9 @@ class SubjectData(XNATBaseObject):
             resource.upload_dir(data_dir, method=method)
 
         return resource
+    
+    def cli_str(self):
+        return "Subect {name}: id={id}, project:{proj}, full URI:{uri}".format(name=self.label, id=self.id, proj=self.project, uri=self.fulluri)
 
 
 class ExperimentData(XNATBaseObject):
@@ -268,6 +274,9 @@ class ExperimentData(XNATBaseObject):
     def label(self, value):
         self.xnat_session.put(self.fulluri, query={'label': value})
         self.clearcache()
+
+    def cli_str(self):
+        return "Session {name}".format(name=self.label)
 
 
 class SubjectAssessorData(XNATBaseObject):

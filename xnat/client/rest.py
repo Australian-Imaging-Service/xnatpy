@@ -28,8 +28,8 @@ def get(ctx, path, query, headers):
     with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,
                       cli=True, no_parse_model=True, loglevel=ctx.loglevel) as session:
         result = session.get(path, query=query, timeout=ctx.timeout)
-        click.echo(f'Result: {result.text}')
-        click.echo(f'Path {path} {ctx.user}')
+        click.echo('Result: {text}'.format(text=result.text))
+        click.echo('Path {path} {user}'.format(path=path, user=ctx.user))
 
 
 @rest.command()
@@ -50,8 +50,8 @@ def head(ctx, path, query, headers):
     with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,
                       cli=True, no_parse_model=True, loglevel=ctx.loglevel) as session:
         result = session.head(path, timeout=ctx.timeout, query=query, headers=headers)
-        click.echo(f'Result: {result.text}')
-        click.echo(f'Path {path} {ctx.user}')
+        click.echo('Result: {text}'.format(text=result.text))
+        click.echo('Path {path} {user}'.format(path=path, user=ctx.user))
 
 
 @rest.command()
@@ -86,8 +86,8 @@ def post(ctx, path, jsonpath, datapath, query, headers):
     with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,
                       cli=True, no_parse_model=True, loglevel=ctx.loglevel) as session:
         result = session.post(path, json=json_payload, data=data_payload, query=query, timeout=ctx.timeout, headers=headers)
-        click.echo(f'Result: {result.text}')
-        click.echo(f'Path {path} {ctx.user}')
+        click.echo('Result: {text}'.format(text=result.text))
+        click.echo('Path {path} {user}'.format(path=path, user=ctx.user))
 
 
 @rest.command()
@@ -122,8 +122,8 @@ def put(ctx, path, jsonpath, datapath, query, headers):
     with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,
                       cli=True, no_parse_model=True, loglevel=ctx.loglevel) as session:
         result = session.put(path, json=json_payload, data=data_payload, query=query, timeout=ctx.timeout, headers=headers)
-        click.echo(f'Result: {result.text}')
-        click.echo(f'Path {path} {ctx.user}')
+        click.echo('Result: {text}'.format(text=result.text))
+        click.echo('Path {path} {user}'.format(path=path, user=ctx.user))
 
 
 @rest.command()
@@ -144,5 +144,5 @@ def delete(ctx, path, query, headers):
     with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,
                       cli=True, no_parse_model=True, loglevel=ctx.loglevel) as session:
         result = session.delete(path, timeout=ctx.timeout, query=query, headers=headers)
-        click.echo(f'Result: {result.text}')
-        click.echo(f'Path {path} {ctx.user}')
+        click.echo('Result: {text}'.format(text=result.text))
+        click.echo('Path {path} {user}'.format(path=path, user=ctx.user))

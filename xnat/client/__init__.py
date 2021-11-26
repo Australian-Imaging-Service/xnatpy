@@ -19,15 +19,17 @@ from .prearchive import prearchive
 @click.option('--host', '-h', envvar='XNATPY_HOST', help="XNAT host to connect to.")
 @click.option('--netrc', '-n', help=".netrc file location.")
 @click.option('--loglevel', envvar='XNATPY_LOGLEVEL', help="Logging verbosity level.")
+@click.option('--output-format', envvar='XNATPY_OUTPUT', type=click.Choice(['raw', 'csv', 'human'], case_sensitive=False), help="Output format", default='human')
 @click.option('--timeout', envvar="XNATPY_TIMEOUT", type=float, help="Timeout for the command in ms.")
 @click.pass_context
-def cli(ctx, host, jsession, user, netrc, loglevel, timeout):
+def cli(ctx, host, jsession, user, netrc, loglevel, output_format, timeout):
     ctx.ensure_object(dict)
     ctx.obj['host'] = host
     ctx.obj['jsession'] = jsession
     ctx.obj['user'] = user
     ctx.obj['netrc'] = netrc
     ctx.obj['loglevel'] = loglevel
+    ctx.obj['output_format'] = output_format
     ctx.obj['timeout'] = timeout
 
 

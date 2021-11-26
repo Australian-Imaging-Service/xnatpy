@@ -21,7 +21,8 @@ def list(ctx):
 
     with xnat.connect(ctx.host, user=ctx.user, netrc_file=ctx.netrc, jsession=ctx.jsession,
                       cli=True, no_parse_model=True, loglevel=ctx.loglevel) as session:
-        click.echo(session.prearchive.sessions())
+        for sess in session.prearchive.sessions():
+            click.echo(sess.cli_str())
 
 
 @prearchive.command()
@@ -41,7 +42,9 @@ def delete(ctx, project, label, subject, status):
             session.logger.warning("No prearchive sessions have been selected based on your criteria!")
         else:
             for sess in selected_sessions:
+                session.logger.debug("Deleting session {}".format(session.label))
                 sess.delete()
+            session.logger.debug("Finished deleting selected prearchive sessions!")
 
 @prearchive.command()
 @click.option('--project', '-p', help="Project the sessions currently belong to.")
@@ -61,7 +64,9 @@ def move(ctx, project, dest_project, label, subject, status):
             session.logger.warning("No prearchive sessions have been selected based on your criteria!")
         else:
             for sess in selected_sessions:
+                session.logger.debug("Moving session {}".format(session.label))
                 sess.move(dest_project)
+            session.logger.debug("Finished moving selected prearchive sessions!")
 
 @prearchive.command()
 @click.argument('--sessionid')
@@ -87,7 +92,9 @@ def archive(ctx, sessionid, project, subject, experiment, overwrite, quarantine,
         if not selected_session:
             session.logger.warning("No prearchive sessions have been selected based on your criteria!")
         else:
+            session.logger.debug("Archiving session {}".format(session.label))
             sess.archive(project=project, subject=subject, experiment=experiment, overwrite=overwrite, quarantine=quarantine, trigger_pipelines=trigger_pipelines)
+            session.logger.debug("Finished archiving!")
 
 
 prearchive.command()
@@ -110,4 +117,6 @@ def bulk_archive(ctx, project, label, subject, status, overwrite, quarantine, tr
             session.logger.warning("No prearchive sessions have been selected based on your criteria!")
         else:
             for sess in selected_sessions:
+                session.logger.debug("Archiving session {}".format(session.label))
                 sess.archive(overwrite=overwrite, quarantine=quarantine, trigger_pipelines = trigger_pipelines)
+            session.logger.debug("Finished archiving selected prearchive sessions!")

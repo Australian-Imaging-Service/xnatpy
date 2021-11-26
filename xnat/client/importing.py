@@ -40,5 +40,6 @@ def experiment(ctx,
             session.services.import_dir(folder, quarantine=quarantine, destination=destination,
                                           trigger_pipelines=trigger_pipelines, project=project, subject=subject,
                                           experiment=experiment, import_handler=import_handler)
+            session.logger.info("Import complete!")
     except exceptions.XNATLoginFailedError:
         print(f"ERROR Failed to login")

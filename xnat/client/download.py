@@ -27,3 +27,4 @@ def project(ctx, project, targetdir):
             print('[ERROR] Could not find project!'.format(project))
 
         result = xnat_project.download_dir(targetdir)
+        session.logger.info("Download complete!")
