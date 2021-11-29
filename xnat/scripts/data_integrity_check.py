@@ -283,28 +283,3 @@ class XNATIntegrityCheck:
             # fo.write(f'Missing on Filesystem:\n')
             for file in missing_on_fs:
                 fo.write(f"{file}\n")
-
-
-def main():
-    parser = argparse.ArgumentParser(description='Xnat data integrity check')
-    parser.add_argument('--host', type=str, required=True, help='XNAT url')
-    parser.add_argument('--xnat-home-dir', type=str, required=True, help='path to xnat home dir')
-    parser.add_argument('--report', type=str, required=True, help='path to xnat home dir')
-    args = parser.parse_args()
-
-    xnat_integrity_checker = XNATIntegrityCheck(args.host, args.xnat_home_dir)
-    xnat_integrity_checker.start()
-    print('progress\t FS\tXNAT')
-    while xnat_integrity_checker.is_running():
-        xnat_progress, fs_progress = xnat_integrity_checker.progress()
-        print(f'\t\t{fs_progress*100}\t{xnat_progress*100}', end='\r')
-        sleep(1)
-    fs_progress, xnat_progress = xnat_integrity_checker.progress()
-    print(f'\t\t{fs_progress*100}\t{xnat_progress*100}')
-    print("--- REPORT ---")
-    xnat_integrity_checker.write_report(args.report)
-    print('--- DONE ---')
-
-
-if __name__ == "__main__":
-    main()

@@ -42,8 +42,8 @@ if __name__ == '__main__':
     entry_points = {
         "console_scripts": [
             "xnat_cp_project = xnat.scripts.copy_project:main",
-            "xnat_import_experiment_dir = xnat.scripts.import_experiment_dir:main",
             "xnat_data_integrity-check = xnat.scripts.data_integrity_check:main" ,
+            "xnat = xnat.client:cli",
         ]
     }
 
@@ -52,7 +52,7 @@ if __name__ == '__main__':
         version=version,
         author='H.C. Achterberg',
         author_email='hakim.achterberg@gmail.com',
-        packages=[str('xnat'), str('xnat.scripts')],
+        packages=[str('xnat'), str('xnat.scripts'), str('xnat.client')],
         url='https://gitlab.com/radiology/infrastructure/xnatpy',
         license='Apache 2.0',
         description='An XNAT client that exposes the XNAT REST interface as python objects. Part of the interface is automatically generated based on the servers data model as defined by the xnat schema.',
@@ -71,8 +71,6 @@ if __name__ == '__main__':
             "Programming Language :: Python :: 3.5",
             "Programming Language :: Python :: 3.6",
             "Programming Language :: Python :: 3.7",
-            "Programming Language :: Python :: 3.8",
-            "Programming Language :: Python :: 3.9",
             "Topic :: Scientific/Engineering :: Bio-Informatics",
             "Topic :: Scientific/Engineering :: Medical Science Apps.",
             ]

@@ -290,6 +290,9 @@ class PrearchiveSession(XNATBaseObject):
         response = self.xnat_session.post('/data/services/prearchive/move', query=query)
         self.clearcache()
         return response
+    
+    def cli_str(self):
+        return "Prearchive session {name}".format(name=self.label)
 
 
 class PrearchiveScan(XNATBaseObject):
