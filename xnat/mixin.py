@@ -238,7 +238,7 @@ class SubjectData(XNATBaseObject):
         return resource
     
     def cli_str(self):
-        return "Subect {name}: id={id}, project:{proj}, full URI:{uri}".format(name=self.label, id=self.id, proj=self.project, uri=self.fulluri)
+        return "Subject {name}: id={id}, project:{proj}, full URI:{uri}".format(name=self.label, id=self.id, proj=self.project, uri=self.fulluri)
 
 
 class ExperimentData(XNATBaseObject):
