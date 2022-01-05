@@ -24,6 +24,7 @@ import shutil
 import xnat
 from xnat.exceptions import XNATLoginFailedError
 
+
 def main():
     parser = argparse.ArgumentParser(description='Copy Xnat projects')
     parser.add_argument('--host', type=str, required=True, help='XNAT url')
