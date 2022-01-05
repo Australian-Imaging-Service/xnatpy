@@ -37,6 +37,11 @@ except ImportError:
 class ProjectData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'name'
 
+    # just for consistency with subject/experiment for custom variable map
+    @property
+    def project(self):
+        return self.id
+
     @property
     def fulluri(self):
         return '{}/projects/{}'.format(self.xnat_session.fulluri, self.id)
@@ -119,6 +124,9 @@ class ProjectData(XNATBaseObject):
 
         if verbose:
             self.logger.info('Downloaded project to {}'.format(project_dir))
+
+    def cli_str(self):
+        return "Project {name}: id={id}, full URI:{uri}".format(name=self.name, id=self.id, uri=self.fulluri)
 
 
 class InvestigatorData(XNATBaseObject):
@@ -228,6 +236,9 @@ class SubjectData(XNATBaseObject):
             resource.upload_dir(data_dir, method=method)
 
         return resource
+    
+    def cli_str(self):
+        return "Subject {name}: id={id}, project:{proj}, full URI:{uri}".format(name=self.label, id=self.id, proj=self.project, uri=self.fulluri)
 
 
 class ExperimentData(XNATBaseObject):
@@ -263,6 +274,9 @@ class ExperimentData(XNATBaseObject):
     def label(self, value):
         self.xnat_session.put(self.fulluri, query={'label': value})
         self.clearcache()
+
+    def cli_str(self):
+        return "Session {name}".format(name=self.label)
 
 
 class SubjectAssessorData(XNATBaseObject):
@@ -380,6 +394,10 @@ class DerivedData(XNATBaseObject):
 
 class ImageScanData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'type'
+
+    @property
+    def fields(self):
+        return self.parameters.add_param
 
     @property
     @caching

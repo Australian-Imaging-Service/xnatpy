@@ -40,6 +40,11 @@ FIELD_HINTS = {
     'xnat:imageAssessorData': 'assessors',
     'xnat:abstractResource': 'resources',
     'xnat:fileData': 'files',
+    'addParam': 'parameters/addParam',
+}
+
+DATA_FIELD_HINTS = {
+    'addParam': 'addField'
 }
 
 # The following xsi_types are objects with their own REST paths, the

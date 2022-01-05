@@ -182,27 +182,3 @@ class XNATProjectCopier:
     def start(self):
         self.copy_project()
 
-
-def main():
-    parser = argparse.ArgumentParser(description='Copy Xnat projects')
-    parser.add_argument('--source-host', type=six.text_type, required=True, help='source XNAT url')
-    parser.add_argument('--source-project', type=six.text_type, required=True, help='source XNAT project')
-    parser.add_argument('--dest-host', type=six.text_type, required=True, help='destination XNAT url')
-    parser.add_argument('--dest-project', type=six.text_type, required=True, help='destination XNAT project')
-    args = parser.parse_args()
-
-    with xnat.connect(args.source_host) as source_xnat, xnat.connect(args.dest_host) as dest_xnat:
-        # Find projects
-        try:
-            source_project = source_xnat.projects[args.source_project]
-            dest_project = dest_xnat.projects[args.dest_project]
-        except KeyError as error:
-            print(error.message)
-        else:
-            # Create and start copier
-            copier = XNATProjectCopier(source_xnat, source_project, dest_xnat, dest_project)
-            copier.start()
-
-
-if __name__ == '__main__':
-    main()
