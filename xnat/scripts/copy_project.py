@@ -125,8 +125,9 @@ class XNATProjectCopier:
 
         for source_experiment in source_subject.experiments.values():
             print('  copying experiment  {}'.format(source_experiment.label))
-
-            if hasattr(source_experiment, 'scans') and len(source_experiment.scans) > 0:
+            if source_experiment.label in dest_subject.experiments:
+                print('    experiment already there.')
+            elif hasattr(source_experiment, 'scans') and len(source_experiment.scans) > 0:
                 print('    copying data')
                 temp_file = os.path.join(self.temp_dir, source_experiment.label + '.zip')
                 try:
