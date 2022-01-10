@@ -167,6 +167,10 @@ class Services(object):
             set the ``content_type`` parameter to ``application/zip`` manually.
 
         """
+
+        if not os.path.exists(path):
+            raise FileNotFoundError("The file you are trying to import does not exist.")
+
         query = {}
         if overwrite is not None:
             if overwrite not in ['none', 'append', 'delete']:
