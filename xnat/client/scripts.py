@@ -6,12 +6,14 @@ from time import sleep
 from ..scripts.copy_project import XNATProjectCopier
 from ..scripts.data_integrity_check import XNATIntegrityCheck
 
+
 @click.group(name="script")
 def script():
     """
     Collection of various XNAT-related scripts.
     """
     pass
+
 
 @script.command()
 @click.option("--source-host", required=True, help="Source XNAT URL")
@@ -31,6 +33,7 @@ def copy_project(source_host, source_project, dest_host, dest_project):
             # Create and start copier
             copier = XNATProjectCopier(source_xnat, source_project, dest_xnat, dest_project)
             copier.start()
+
 
 @script.command()
 @click.option("--host", required=True, help="XNAT URL")

@@ -126,9 +126,9 @@ class BaseXNATSession(object):
                 self.logger.warning(
                     ('Server session expiration time ({}) is lower than 30 seconds,'
                      ' setting heartbeat interval to the minimum of 10 seconds.').format(session_expiration[1]))
-            default_keepalive = max(session_expiration[1] - 20, 10)
+            default_keepalive = max(session_expiration[1] // 2 - 20, 10)
         else:
-            default_keepalive = 14 * 60  # Default to 14 minutes
+            default_keepalive = 7 * 60  # Default to 14 minutes
 
         # Set the keep alive settings and spawn the keepalive thread for sending heartbeats
         if keepalive is None or keepalive is True:
@@ -138,7 +138,7 @@ class BaseXNATSession(object):
             self._keepalive = True
             self._keepalive_interval = keepalive
         else:
-            self._keepalive = False
+            self._keepalive = bool(keepalive) if keepalive is not None else True  # Keepalive on by default
             self._keepalive_interval = default_keepalive  # Not used while keepalive is false, but set a default
 
         self._keepalive_running = False
@@ -242,13 +242,19 @@ class BaseXNATSession(object):
 
     def _keepalive_thread_run(self):
         # This thread runs until the program stops, it should be inexpensive if not used due to the long sleep time
+        self.logger.debug('Keep-alive thread started')
         while self._keepalive_running:
             # Wait returns False on timeout and True otherwise
             if not self._keepalive_event.wait(self._keepalive_interval):
                 if self.keepalive:
                     self.heartbeat()
             else:
+                # Make sure that if the keep alive isn't being killed a heartbeat is sent
+                if self._keepalive_running and self.keepalive:
+                    self.heartbeat()
                 self._keepalive_event.clear()
+        else:
+            self.logger.debug('Keep-alive thread ended')
 
     @property
     def logged_in_user(self):
