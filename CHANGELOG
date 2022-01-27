@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <http://keepachangelog.com/>`_
 and this project adheres to `Semantic Versioning <http://semver.org/>`_
 
-UNRELEASED VERSION
+0.4.0 - 2022-01-27
 ------------------
 
 Fixed
@@ -24,8 +24,8 @@ Added
 - Objects with custom variables now have the `obj.custom_variables` property which gives access to the custom
   variable defined in the interface, including some type casting and value checking when updating them.
 
-0.3.28 -2021-10-28
-------------------
+0.3.28 - 2021-10-28
+-------------------
 
 Fixed
 ~~~~~

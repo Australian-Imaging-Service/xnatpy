@@ -15,13 +15,11 @@
 
 from __future__ import absolute_import
 from __future__ import unicode_literals
-import binascii
 import os
-import sys
 from setuptools import setup
 
 # Get information about the version (polling mercurial if possible)
-version = '0.3.29'
+version = '0.4.0'
 
 # When building something else than a release (tag) append the job id to the version.
 if os.environ.get('CI_COMMIT_TAG'):
