@@ -12,6 +12,7 @@ def listings(ctx):
     """
     pass
 
+
 @listings.command()
 @click.option('--filter', help="Filter criteria to select projects.")
 @click.option('--header/--no-header', default=True, help="Include header in the listing or not.")
@@ -38,6 +39,7 @@ def projects(ctx, column, filter, header):
             click.echo("====================================================")
             for proj in session.projects.filter(filters=filter).values():
                 click.echo(proj.cli_str())
+
 
 @listings.command()
 @click.option('--project', help="Project id to list subjects from.")

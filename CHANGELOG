@@ -18,6 +18,8 @@ Fixed
 Added
 ~~~~~
 
+- xnatpy command-line interface, now xnatpy comes with a number of CLI options
+  to use directly from the shell
 - A `scan.fields` shortcut to `scan.parameters.add_param` for convenience
 - Objects with custom variables now have the `obj.custom_variables` property which gives access to the custom
   variable defined in the interface, including some type casting and value checking when updating them.
