@@ -91,7 +91,6 @@ class CustomVariableMap(Mapping):
     @caching
     def protocol(self):
         protocol_name = '{}_{}'.format(self.project.id, self.parent.__xsi_type__.replace(':', '_'))
-        print(protocol_name)
         if protocol_name in self.project.study_protocol.key_map:
             return self.project.study_protocol[protocol_name]
         else:
