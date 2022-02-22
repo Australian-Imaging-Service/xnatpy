@@ -34,6 +34,8 @@ import tempfile
 import time
 
 import requests
+import requests.cookies
+import urllib3
 from six.moves.urllib import parse
 
 from . import exceptions
@@ -44,7 +46,7 @@ from .utils import JSessionAuth
 
 GEN_MODULES = {}
 
-__version__ = '0.4.0'
+__version__ = '0.4.1'
 __all__ = ['connect', 'exceptions']
 
 
@@ -466,7 +468,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
         logger.warning('Verify is disabled, this will NOT verify the certificate of SSL connections!')
         logger.warning('Warnings about invalid certificates will be HIDDEN to avoid spam, but this')
         logger.warning('means that your connection can be potentially unsafe!')
-        requests.packages.urllib3.disable_warnings()
+        urllib3.disable_warnings()
 
     # Create the correct requests session
     requests_session = requests.Session()

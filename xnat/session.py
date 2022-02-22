@@ -677,6 +677,35 @@ class BaseXNATSession(object):
         """
         self.download(uri, target, format='zip', verbose=verbose, timeout=timeout)
 
+    def upload_file(self,
+                    uri,
+                    path,
+                    **kwargs):
+        """
+        Upload data or a file to XNAT
+
+        :param str uri: uri to upload to
+        :param str path: path to the file to be uploaded (str)
+        :param int retries: amount of times xnatpy should retry in case of
+                            failure
+        :param dict query: extra query string content
+        :param content_type: the content type of the file, if not given it will
+                             default to ``application/octet-stream``
+        :param str method: either ``put`` (default) or ``post``
+        :param bool overwrite: indicate if previous data should be overwritten
+        :param timeout: timeout in seconds, float or (connection timeout, read timeout)
+        :type timeout: float or tuple
+        :return:
+        """
+
+        if not os.path.exists(path):
+            raise FileNotFoundError("The file you are trying to upload does not exist.")
+
+        if not os.path.isfile(path):
+            raise FileNotFoundError("The path points to a non-file object")
+
+        self.upload(uri=uri, file_=path, **kwargs)
+
     def upload(self, uri, file_, retries=1, query=None, content_type=None, method='put', overwrite=False, timeout=None):
         """
         Upload data or a file to XNAT

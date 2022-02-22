@@ -136,7 +136,7 @@ class Services(object):
 
         return self.xnat_session.get_json('/data/services/dicomdump', query=query_string)['ResultSet']['Result']
 
-    def import_(self, path, overwrite=None, quarantine=False, destination=None,
+    def import_(self, path=None, data=None, overwrite=None, quarantine=False, destination=None,
                 trigger_pipelines=None, project=None, subject=None,
                 experiment=None, content_type=None, import_handler=None):
         """
@@ -145,6 +145,8 @@ class Services(object):
         for a detailed explanation.
 
         :param str path: local path of the file to upload and import
+        :param data: either a string containing the data to be uploaded or a open file handle
+                     to read the data from
         :param str overwrite: how the handle existing data (none, append, delete)
         :param bool quarantine: flag to indicate session should be quarantined
         :param bool trigger_pipelines: indicate that archiving should trigger pipelines
@@ -167,9 +169,21 @@ class Services(object):
             set the ``content_type`` parameter to ``application/zip`` manually.
 
         """
+        if path is not None and data is not None:
+            raise XNATValueError('Only accepts either path or data, but not both!')
+        elif path is not None:
+            if not os.path.exists(path):
+                raise FileNotFoundError("The file you are trying to import does not exist.")
 
-        if not os.path.exists(path):
-            raise FileNotFoundError("The file you are trying to import does not exist.")
+            # Get mimetype of file
+            if content_type is None and isinstance(path, six.string_types):
+                content_type = self.guess_content_type(path)
+
+            target = path
+        elif data is not None:
+            target = data
+        else:
+            raise XNATValueError('The path or data argument should be provided!')
 
         query = {}
         if overwrite is not None:
@@ -210,12 +224,8 @@ class Services(object):
         if import_handler is not None:
             query['import-handler'] = import_handler
 
-        # Get mimetype of file
-        if content_type is None and isinstance(path, six.string_types):
-            content_type = self.guess_content_type(path)
-
         uri = '/data/services/import'
-        response = self.xnat_session.upload(uri=uri, file_=path, query=query, content_type=content_type, method='post')
+        response = self.xnat_session.upload(uri=uri, file_=target, query=query, content_type=content_type, method='post')
 
         if response.status_code != 200:
             raise XNATResponseError('The response for uploading was ({}) {}'.format(response.status_code, response.text))
@@ -270,6 +280,10 @@ class Services(object):
         # Make sure that a None or empty string is replaced by the default
         method = method or 'zip_file'
 
+        # Make sure the directory is an existing directory
+        if not os.path.isdir(directory):
+            raise XNATValueError('The given directory argument ({}) is not a path to a valid directory!'.format(directory))
+
         content_type = 'application/zip'
         if method == 'zip_file':
             # Max-size is 256 MB
@@ -284,9 +298,9 @@ class Services(object):
             raise XNATValueError(message)
 
         fh.seek(0)
-        session = self.import_(fh, overwrite, quarantine, destination,
-                               trigger_pipelines, project, subject,
-                               experiment, content_type, import_handler=import_handler)
+        session = self.import_(data=fh, overwrite=overwrite, quarantine=quarantine, destination=destination,
+                               trigger_pipelines=trigger_pipelines, project=project, subject=subject,
+                               experiment=experiment, import_handler=import_handler)
         fh.close()
         return session
 

@@ -6,6 +6,29 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <http://keepachangelog.com/>`_
 and this project adheres to `Semantic Versioning <http://semver.org/>`_
 
+0.4.1 - 2022-02-22
+------------------
+
+Added
+~~~~~
+
+- New `connection.upload_file()` method that makes sure the argument is point to a valid file, avoiding
+  accidentally attempting to upload a string.
+
+Changed
+~~~~~~~
+
+- The `services.import_` method now has two mutually exclusive arguments for supplying data: `path` and
+  `data`. For a given `path` a check is done to see if it actually points to a valid file on the filesystem
+  for data it is just passed on to `upload`.
+
+Fixed
+~~~~~
+
+- Some fuctions depending on `services.import_` were broken because a check was added to see
+  if the data pointed to a file, not allowing in-memory data to be uploaded, breaking `import_dir`
+  methods.
+
 0.4.0 - 2022-01-27
 ------------------
 
