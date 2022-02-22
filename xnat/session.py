@@ -701,6 +701,9 @@ class BaseXNATSession(object):
         if not os.path.exists(path):
             raise FileNotFoundError("The file you are trying to upload does not exist.")
 
+        if not os.path.isfile(path):
+            raise FileNotFoundError("The path points to a non-file object")
+
         self.upload(uri=uri, file_=path, **kwargs)
 
     def upload(self, uri, file_, retries=1, query=None, content_type=None, method='put', overwrite=False, timeout=None):
