@@ -36,7 +36,7 @@ import time
 import requests
 import requests.cookies
 import urllib3
-from six.moves.urllib import parse
+from urllib import parse
 
 from . import exceptions
 from .session import XNATSession, BaseXNATSession

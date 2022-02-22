@@ -25,8 +25,6 @@ import os
 import re
 from xml.etree import ElementTree
 
-import six
-
 from . import core
 from . import mixin
 from .datatypes import TYPE_TO_PYTHON
@@ -57,7 +55,7 @@ import tempfile  # Needed by generated code
 from gzip import GzipFile  # Needed by generated code
 from tarfile import TarFile  # Needed by generated code
 from zipfile import ZipFile  # Needed by generated code
-from six import BytesIO  # Needed by generated code
+from io import BytesIO  # Needed by generated code
 
 from xnat import search, mixin
 from xnat.core import XNATObject, XNATNestedObject, XNATSubObject, XNATListing, XNATSimpleListing, XNATSubListing, caching
@@ -921,7 +919,7 @@ class ListingPropertyWriter(AttributeWriter):
         if self.element_class is not None:
             element_class = self.element_class
             property_base += element_class.writer.create_listing(secondary_lookup=secondary_lookup, field_name=field_name)
-        elif isinstance(self.type, six.string_types) and not self.type.startswith('xs:'):
+        elif isinstance(self.type, str) and not self.type.startswith('xs:'):
             element_class = self.parser.class_list[self.type]
             property_base += element_class.writer.create_listing(secondary_lookup=secondary_lookup, field_name=field_name)
         else:

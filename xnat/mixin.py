@@ -13,15 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-from __future__ import unicode_literals
 import os
 import tempfile
 from zipfile import ZipFile
 import tarfile
 import shutil
 
-from six import BytesIO
+from io import BytesIO
 
 from .core import caching, XNATBaseObject, XNATListing
 from .search import SearchField

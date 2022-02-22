@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-from __future__ import unicode_literals
 import datetime
 import io
 import netrc
@@ -25,8 +23,7 @@ import threading
 from progressbar import AdaptiveETA, AdaptiveTransferSpeed, Bar, BouncingBar, \
     DataSize, Percentage, ProgressBar, Timer, UnknownLength
 import requests
-import six
-from six.moves.urllib import parse
+from urllib import parse
 
 from . import exceptions
 from .core import XNATListing, caching
@@ -513,10 +510,6 @@ class BaseXNATSession(object):
         if format is not None:
             query['format'] = format
 
-        # Sanitize unicode in query
-        if six.PY2:
-            query = {k: v.encode('utf-8', 'xmlcharrefreplace') if isinstance(v, unicode) else v for k, v in query.items()}
-
         # Create the query string
         if len(query) > 0:
             query_string = parse.urlencode(query, doseq=True)
@@ -634,7 +627,7 @@ class BaseXNATSession(object):
         # Get the content length if available
         content_length = response.headers.get('Content-Length', None)
 
-        if isinstance(content_length, six.string_types):
+        if isinstance(content_length, str):
             content_length = int(content_length)
 
         if verbose and update_func is None:
@@ -744,7 +737,7 @@ class BaseXNATSession(object):
                     file_handle = file_
                     file_.seek(0)
                 # Make sure conditions are valid for os.path.isfile to function
-                elif isinstance(file_, six.string_types) and '\0' not in file_ and os.path.isfile(file_):
+                elif isinstance(file_, str) and '\0' not in file_ and os.path.isfile(file_):
                     # File is str path to file
                     file_handle = open(file_, 'rb')
                     opened_file = True

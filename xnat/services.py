@@ -13,17 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-from __future__ import unicode_literals
 import datetime
 import mimetypes
 import collections
 import os
 import tempfile
+from io import BytesIO
 from zipfile import ZipFile, ZIP_DEFLATED
-
-import six
-from six import BytesIO
 
 from .core import XNATBaseObject
 from .prearchive import PrearchiveSession
@@ -176,7 +172,7 @@ class Services(object):
                 raise FileNotFoundError("The file you are trying to import does not exist.")
 
             # Get mimetype of file
-            if content_type is None and isinstance(path, six.string_types):
+            if content_type is None and isinstance(path, str):
                 content_type = self.guess_content_type(path)
 
             target = path

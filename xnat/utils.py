@@ -13,22 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-from __future__ import unicode_literals
-
 import re
 import keyword
 from functools import update_wrapper
+from io import BytesIO,BufferedIOBase, SEEK_SET, SEEK_END
 
-import six
 from requests.auth import AuthBase
 
-if six.PY3:
-    from io import BufferedIOBase, SEEK_SET, SEEK_END
-    superclass = BufferedIOBase
-else:
-    from os import SEEK_SET, SEEK_END
-    superclass = object
+superclass = BufferedIOBase
 
 
 class JSessionAuth(AuthBase):
@@ -40,7 +32,7 @@ class JSessionAuth(AuthBase):
         return r
 
 
-class mixedproperty(object):
+class mixedproperty:
     """
     A special property-like class that can act as a property for a class as
     well as a property for an object. These properties can have different
@@ -97,7 +89,7 @@ class mixedproperty(object):
         return type(self)(self.fcget, self.fget, self.fset, fdel)
 
 
-def pythonize_class_name(name):
+def pythonize_class_name(name: str) -> str:
     """
     Turns string into a valid PEP8 class name, meaning camel cased
     (e.g. someValue -> SomeValue)
@@ -115,7 +107,7 @@ def pythonize_class_name(name):
     return name
 
 
-def pythonize_attribute_name(name):
+def pythonize_attribute_name(name: str) -> str:
     """
     Turns string into a valid PEP8 class name, meaning lower case with
     underscores when needed (e.g. someValue -> some_value)
@@ -144,7 +136,7 @@ def pythonize_attribute_name(name):
 
 class RequestsFileLike(object):
     def __init__(self, request, chunk_size=512*1024):
-        self._bytes = six.BytesIO()
+        self._bytes = BytesIO()
         self._request = request
         self._iterator = request.iter_content(chunk_size)
 
@@ -193,7 +185,7 @@ class RequestsFileLike(object):
         self._request.close()
 
 
-def full_class_name(cls):
+def full_class_name(cls) -> str:
     module = cls.__module__
 
     if module is None or module == str.__module__:
