@@ -19,6 +19,7 @@ import netrc
 import os
 import re
 import threading
+from typing import Dict, Optional, Tuple, Iterable, Union
 
 from progressbar import AdaptiveETA, AdaptiveTransferSpeed, Bar, BouncingBar, \
     DataSize, Percentage, ProgressBar, Timer, UnknownLength
@@ -212,11 +213,11 @@ class BaseXNATSession(object):
         self.classes = None
 
     @property
-    def keepalive(self):
+    def keepalive(self) -> bool:
         return self._keepalive
 
     @keepalive.setter
-    def keepalive(self, value):
+    def keepalive(self, value: Union[bool, int]):
         if isinstance(value, int):
             if value > 0:
                 self._keepalive_interval = value
@@ -254,38 +255,38 @@ class BaseXNATSession(object):
             self.logger.debug('Keep-alive thread ended')
 
     @property
-    def logged_in_user(self):
+    def logged_in_user(self) -> str:
         return self._logged_in_user
 
     @property
-    def jsession(self):
+    def jsession(self) -> str:
         return self._jsession
 
     @property
-    def debug(self):
+    def debug(self) -> bool:
         return self._debug
 
     @property
-    def interface(self):
+    def interface(self) -> requests.Session:
         """
         The underlying `requests <https://requests.readthedocs.org>`_ interface used.
         """
         return self._interface
 
     @property
-    def uri(self):
+    def uri(self) -> str:
         return '/data/archive'
 
     @property
-    def fulluri(self):
+    def fulluri(self) -> str:
         return self.uri
 
     @property
-    def xnat_session(self):
+    def xnat_session(self) -> 'BaseXNATSession':
         return self
 
     @property
-    def session_expiration_time(self):
+    def session_expiration_time(self) -> Optional[Tuple[datetime.datetime, int]]:
         """
         Get the session expiration time information from the cookies. This
         returns the timestamp (datetime format) when the session was created
@@ -310,17 +311,29 @@ class BaseXNATSession(object):
         expiration_interval = int(match.group('interval')) / 1000
         return session_timestamp, expiration_interval
 
-    def _check_response(self, response, accepted_status=None, uri=None):
+    def _check_response(self,
+                        response: requests.Response,
+                        accepted_status: Optional[Iterable[int]] = None,
+                        uri: Optional[str] = None):
         if self.debug:
-            self.logger.debug('Received response with status code: {}'.format(response.status_code))
+            self.logger.debug(f'Received response with status code: {response.status_code}.')
+
+        # Make sure the contains is available
+        accepted_status = list(accepted_status)
 
         if not self.skip_response_check:
             if accepted_status is None:
                 accepted_status = [200, 201, 202, 203, 204, 205, 206]  # All successful responses of HTML
             if response.status_code not in accepted_status:
-                raise exceptions.XNATResponseError('Invalid status for response from XNATSession for url {} (status {}, accepted status: {})'.format(uri, response.status_code, accepted_status))
+                raise exceptions.XNATResponseError(
+                    f'Invalid status for response from XNATSession for url {uri}'
+                    f' (status {response.status_code}, accepted status:'
+                    f' {accepted_status})')
             if (not self.skip_response_content_check) and response.text.startswith(('<!DOCTYPE', '<html>')):
-                raise exceptions.XNATResponseError('Invalid content in response from XNATSession for url {} (status {}):\n{}'.format(uri, response.status_code, response.text))
+                raise exceptions.XNATResponseError(
+                    f'Invalid content in response from XNATSession for url {uri}'
+                    f' (status {response.status_code}):\n{response.text}'
+                )
 
     def _check_connection(self):
         """
@@ -331,7 +344,13 @@ class BaseXNATSession(object):
             self.logger.error(message)
             raise XNATNotConnectedError(message)
 
-    def get(self, path, format=None, query=None, accepted_status=None, timeout=None, headers=None):
+    def get(self,
+            path: str,
+            format: Optional[str] = None,
+            query: Optional[Dict[str, str]] = None,
+            accepted_status: Optional[Iterable[int]] = None,
+            timeout: Optional[Union[float, Tuple[float, float]]] = None,
+            headers: Optional[Dict[str, str]] = None):
         """
         Retrieve the content of a given REST directory.
 
@@ -352,7 +371,7 @@ class BaseXNATSession(object):
         uri = self._format_uri(path, format, query=query)
         timeout = timeout or self.request_timeout
 
-        self.logger.info('GET URI {}'.format(uri))
+        self.logger.info(f'GET URI {uri}')
 
         try:
             response = self.interface.get(uri, timeout=timeout, headers=headers)
