@@ -18,9 +18,8 @@ import keyword
 from functools import update_wrapper
 from io import BytesIO,BufferedIOBase, SEEK_SET, SEEK_END
 
+import requests
 from requests.auth import AuthBase
-
-superclass = BufferedIOBase
 
 
 class JSessionAuth(AuthBase):
@@ -134,17 +133,13 @@ def pythonize_attribute_name(name: str) -> str:
     return name
 
 
-class RequestsFileLike(object):
-    def __init__(self, request, chunk_size=512*1024):
+class RequestsFileLike(BufferedIOBase):
+    def __init__(self,
+                 request_response: requests.Response,
+                 chunk_size: int = 512*1024):
         self._bytes = BytesIO()
-        self._request = request
-        self._iterator = request.iter_content(chunk_size)
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+        self._request_response = request_response
+        self._iterator = request_response.iter_content(chunk_size)
 
     def _load_all(self):
         self._bytes.seek(0, SEEK_END)
@@ -159,8 +154,17 @@ class RequestsFileLike(object):
             except StopIteration:
                 break
 
-    def tell(self):
+    def fileno(self) -> int:
+        raise OSError('No fileno used for RequestFileLike')
+
+    def tell(self) -> int:
         return self._bytes.tell()
+
+    def readable(self) -> bool:
+        return True
+
+    def seekable(self) -> bool:
+        return True
 
     def read(self, size=None):
         current_position = self._bytes.tell()
@@ -174,7 +178,7 @@ class RequestsFileLike(object):
         self._bytes.seek(current_position)
         return self._bytes.read(size)
 
-    def seek(self, position, whence=SEEK_SET):
+    def seek(self, position: int, whence: int = SEEK_SET):
         if whence == SEEK_END:
             self._load_all()
         else:
@@ -182,7 +186,7 @@ class RequestsFileLike(object):
 
     def close(self):
         self._bytes.close()
-        self._request.close()
+        self._request_response.close()
 
 
 def full_class_name(cls) -> str:

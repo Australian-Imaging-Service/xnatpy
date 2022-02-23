@@ -16,10 +16,11 @@
 import datetime
 import io
 import netrc
+from pathlib import Path
 import os
 import re
 import threading
-from typing import Dict, Optional, Tuple, Iterable, Union
+from typing import Any, BinaryIO, Callable, Container, Dict, List, Optional, Tuple, Union
 
 from progressbar import AdaptiveETA, AdaptiveTransferSpeed, Bar, BouncingBar, \
     DataSize, Percentage, ProgressBar, Timer, UnknownLength
@@ -27,17 +28,14 @@ import requests
 from urllib import parse
 
 from . import exceptions
-from .core import XNATListing, caching
+from .core import XNATBaseObject, XNATListing, caching
 from .inspect import Inspect
 from .prearchive import Prearchive
 from .users import Users
 from .services import Services
 from .exceptions import XNATValueError, XNATNotConnectedError
 
-try:
-    FILE_TYPES = (file, io.IOBase)
-except NameError:
-    FILE_TYPES = io.IOBase
+TimeoutType = Optional[Union[float, Tuple[float, float]]]
 
 
 class BaseXNATSession(object):
@@ -286,7 +284,7 @@ class BaseXNATSession(object):
         return self
 
     @property
-    def session_expiration_time(self) -> Optional[Tuple[datetime.datetime, int]]:
+    def session_expiration_time(self) -> Optional[Tuple[datetime.datetime, float]]:
         """
         Get the session expiration time information from the cookies. This
         returns the timestamp (datetime format) when the session was created
@@ -313,13 +311,10 @@ class BaseXNATSession(object):
 
     def _check_response(self,
                         response: requests.Response,
-                        accepted_status: Optional[Iterable[int]] = None,
+                        accepted_status: Optional[Container[int]] = None,
                         uri: Optional[str] = None):
         if self.debug:
             self.logger.debug(f'Received response with status code: {response.status_code}.')
-
-        # Make sure the contains is available
-        accepted_status = list(accepted_status)
 
         if not self.skip_response_check:
             if accepted_status is None:
@@ -348,22 +343,20 @@ class BaseXNATSession(object):
             path: str,
             format: Optional[str] = None,
             query: Optional[Dict[str, str]] = None,
-            accepted_status: Optional[Iterable[int]] = None,
-            timeout: Optional[Union[float, Tuple[float, float]]] = None,
-            headers: Optional[Dict[str, str]] = None):
+            accepted_status: Optional[Container[int]] = None,
+            timeout: TimeoutType = None,
+            headers: Optional[Dict[str, str]] = None) -> requests.Response:
         """
         Retrieve the content of a given REST directory.
 
-        :param str path: the path of the uri to retrieve (e.g. "/data/archive/projects")
-                         the remained for the uri is constructed automatically
-        :param str format: the format of the request, this will add the format= to the query string
-        :param dict query: the values to be added to the query string in the uri
-        :param list accepted_status: a list of the valid values for the return code, default [200]
+        :param path: the path of the uri to retrieve (e.g. "/data/archive/projects")
+                     the remained for the uri is constructed automatically
+        :param format: the format of the request, this will add the format= to the query string
+        :param query: the values to be added to the query string in the uri
+        :param accepted_status: a list of the valid values for the return code, default [200]
         :param timeout: timeout in seconds, float or (connection timeout, read timeout)
-        :type timeout: float or tuple
-        :param dict headers: the HTTP headers to include
+        :param headers: the HTTP headers to include
         :returns: the requests reponse
-        :rtype: requests.Response
         """
         self._check_connection()
 
@@ -380,19 +373,22 @@ class BaseXNATSession(object):
         self._check_response(response, accepted_status=accepted_status, uri=uri)  # Allow OK, as we want to get data
         return response
 
-    def head(self, path, accepted_status=None, allow_redirects=False, timeout=None, headers=None):
+    def head(self,
+             path: str,
+             accepted_status: Optional[Container[int]] = None,
+             allow_redirects: bool = False,
+             timeout: TimeoutType = None,
+             headers: Optional[Dict[str, str]] = None) -> requests.Response:
         """
         Retrieve the header for a http request of a given REST directory.
 
-        :param str path: the path of the uri to retrieve (e.g. "/data/archive/projects")
+        :param path: the path of the uri to retrieve (e.g. "/data/archive/projects")
                          the remained for the uri is constructed automatically
-        :param list accepted_status: a list of the valid values for the return code, default [200]
-        :param bool allow_redirects: allow you request to be redirected
+        :param accepted_status: a list of the valid values for the return code, default [200]
+        :param allow_redirects: allow you request to be redirected
         :param timeout: timeout in seconds, float or (connection timeout, read timeout)
-        :type timeout: float or tuple
-        :param dict headers: the HTTP headers to include
+        :param headers: the HTTP headers to include
         :returns: the requests reponse
-        :rtype: requests.Response
         """
         self._check_connection()
 
@@ -409,22 +405,28 @@ class BaseXNATSession(object):
         self._check_response(response, accepted_status=accepted_status, uri=uri)  # Allow OK, as we want to get data
         return response
 
-    def post(self, path, data=None, json=None, format=None, query=None, accepted_status=None, timeout=None, headers=None):
+    def post(self,
+             path: str,
+             data: Optional[Any] = None,
+             json: Optional[Any] = None,
+             format: Optional[str] = None,
+             query: Optional[Dict[str, str]] = None,
+             accepted_status: Optional[Container[int]] = None,
+             timeout: TimeoutType = None,
+             headers: Optional[Dict[str, str]] = None) -> requests.Response:
         """
         Post data to a given REST directory.
 
-        :param str path: the path of the uri to retrieve (e.g. "/data/archive/projects")
+        :param path: the path of the uri to retrieve (e.g. "/data/archive/projects")
                          the remained for the uri is constructed automatically
         :param data: Dictionary, bytes, or file-like object to send in the body of the :class:`Request`.
         :param json: json data to send in the body of the :class:`Request`.
-        :param str format: the format of the request, this will add the format= to the query string
-        :param dict query: the values to be added to the query string in the uri
-        :param list accepted_status: a list of the valid values for the return code, default [200, 201]
+        :param format: the format of the request, this will add the format= to the query string
+        :param query: the values to be added to the query string in the uri
+        :param accepted_status: a list of the valid values for the return code, default [200, 201]
         :param timeout: timeout in seconds, float or (connection timeout, read timeout)
-        :type timeout: float or tuple
-        :param dict headers: the HTTP headers to include
+        :param headers: the HTTP headers to include
         :returns: the requests reponse
-        :rtype: requests.Response
         """
         self._check_connection()
 
@@ -443,11 +445,20 @@ class BaseXNATSession(object):
         self._check_response(response, accepted_status=accepted_status, uri=uri)
         return response
 
-    def put(self, path, data=None, files=None, json=None, format=None, query=None, accepted_status=None, timeout=None, headers=None):
+    def put(self,
+            path: str,
+            data: Optional[Any] = None,
+            files: Optional[Any] = None,
+            json: Optional[Any] = None,
+            format: Optional[str] = None,
+            query: Optional[Dict[str, str]] = None,
+            accepted_status: Optional[Container[int]] = None,
+            timeout: TimeoutType = None,
+            headers: Optional[Dict[str, str]] = None) -> requests.Response:
         """
         Put the content of a given REST directory.
 
-        :param str path: the path of the uri to retrieve (e.g. "/data/archive/projects")
+        :param path: the path of the uri to retrieve (e.g. "/data/archive/projects")
                          the remained for the uri is constructed automatically
         :param data: Dictionary, bytes, or file-like object to send in the body of the :class:`Request`.
         :param json: json data to send in the body of the :class:`Request`.
@@ -456,14 +467,12 @@ class BaseXNATSession(object):
                       or a 4-tuple ``('filename', fileobj, 'content_type', custom_headers)``, where ``'content-type'`` is a string
                       defining the content type of the given file and ``custom_headers`` a dict-like object containing additional headers
                       to add for the file.
-        :param str format: the format of the request, this will add the format= to the query string
-        :param dict query: the values to be added to the query string in the uri
-        :param list accepted_status: a list of the valid values for the return code, default [200, 201]
+        :param format: the format of the request, this will add the format= to the query string
+        :param query: the values to be added to the query string in the uri
+        :param accepted_status: a list of the valid values for the return code, default [200, 201]
         :param timeout: timeout in seconds, float or (connection timeout, read timeout)
-        :type timeout: float or tuple
         :param dict headers: the HTTP headers to include
         :returns: the requests reponse
-        :rtype: requests.Response
         """
         self._check_connection()
 
@@ -483,19 +492,22 @@ class BaseXNATSession(object):
         self._check_response(response, accepted_status=accepted_status, uri=uri)  # Allow created OK or Create status (OK if already exists)
         return response
 
-    def delete(self, path, headers=None, accepted_status=None, query=None, timeout=None):
+    def delete(self,
+               path: str,
+               headers: Optional[Dict[str, str]] = None,
+               accepted_status: Optional[Container[int]] = None,
+               query: Optional[Dict[str, str]] = None,
+               timeout: TimeoutType = None) -> requests.Response:
         """
         Delete the content of a given REST directory.
 
-        :param str path: the path of the uri to retrieve (e.g. "/data/archive/projects")
+        :param path: the path of the uri to retrieve (e.g. "/data/archive/projects")
                          the remained for the uri is constructed automatically
-        :param dict headers: the HTTP headers to include
-        :param dict query: the values to be added to the query string in the uri
-        :param list accepted_status: a list of the valid values for the return code, default [200]
+        :param headers: the HTTP headers to include
+        :param query: the values to be added to the query string in the uri
+        :param accepted_status: a list of the valid values for the return code, default [200]
         :param timeout: timeout in seconds, float or (connection timeout, read timeout)
-        :type timeout: float or tuple
         :returns: the requests reponse
-        :rtype: requests.Response
         """
         self._check_connection()
 
@@ -514,7 +526,11 @@ class BaseXNATSession(object):
         self._check_response(response, accepted_status=accepted_status, uri=uri)
         return response
 
-    def _format_uri(self, path, format=None, query=None, scheme=None):
+    def _format_uri(self,
+                    path: str,
+                    format: Optional[str] = None,
+                    query: Optional[Dict[str, str]] = None,
+                    scheme: Optional[str] = None) -> str:
         if path[0] != '/':
 
             if self._original_uri is not None and path.startswith(self._original_uri):
@@ -544,24 +560,31 @@ class BaseXNATSession(object):
 
         return parse.urlunparse(data)
 
-    def url_for(self, obj, query=None, scheme=None):
+    def url_for(self,
+                obj: XNATBaseObject,
+                query: Optional[Dict[str, str]] = None,
+                scheme: Optional[str] = None) -> str:
         """
         Return the (external) url for a given XNAT object
-        :param XNATBaseObject obj: object to get url for
+        :param obj: object to get url for
         :param query: extra query string parameters
         :param scheme: scheme to use (when not using original url scheme)
         :return: external url for the object
         """
         return self._format_uri(obj.fulluri, query=query, scheme=scheme)
 
-    def get_json(self, uri, query=None, accepted_status=None):
+    def get_json(self,
+                 uri: str,
+                 query: Optional[Dict[str, str]] = None,
+                 accepted_status: Optional[Container[int]] = None) -> Any:
         """
         Helper function that perform a GET, but sets the format to JSON and
         parses the result as JSON
 
-        :param str uri: the path of the uri to retrieve (e.g. "/data/archive/projects")
+        :param uri: the path of the uri to retrieve (e.g. "/data/archive/projects")
                          the remained for the uri is constructed automatically
-        :param dict query: the values to be added to the query string in the uri
+        :param query: the values to be added to the query string in the uri
+        :param accepted_status: a list of the valid values for the return code, default [200]
         """
         response = self.get(uri, format='json', query=query, accepted_status=accepted_status)
         try:
@@ -607,30 +630,36 @@ class BaseXNATSession(object):
             else:
                 raise XNATValueError('Could not decode JSON from [{}] {}'.format(uri, response.text))
 
-    def download_stream(self, uri, target_stream, format=None, verbose=False, chunk_size=524288, update_func=None, timeout=None):
+    def download_stream(self,
+                        uri: str,
+                        target_stream: BinaryIO,
+                        format: Optional[str] = None,
+                        verbose: bool = False,
+                        chunk_size: int = 524288,
+                        update_func: Optional[Callable[[int, Optional[int], bool], None]] = None,
+                        timeout: TimeoutType = None):
         """
         Download the given ``uri`` to the given ``target_stream``.
 
-        :param str uri:            Path of the uri to retrieve.
-        :param file target_stream: A writable file-like object to save the
-                                   stream to.
-        :param str format:         Request format
-        :param bool verbose:       If ``True``, and an ``update_func`` is not
-                                   specified, a progress bar is shown on
-                                   stdout.
-        :param int chunk_size:     Download this many bytes at a time
-        :param func update_func:   If provided, will be called every
-                                   ``chunk_size`` bytes. Must accept three
-                                   parameters:
+        :param uri:           Path of the uri to retrieve.
+        :param target_stream: A writable file-like object to save the
+                              stream to.
+        :param format:         Request format
+        :param verbose:       If ``True``, and an ``update_func`` is not
+                              specified, a progress bar is shown on
+                              stdout.
+        :param chunk_size:     Download this many bytes at a time
+        :param update_func:   If provided, will be called every
+                              ``chunk_size`` bytes. Must accept three
+                              parameters:
 
-                                     - the number of bytes downloaded so far
-                                     - the total number of bytes to be
-                                       downloaded (might be ``None``),
-                                     - A boolean flag which is ``False`` during
-                                       the download, and ``True`` when the
-                                       download has completed (or failed)
+                                - the number of bytes downloaded so far
+                                - the total number of bytes to be
+                                  downloaded (might be ``None``),
+                                - A boolean flag which is ``False`` during
+                                  the download, and ``True`` when the
+                                  download has completed (or failed)
         :param timeout: timeout in seconds, float or (connection timeout, read timeout)
-        :type timeout: float or tuple
         """
         self._check_connection()
 
@@ -651,7 +680,7 @@ class BaseXNATSession(object):
 
         if verbose and update_func is None:
             update_func = default_update_func(content_length)
-        if update_func is None:
+        elif update_func is None:
             update_func = lambda *args: None
 
         if verbose:
@@ -671,7 +700,12 @@ class BaseXNATSession(object):
         finally:
             update_func(bytes_read, content_length, True)
 
-    def download(self, uri, target, format=None, verbose=True, timeout=None):
+    def download(self,
+                 uri: str,
+                 target: Union[str, Path],
+                 format: Optional[str] = None,
+                 verbose: bool = True,
+                 timeout: TimeoutType = None):
         """
         Download uri to a target file
         """
@@ -683,15 +717,19 @@ class BaseXNATSession(object):
         if verbose:
             self.logger.info('\nSaved as {}...'.format(target))
 
-    def download_zip(self, uri, target, verbose=True, timeout=None):
+    def download_zip(self,
+                     uri: str,
+                     target: Union[str, Path],
+                     verbose: bool = True,
+                     timeout: TimeoutType = None):
         """
         Download uri to a target zip file
         """
         self.download(uri, target, format='zip', verbose=verbose, timeout=timeout)
 
     def upload_file(self,
-                    uri,
-                    path,
+                    uri: str,
+                    path: Union[str, Path],
                     **kwargs):
         """
         Upload data or a file to XNAT
@@ -710,31 +748,40 @@ class BaseXNATSession(object):
         :return:
         """
 
-        if not os.path.exists(path):
+        if isinstance(path, str):
+            path = Path(path)
+
+        if not path.exists():
             raise FileNotFoundError("The file you are trying to upload does not exist.")
 
-        if not os.path.isfile(path):
+        if not path.is_file():
             raise FileNotFoundError("The path points to a non-file object")
 
         self.upload(uri=uri, file_=path, **kwargs)
 
-    def upload(self, uri, file_, retries=1, query=None, content_type=None, method='put', overwrite=False, timeout=None):
+    def upload(self,
+               uri: str,
+               file_: Any,
+               retries: int = 1,
+               query: Optional[Dict[str, str]] = None,
+               content_type: Optional[str] = None,
+               method: str = 'put',
+               overwrite: bool = False,
+               timeout: TimeoutType = None):
         """
         Upload data or a file to XNAT
 
-        :param str uri: uri to upload to
+        :param uri: uri to upload to
         :param file_: the file handle, path to a file or a string of data
                       (which should not be the path to an existing file!)
-        :param int retries: amount of times xnatpy should retry in case of
-                            failure
-        :param dict query: extra query string content
+        :param retries: amount of times xnatpy should retry in case of
+                        failure
+        :param query: extra query string content
         :param content_type: the content type of the file, if not given it will
                              default to ``application/octet-stream``
-        :param str method: either ``put`` (default) or ``post``
-        :param bool overwrite: indicate if previous data should be overwritten
+        :param method: either ``put`` (default) or ``post``
+        :param overwrite: indicate if previous data should be overwritten
         :param timeout: timeout in seconds, float or (connection timeout, read timeout)
-        :type timeout: float or tuple
-        :return:
         """
         self._check_connection()
 
@@ -751,10 +798,13 @@ class BaseXNATSession(object):
 
         try:
             while attempt < retries:
-                if isinstance(file_, FILE_TYPES):
+                if isinstance(file_, io.IOBase):
                     # File is open file handle, seek to 0
                     file_handle = file_
                     file_.seek(0)
+                elif isinstance(file_, Path):
+                    file_handle = file_.open('rb')
+                    opened_file = True
                 # Make sure conditions are valid for os.path.isfile to function
                 elif isinstance(file_, str) and '\0' not in file_ and os.path.isfile(file_):
                     # File is str path to file
@@ -766,19 +816,20 @@ class BaseXNATSession(object):
 
                 attempt += 1
 
-                try:
-                    # Set the content type header
-                    if content_type is None:
-                        headers = {'Content-Type': 'application/octet-stream'}
-                    else:
-                        headers = {'Content-Type': content_type}
+                # Set the content type header
+                if content_type is None:
+                    headers = {'Content-Type': 'application/octet-stream'}
+                else:
+                    headers = {'Content-Type': content_type}
 
+                try:
                     if method == 'put':
                         response = self.interface.put(uri, data=file_handle, headers=headers, timeout=timeout)
                     elif method == 'post':
                         response = self.interface.post(uri, data=file_handle, headers=headers, timeout=timeout)
                     else:
                         raise ValueError('Invalid upload method "{}" should be either put or post.'.format(method))
+
                     self._check_response(response)
                     return response
                 except exceptions.XNATResponseError:
@@ -788,10 +839,11 @@ class BaseXNATSession(object):
                 file_handle.close()
 
         # We didn't return correctly, so we have an error
-        raise exceptions.XNATUploadError('Upload failed after {} attempts! Status code {}, response text {}'.format(retries, response.status_code, response.text))
+        raise exceptions.XNATUploadError(f'Upload failed after {retries} attempts! Status code'
+                                         f' {response.status_code}, response text {response.text}')
 
     @property
-    def scanners(self):
+    def scanners(self) -> List:
         """
         A list of scanners referenced in XNATSession
         """
@@ -806,7 +858,7 @@ class BaseXNATSession(object):
 
     @property
     @caching
-    def xnat_version(self):
+    def xnat_version(self) -> str:
         """
         The version of the XNAT server
         """
@@ -817,18 +869,21 @@ class BaseXNATSession(object):
             # XNAT SERVER 1.7.x
             return self.get_json('/xapi/siteConfig/buildInfo')['version']
 
-    def create_object(self, uri, type_=None, fieldname=None, **kwargs):
+    def create_object(self,
+                      uri: str,
+                      type_: Optional[str] = None,
+                      fieldname: Optional[str] = None,
+                      **kwargs) -> XNATBaseObject:
         """
         Create an xnatpy object for a given uri. This does **not** create anything server sided, but rather
         wraps and uri (and optionally data) in an object. It allows you to create an xnatpy object from an
         arbitrary uri to something on the xnat server and continue as normal from there on.
 
-        :param str uri: url of the object
-        :param str type_: the xsi_type to select the object type (this is option, by default it will be auto retrieved)
+        :param uri: url of the object
+        :param type_: the xsi_type to select the object type (this is option, by default it will be auto retrieved)
         :param fieldname: indicate the name of the field that was used to retrieved this object
         :param kwargs: arguments to pass to object creation
         :return: newly created xnatpy object
-        :rtype: XNATObject
         """
         if (uri, fieldname) not in self._cache['__objects__']:
             if type_ is None:
@@ -868,14 +923,14 @@ class BaseXNATSession(object):
 
         return self._cache['__objects__'][uri, fieldname]
 
-    def remove_object(self, obj):
+    def remove_object(self, obj: XNATBaseObject):
         # Remove object from cache (so re-creation won't use cache object)
         XNATListing.delete_item_from_listings(obj)
         del self._cache['__objects__'][obj.uri, obj.fieldname]
 
     @property
     @caching
-    def projects(self):
+    def projects(self) -> XNATListing:
         """
         Listing of all projects on the XNAT server
 
@@ -891,7 +946,7 @@ class BaseXNATSession(object):
 
     @property
     @caching
-    def subjects(self):
+    def subjects(self) -> XNATListing:
         """
         Listing of all subjects on the XNAT server
 
@@ -907,7 +962,7 @@ class BaseXNATSession(object):
 
     @property
     @caching
-    def experiments(self):
+    def experiments(self) -> XNATListing:
         """
         Listing of all experiments on the XNAT server
 
@@ -921,21 +976,21 @@ class BaseXNATSession(object):
                            secondary_lookup_field='label')
 
     @property
-    def prearchive(self):
+    def prearchive(self) -> Prearchive:
         """
         Representation of the prearchive on the XNAT server, see :py:mod:`xnat.prearchive`
         """
         return self._prearchive
 
     @property
-    def users(self):
+    def users(self) -> Users:
         """
         Representation of the users registered on the XNAT server
         """
         return self._users
 
     @property
-    def services(self):
+    def services(self) -> Services:
         """
         Collection of services, see :py:mod:`xnat.services`
         """
@@ -949,7 +1004,7 @@ class BaseXNATSession(object):
         self._cache['__objects__'] = {}
 
 
-def default_update_func(total):
+def default_update_func(total) -> Callable[[str, str, bool], None]:
     """
     Set up a default update function to be used by the
     :class:`Session.download_stream` method. This function configures a

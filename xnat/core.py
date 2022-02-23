@@ -13,12 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-from __future__ import unicode_literals
-from abc import ABCMeta, abstractproperty
+from abc import ABCMeta, abstractmethod
 from collections import namedtuple, OrderedDict
 import csv
-from six.moves.collections_abc import MutableMapping, MutableSequence, Mapping, Sequence
+from collections.abc import MutableMapping, MutableSequence, Mapping, Sequence
 import fnmatch
 import keyword
 import re
@@ -295,7 +293,8 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
     def __repr__(self):
         return str(self)
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def xpath(self):
         """
         The xpath of the object as seen from the root of the data. Used for
@@ -420,13 +419,15 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
         else:
             return '#NOID#'
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def data(self):
         """
         The data of the current object (data fields only)
         """
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def fulldata(self):
         """
         The full data of the current object (incl children, meta etc)
@@ -674,7 +675,8 @@ class XNATBaseListing(Mapping, Sequence):
     def xnat_session(self):
         return self._xnat_session
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def data_maps(self):
         """
         The generator function (should be cached) of all the data access
@@ -710,7 +712,8 @@ class XNATBaseListing(Mapping, Sequence):
         """
         return self.data_maps[3]
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def xnat_session(self):
         pass
 
