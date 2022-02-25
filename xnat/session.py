@@ -33,9 +33,8 @@ from .inspect import Inspect
 from .prearchive import Prearchive
 from .users import Users
 from .services import Services
+from .type_hints import TimeoutType, JSONType
 from .exceptions import XNATValueError, XNATNotConnectedError
-
-TimeoutType = Optional[Union[float, Tuple[float, float]]]
 
 
 class BaseXNATSession(object):
@@ -408,7 +407,7 @@ class BaseXNATSession(object):
     def post(self,
              path: str,
              data: Optional[Any] = None,
-             json: Optional[Any] = None,
+             json: Optional[JSONType] = None,
              format: Optional[str] = None,
              query: Optional[Dict[str, str]] = None,
              accepted_status: Optional[Container[int]] = None,
@@ -449,7 +448,7 @@ class BaseXNATSession(object):
             path: str,
             data: Optional[Any] = None,
             files: Optional[Any] = None,
-            json: Optional[Any] = None,
+            json: Optional[JSONType] = None,
             format: Optional[str] = None,
             query: Optional[Dict[str, str]] = None,
             accepted_status: Optional[Container[int]] = None,
@@ -576,7 +575,7 @@ class BaseXNATSession(object):
     def get_json(self,
                  uri: str,
                  query: Optional[Dict[str, str]] = None,
-                 accepted_status: Optional[Container[int]] = None) -> Any:
+                 accepted_status: Optional[Container[int]] = None) -> JSONType:
         """
         Helper function that perform a GET, but sets the format to JSON and
         parses the result as JSON

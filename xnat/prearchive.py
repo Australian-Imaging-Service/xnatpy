@@ -14,24 +14,32 @@
 # limitations under the License.
 
 import datetime
+from pathlib import Path
 import re
+from typing import Any, List, Optional, Union, TYPE_CHECKING
 
 import isodate
+import requests
 
 from .core import XNATBaseObject, caching
 from .datatypes import to_date, to_time
 from .utils import RequestsFileLike
+from .type_hints import JSONType
+
+if TYPE_CHECKING:
+    from .session import BaseXNATSession
 
 try:
     PYDICOM_LOADED = True
     import pydicom
 except ImportError:
     PYDICOM_LOADED = False
+    pydicom = None
 
 
 class PrearchiveSession(XNATBaseObject):
     @property
-    def id(self):
+    def id(self) -> str:
         """
         A unique ID for the session in the prearchive
         :return:
@@ -39,14 +47,14 @@ class PrearchiveSession(XNATBaseObject):
         return '{}/{}/{}'.format(self.data['project'], self.data['timestamp'], self.data['name'])
 
     @property
-    def xpath(self):
+    def xpath(self) -> str:
         return "xnatpy:prearchiveSession"
 
     @property
-    def fulldata(self):
+    def fulldata(self) -> JSONType:
         # There is a bug in 1.7.0-1.7.2 that misses a route in the REST API
         # this should be fixed from 1.7.3 onward
-        if re.match('^1\.7\.[0-2]', self.xnat_session.xnat_version):
+        if re.match(r'^1\.7\.[0-2]', self.xnat_session.xnat_version):
             # Find the xnat prearchive project uri
             project_uri = self.uri.rsplit('/', 2)[0]
 
@@ -63,7 +71,7 @@ class PrearchiveSession(XNATBaseObject):
 
     @property
     @caching
-    def data(self):
+    def data(self) -> JSONType:
         return self.fulldata
 
     @property
@@ -71,20 +79,20 @@ class PrearchiveSession(XNATBaseObject):
         return self.data['autoarchive']
 
     @property
-    def folder_name(self):
+    def folder_name(self) -> str:
         return self.data['folderName']
 
     @property
-    def lastmod(self):
+    def lastmod(self) -> datetime.datetime:
         lastmod_string = self.data['lastmod']
         return datetime.datetime.strptime(lastmod_string, '%Y-%m-%d %H:%M:%S.%f')
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self.data['name']
 
     @property
-    def label(self):
+    def label(self) -> str:
         return self.name
 
     @property
@@ -96,29 +104,29 @@ class PrearchiveSession(XNATBaseObject):
         return self.data['prevent_auto_commit']
 
     @property
-    def project(self):
+    def project(self) -> str:
         return self.data['project']
 
     @property
-    def scan_date(self):
+    def scan_date(self) -> Optional[datetime.date]:
         try:
             return to_date(self.data['scan_date'])
         except isodate.ISO8601Error:
             return None
 
     @property
-    def scan_time(self):
+    def scan_time(self) -> Optional[datetime.time]:
         try:
             return to_time(self.data['scan_time'])
         except isodate.ISO8601Error:
             return None
 
     @property
-    def status(self):
+    def status(self) -> str:
         return self.data['status']
 
     @property
-    def subject(self):
+    def subject(self) -> str:
         return self.data['subject']
 
     @property
@@ -130,7 +138,7 @@ class PrearchiveSession(XNATBaseObject):
         return self.data['timestamp']
 
     @property
-    def uploaded(self):
+    def uploaded(self) -> Optional[datetime.datetime]:
         """
         Datetime when the session was uploaded
         """
@@ -141,7 +149,7 @@ class PrearchiveSession(XNATBaseObject):
             return None
 
     @property
-    def scans(self):
+    def scans(self) -> List['PrearchiveScan']:
         """
         List of scans in the prearchive session
         """
@@ -153,7 +161,8 @@ class PrearchiveSession(XNATBaseObject):
                                id_=x['ID'],
                                datafields=x) for x in data['ResultSet']['Result']]
 
-    def download(self, path):
+    def download(self,
+                 path: Union[Path, str]):
         """
         Method to download the zip of the prearchive session
 
@@ -164,19 +173,23 @@ class PrearchiveSession(XNATBaseObject):
         self.xnat_session.download_zip(self.uri, path)
         return path
 
-    def archive(self, overwrite=None, quarantine=None, trigger_pipelines=None,
-                project=None, subject=None, experiment=None):
+    def archive(self,
+                overwrite: str = None,
+                quarantine: bool = None,
+                trigger_pipelines: bool = None,
+                project: str = None,
+                subject: str = None,
+                experiment: str = None):
         """
         Method to archive this prearchive session to the main archive
 
-        :param str overwrite: how the handle existing data (none, append, delete)
-        :param bool quarantine: flag to indicate session should be quarantined
-        :param bool trigger_pipelines: indicate that archiving should trigger pipelines
-        :param str project: the project in the archive to assign the session to
-        :param str subject: the subject in the archive to assign the session to
-        :param str experiment: the experiment in the archive to assign the session content to
+        :param overwrite: how the handle existing data (none, append, delete)
+        :param quarantine: flag to indicate session should be quarantined
+        :param trigger_pipelines: indicate that archiving should trigger pipelines
+        :param project: the project in the archive to assign the session to
+        :param subject: the subject in the archive to assign the session to
+        :param experiment: the experiment in the archive to assign the session content to
         :return: the newly created experiment
-        :rtype: xnat.classes.ExperimentData
         """
         query = {'src': self.uri}
 
@@ -221,11 +234,12 @@ class PrearchiveSession(XNATBaseObject):
         self.clearcache()  # Make object unavailable
         return self.xnat_session.create_object(object_uri)
 
-    def delete(self, asynchronous=None):
+    def delete(self,
+               asynchronous: Optional[bool] = None) -> requests.Response:
         """
         Delete the session from the prearchive
 
-        :param bool asynchronous: flag to delete asynchronously
+        :param asynchronous: flag to delete asynchronously
         :return: requests response
         """
         query = {'src': self.uri}
@@ -243,11 +257,12 @@ class PrearchiveSession(XNATBaseObject):
         self.clearcache()
         return response
 
-    def rebuild(self, asynchronous=None):
+    def rebuild(self,
+                asynchronous: Optional[bool] = None) -> requests.Response:
         """
         Rebuilt the session in the prearchive
 
-        :param bool asynchronous: flag to rebuild asynchronously
+        :param asynchronous: flag to rebuild asynchronously
         :return: requests response
         """
         query = {'src': self.uri}
@@ -265,12 +280,14 @@ class PrearchiveSession(XNATBaseObject):
         self.clearcache()
         return response
 
-    def move(self, new_project, asynchronous=None):
+    def move(self,
+             new_project: str,
+             asynchronous: Optional[bool] = None) -> requests.Response:
         """
         Move the session to a different project in the prearchive
 
-        :param str new_project: the id of the project to move to
-        :param bool asynchronous: flag to move asynchronously
+        :param new_project: the id of the project to move to
+        :param asynchronous: flag to move asynchronously
         :return: requests response
         """
         query = {'src': self.uri,
@@ -289,12 +306,18 @@ class PrearchiveSession(XNATBaseObject):
         self.clearcache()
         return response
     
-    def cli_str(self):
+    def cli_str(self) -> str:
         return "Prearchive session {name}".format(name=self.label)
 
 
 class PrearchiveScan(XNATBaseObject):
-    def __init__(self, uri, xnat_session, id_=None, datafields=None, parent=None, fieldname=None):
+    def __init__(self,
+                 uri: str,
+                 xnat_session: 'BaseXNATSession',
+                 id_: str = None,
+                 datafields: Any = None,
+                 parent: PrearchiveSession = None,
+                 fieldname: str = None):
         super(PrearchiveScan, self).__init__(uri=uri,
                                              xnat_session=xnat_session,
                                              id_=id_,
@@ -305,14 +328,14 @@ class PrearchiveScan(XNATBaseObject):
         self._fulldata = {'data_fields': datafields}
 
     @property
-    def series_description(self):
+    def series_description(self) -> str:
         """
         The series description of the scan
         """
         return self.data['series_description']
 
     @property
-    def files(self):
+    def files(self) -> List['PrearchiveFile']:
         """
         List of files contained in the scan
         """
@@ -323,7 +346,8 @@ class PrearchiveScan(XNATBaseObject):
                                id_=x['Name'],
                                datafields=x) for x in data['ResultSet']['Result']]
 
-    def download(self, path):
+    def download(self,
+                 path: Union[Path, str]) -> Union[Path, str]:
         """
         Download the scan as a zip
 
@@ -339,21 +363,20 @@ class PrearchiveScan(XNATBaseObject):
         return self.fulldata['data_fields']
 
     @property
-    def fulldata(self):
+    def fulldata(self) -> Any:
         return self._fulldata
 
     @property
-    def xpath(self):
+    def xpath(self) -> str:
         return "xnatpy:prearchiveScan"
 
-    def dicom_dump(self, fields=None):
+    def dicom_dump(self, fields: Optional[List[str]] = None) -> JSONType:
         """
         Retrieve a dicom dump as a JSON data structure
         See the XAPI documentation for more detailed information: `DICOM Dump Service <https://wiki.xnat.org/display/XAPI/DICOM+Dump+Service+API>`_
 
-        :param list fields: Fields to filter for DICOM tags. It can either a tag name or tag number in the format GGGGEEEE (G = Group number, E = Element number)
+        :param fields: Fields to filter for DICOM tags. It can either a tag name or tag number in the format GGGGEEEE (G = Group number, E = Element number)
         :return: JSON object (dict) representation of DICOM header
-        :rtype: dict
         """
 
         # Get the uri in the following format /prearchive/projects/${project}/${timestamp}/${session}
@@ -361,7 +384,10 @@ class PrearchiveScan(XNATBaseObject):
         uri = self.uri[5:]
         return self.xnat_session.services.dicom_dump(src=uri, fields=fields)
 
-    def read_dicom(self, file=None, read_pixel_data=False, force=False):
+    def read_dicom(self,
+                   file: Optional['PrearchiveFile'] = None,
+                   read_pixel_data: bool = False,
+                   force: bool = False) -> pydicom.FileDataset:
         # Check https://gist.github.com/obskyr/b9d4b4223e7eaf4eedcd9defabb34f13 for partial loading?
         if not PYDICOM_LOADED:
             raise RuntimeError('Cannot read DICOM, missing required dependency: pydicom')
@@ -382,7 +408,13 @@ class PrearchiveScan(XNATBaseObject):
 
 
 class PrearchiveFile(XNATBaseObject):
-    def __init__(self, uri, xnat_session, id_=None, datafields=None, parent=None, fieldname=None):
+    def __init__(self,
+                 uri: str,
+                 xnat_session: BaseXNATSession,
+                 id_: str = None,
+                 datafields=None,
+                 parent: PrearchiveScan = None,
+                 fieldname: str = None):
         super(PrearchiveFile, self).__init__(uri=uri,
                                              xnat_session=xnat_session,
                                              id_=id_,
@@ -436,13 +468,14 @@ class PrearchiveFile(XNATBaseObject):
 
 
 class Prearchive(object):
-    def __init__(self, xnat_session):
+    def __init__(self,
+                 xnat_session: BaseXNATSession):
         self._xnat_session = xnat_session
         self._cache = {}
         self._caching = True
 
     @property
-    def caching(self):
+    def caching(self) -> bool:
         if self._caching is not None:
             return self._caching
         else:
@@ -457,17 +490,17 @@ class Prearchive(object):
         self._caching = None
 
     @property
-    def xnat_session(self):
+    def xnat_session(self) -> BaseXNATSession:
         return self._xnat_session
 
-    def sessions(self, project=None):
+    def sessions(self,
+                 project: str = None) -> List[PrearchiveSession]:
         """
         Get the session in the prearchive, optionally filtered by project. This
         function is not cached and returns the results of a query at each call.
 
-        :param str project: the project to filter on
+        :param project: the project to filter on
         :return: list of prearchive session found
-        :rtype: list
         """
         if project is None:
             uri = '/data/prearchive/projects'
@@ -495,16 +528,19 @@ class Prearchive(object):
 
         return result
 
-    def find(self, project=None, subject=None, session=None, status=None):
+    def find(self,
+             project: str = None,
+             subject: str = None,
+             session: str = None,
+             status: str = None) -> List[PrearchiveSession]:
         """
         Find specific session(s) given the project/subject/session/status
 
-        :param str project:
-        :param str subject:
-        :param str session:
-        :param str status:
+        :param project:
+        :param subject:
+        :param session:
+        :param status:
         :return: list of matching sessions
-        :rtype: list[PrearchiveSession]
         """
         result = []
         sessions = self.sessions(project=project)

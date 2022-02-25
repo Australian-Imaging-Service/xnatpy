@@ -83,8 +83,8 @@ class ProjectData(XNATBaseObject):
                            secondary_lookup_field='label',
                            xsi_type='xnat:resourceCatalog')
 
-    def create_resource(self, label, format=None, data_dir=None, method=None):
-        uri = '{}/resources/{}'.format(self.fulluri, label)
+    def create_resource(self, label, format=None, data_dir=None, method=None) -> 'AbstractResource':
+        uri = f'{self.fulluri}/resources/{label}'
         self.xnat_session.put(uri, format=format)
         self.clearcache()  # The resources changed, so we have to clear the cache
         resource = self.xnat_session.create_object(uri, type_='xnat:resourceCatalog')
