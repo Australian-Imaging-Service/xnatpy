@@ -410,7 +410,7 @@ class PrearchiveScan(XNATBaseObject):
 class PrearchiveFile(XNATBaseObject):
     def __init__(self,
                  uri: str,
-                 xnat_session: BaseXNATSession,
+                 xnat_session: 'BaseXNATSession',
                  id_: str = None,
                  datafields=None,
                  parent: PrearchiveScan = None,
@@ -469,7 +469,7 @@ class PrearchiveFile(XNATBaseObject):
 
 class Prearchive(object):
     def __init__(self,
-                 xnat_session: BaseXNATSession):
+                 xnat_session: 'BaseXNATSession'):
         self._xnat_session = xnat_session
         self._cache = {}
         self._caching = True
@@ -490,7 +490,7 @@ class Prearchive(object):
         self._caching = None
 
     @property
-    def xnat_session(self) -> BaseXNATSession:
+    def xnat_session(self) -> 'BaseXNATSession':
         return self._xnat_session
 
     def sessions(self,
