@@ -140,7 +140,13 @@ def check_auth(requests_session, server, user, logger):
             raise exceptions.XNATLoginFailedError(message)
     else:
         username = match.group('username')
-        logger.info('Logged in successfully as {}'.format(username))
+        if username == user:
+            logger.info('Logged in successfully as {}'.format(username))
+        elif re.match(r"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}", user):
+            logger.info('Token login successfully as {}'.format(username))
+        else:
+            logger.warning('Logged in as {} but expected to be logged in as {}'.format(username, user))
+
         return username
 
 
@@ -271,8 +277,8 @@ def _create_jsession(requests_session, server, user, password, provider, debug):
         data['provider'] = provider
 
     if re.match(r"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}", user):
-        response = requests_session.put(server.rstrip('/'), timeout=10, auth=(user, password))
-        return response.cookies["JSESSIONID"]
+        response = requests_session.get(server.rstrip('/'), timeout=10, auth=(user, password))
+        return response.cookies.get("JSESSIONID", None)
     else:
         try:
             response = requests_session.put(server.rstrip('/') + '/data/services/auth', data=data, timeout=10)
@@ -547,8 +553,13 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
             raise exceptions.XNATLoginFailedError(message)
         jsession_token = jsession
 
-    # Set JSESSION token for rest of requests
-    requests_session.auth = JSessionAuth(jsession_token)
+    # Set JSESSION token for rest of requests if it is know, otherwise fall
+    # back to basic auth
+    if jsession_token:
+        requests_session.auth = JSessionAuth(jsession_token)
+    else:
+        logger.warning("Login using JSESSION failed, falling back to basic-auth.")
+        requests_session.auth = (user, password)
 
     # Use a try so that errors result in closing the JSESSION and requests session
     try:
