@@ -557,7 +557,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
     # back to basic auth
     if jsession_token:
         requests_session.auth = JSessionAuth(jsession_token)
-    else:
+    elif user is not None:
         logger.warning("Login using JSESSION failed, falling back to basic-auth.")
         requests_session.auth = (user, password)
 
