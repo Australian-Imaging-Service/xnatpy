@@ -1266,7 +1266,8 @@ class SchemaParser(object):
 
     def _parse_schema(self, element):
         self.target_namespace = element.get("targetNamespace", '')
-        if self.target_namespace != '':
+        # TODO: check if handling of namespace can be done better
+        if self.target_namespace != '' and self.target_namespace in self.namespace_prefixes:
             self.target_namespace_prefix = self.namespace_prefixes[self.target_namespace] + ':'
         else:
             self.target_namespace_prefix = ''
