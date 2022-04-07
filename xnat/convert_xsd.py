@@ -34,6 +34,7 @@ from .constants import SECONDARY_LOOKUP_FIELDS, FIELD_HINTS, CORE_REST_OBJECTS
 from .utils import pythonize_class_name, pythonize_attribute_name, full_class_name
 
 
+XNATPY_NAMESPACE = 'https://gitlab.com/radiology/infrastructure/xnatpy'
 FILE_HEADER = '''
 # Copyright 2011-2015 Biomedical Imaging Group Rotterdam, Departments of
 # Medical Informatics and Radiology, Erasmus MC, Rotterdam, The Netherlands
@@ -225,9 +226,10 @@ XNAT_CLASS_LOOKUP = {{
 
 
 class ClassPrototype(object):
-    def __init__(self, parser, name, logger, field_name=None, parent_class=None, simple=False):
+    def __init__(self, parser, name, namespace, logger, field_name=None, parent_class=None, simple=False):
         self.parser = parser
-        self.name = name  # This is the XSI type
+        self._name = name  # This is the XSI type
+        self.namespace = namespace
         self.logger = logger
 
         self.field_name = field_name
@@ -245,6 +247,22 @@ class ClassPrototype(object):
 
     def __repr__(self):
         return "<ClassPrototype {}>".format(self.name)
+
+    @property
+    def name(self):
+        if self.namespace:
+            return '{}:{}'.format(self.parser.namespace_prefixes[self.namespace], self._name)
+        else:
+            return self._name
+
+    @name.setter
+    def name(self, value):
+        if ':' in value:
+            prefix, name = value.split(":", 2)
+            self.namespace = self.parser.namespaces[prefix]
+            self._name = name
+        else:
+            self._name = value
 
     def root_base_class(self, topxsd=False):
         base = self.base_class
@@ -934,12 +952,11 @@ class ListingPropertyWriter(AttributeWriter):
 class SchemaParser(object):
     def __init__(self, logger, debug=False):
         # Manage XML namespaces
-        self.namespaces = {}
-        self.namespace_prefixes = {}
+        self.namespaces = {'xnatpy': XNATPY_NAMESPACE}
+        self.namespace_prefixes = {XNATPY_NAMESPACE: 'xnatpy'}
         self.target_namespace = ''
         self.current_schema = None
 
-        self.class_list = collections.OrderedDict()
         self.class_list = collections.OrderedDict()
         self.unknown_tags = set()
         self.new_class_stack = [None]
@@ -1148,15 +1165,20 @@ class SchemaParser(object):
         field_name = None
 
         if name is None:
-            name = 'xnatpy:' + self._current_class.name.split(":", 1)[-1] + self._current_property.name.capitalize()
+            name = self._current_class.name.split(":", 1)[-1] + self._current_property.name.capitalize()
+            namespace = XNATPY_NAMESPACE
             parent_class = self._current_class.name
             field_name = self._current_property.name
         else:
-            if ':' not in name:
-                name = self.target_namespace_prefix + name
+            if ':' in name:
+                namespace_prefix, name = name.split(':', 2)
+                namespace = self.namespaces[namespace_prefix]
+            else:
+                namespace = self.target_namespace
 
         new_class = ClassPrototype(self,
                                    name=name,
+                                   namespace=namespace,
                                    logger=self.logger,
                                    field_name=field_name,
                                    parent_class=parent_class)
@@ -1165,7 +1187,7 @@ class SchemaParser(object):
             self._current_property.element_class = new_class
             new_class.parent_property = self._current_property
 
-        self.class_list[name] = new_class
+        self.class_list['{}:{}'.format(namespace, name)] = new_class
 
         # Descend
         with self._descend(new_class=new_class):
@@ -1219,14 +1241,16 @@ class SchemaParser(object):
             name = new_base[3:].capitalize()
             if self._current_property is not None:
                 new_prop = self._current_property.name
-                new_base = 'xnatpy:{}{}'.format(new_prop, name)
+                new_base = '{}{}'.format(new_prop, name)
             else:
                 new_prop = self._current_class.name
                 new_base = self._current_class.name + name
-                new_base = 'xnatpy:{}'.format(new_base.split(':', 1)[1])
+                new_base = new_base.split(':', 1)[1]
+            namespace = XNATPY_NAMESPACE
 
             new_base_class = ClassPrototype(self,
                                             name=new_base,
+                                            namespace=namespace,
                                             logger=self.logger,
                                             simple=True)
 
@@ -1234,7 +1258,10 @@ class SchemaParser(object):
                                                                      name=new_prop,
                                                                      logger=self.logger,
                                                                      type=previous_base)
-            self.class_list[new_base] = new_base_class
+            self.class_list['{}:{}'.format(namespace, new_base)] = new_base_class
+
+            # For lookup later we do need the xnatpy namespace prefix
+            new_base = 'xnatpy:{}'.format(new_base)
 
         self._current_class.base_class = new_base
         self._parse_children(element)
@@ -1306,11 +1333,15 @@ class SchemaParser(object):
             return
 
         # This is the top-level of schema and a sort of typedef
-        if ':' not in name:
-            name = self.target_namespace_prefix + name
+        if ':' in name:
+            namespace_prefix, name = name.split(':', 2)
+            namespace = self.namespaces[namespace_prefix]
+        else:
+            namespace = self.target_namespace
 
         new_class = ClassPrototype(self,
                                    name=name,
+                                   namespace=namespace,
                                    logger=self.logger,
                                    simple=True)
 
@@ -1320,7 +1351,7 @@ class SchemaParser(object):
                                           type=None)
         new_class.attributes["value"] = new_property
 
-        self.class_list[name] = new_class
+        self.class_list['{}:{}'.format(namespace, name)] = new_class
 
         # Descend
         with self._descend(new_class=new_class, new_property=new_property):
@@ -1448,6 +1479,12 @@ class SchemaParser(object):
         if self.debug:
             self.logger.debug('namespaces: {}'.format(self.namespaces))
             self.logger.debug('namespace prefixes: {}'.format(self.namespace_prefixes))
+
+        # Update class list to include namespaces
+        new_class_list = collections.OrderedDict()
+        for value in self.class_list.values():
+            new_class_list[value.name] = value
+        self.class_list = new_class_list
 
         self.logger.info('Pruning data structure')
         before = set(self.class_list.keys())
