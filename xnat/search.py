@@ -1,5 +1,7 @@
 from __future__ import absolute_import
 from __future__ import unicode_literals
+
+import datetime
 from abc import ABCMeta, abstractmethod
 from xml.etree import ElementTree
 import csv
@@ -134,6 +136,9 @@ class BaseConstraint(six.with_metaclass(ABCMeta, object)):
 
 
 class CompoundConstraint(BaseConstraint):
+    def __repr__(self):
+        return '<CompoundConstraint {} ({})>'.format(self.operator, self.constraints)
+
     def __init__(self, constraints, operator):
         self.constraints = constraints
         self.operator = operator
@@ -166,6 +171,10 @@ class Constraint(BaseConstraint):
         elem.set("override_value_formatting", "0")
         schema_loc.text = self.identifier
         operator.text = self.operator
-        value.text = str(self.right_hand)
+        if isinstance(self.right_hand, (datetime.date, datetime.datetime)):
+            right_hand = self.right_hand.strftime('%m/%d/%Y')
+        else:
+            right_hand = str(self.right_hand)
+        value.text = right_hand
 
         return elem
