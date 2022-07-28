@@ -519,7 +519,7 @@ class BaseXNATSession(object):
 
         # Create the query string
         if len(query) > 0:
-            query_string = parse.urlencode(query, doseq=True)
+            query_string = parse.urlencode(query, safe='/', doseq=True)
         else:
             query_string = ''
 
