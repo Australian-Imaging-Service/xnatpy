@@ -191,7 +191,7 @@ class PrearchiveSession(XNATBaseObject):
         :param experiment: the experiment in the archive to assign the session content to
         :return: the newly created experiment
         """
-        query = {'src': self.uri}
+        query = {'src': self.uri, 'auto-archive': 'false'}
 
         if overwrite is not None:
             if overwrite not in ['none', 'append', 'delete']:

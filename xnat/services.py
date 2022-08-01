@@ -200,6 +200,14 @@ class Services(object):
                 raise TypeError('trigger_pipelines should be a boolean')
 
         if destination is not None:
+            destination = str(destination)
+
+            if destination[0] != '/':
+                destination = "/" + destination
+
+            if not destination.startswith(('/archive', '/prearchive')):
+                raise XNATValueError('Destination should start with /archive or /prearchive'
+                                     ' to make any sense! Found {}'.format(destination))
             query['dest'] = destination
 
         if project is not None:
@@ -296,7 +304,7 @@ class Services(object):
         fh.seek(0)
         session = self.import_(data=fh, overwrite=overwrite, quarantine=quarantine, destination=destination,
                                trigger_pipelines=trigger_pipelines, project=project, subject=subject,
-                               experiment=experiment, import_handler=import_handler)
+                               experiment=experiment, content_type=content_type, import_handler=import_handler)
         fh.close()
         return session
 
