@@ -180,7 +180,7 @@ class PrearchiveSession(XNATBaseObject):
         :return: the newly created experiment
         :rtype: xnat.classes.ExperimentData
         """
-        query = {'src': self.uri}
+        query = {'src': self.uri, 'auto-archive': 'false'}
 
         if overwrite is not None:
             if overwrite not in ['none', 'append', 'delete']:
