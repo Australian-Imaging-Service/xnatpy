@@ -810,7 +810,7 @@ class PropertyWriter(AttributeWriter):
     """    @mixedproperty
     def {clean_name}(cls):{docstring}
         # 0 Automatically generated Property, type: {type_}
-        return search.SearchField(cls, "{name}")
+        return search.SearchField(cls, "{name}", "{type_}")
 
     @{clean_name}.getter
     def {clean_name}(self):{docstring}
