@@ -86,7 +86,7 @@ def check_auth_guest(requests_session, server, logger):
     return username
 
 
-def check_auth(requests_session, server, user, logger):
+def check_auth(requests_session, server, user, jsession, logger):
     """
     Try to figure out of the requests session is properly logged in as the desired user
 
@@ -142,10 +142,15 @@ def check_auth(requests_session, server, user, logger):
         username = match.group('username')
         if username == user:
             logger.info('Logged in successfully as {}'.format(username))
-        elif re.match(r"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}", user):
-            logger.info('Token login successfully as {}'.format(username))
-        else:
-            logger.warning('Logged in as {} but expected to be logged in as {}'.format(username, user))
+        # changed check_auth to take jsession, so user=None doesn't cause a type error, and re.match here compares against a different pattern specific to jsession
+        elif user is not None:
+            if re.match(r"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}", user):
+                logger.info('Token login successfully as {}'.format(username))
+            else:
+                logger.warning('Logged in as {} but expected to be logged in as {}'.format(username, user))
+        elif jsession is not None:
+            if re.match("[\w]{32}", jsession):
+                logger.info('JSESSION login successful for {}'.format(username))
 
         return username
 
@@ -568,7 +573,7 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
             logged_in_user = check_auth_guest(requests_session, server=server, logger=logger)
         else:
             logger.debug('Checking login for {}, jsession argument {}'.format(user, jsession))
-            logged_in_user = check_auth(requests_session, server=server, user=user, logger=logger)
+            logged_in_user = check_auth(requests_session, server=server, user=user, jsession=jsession, logger=logger)
 
         if jsession and logged_in_user == 'guest':
             logger.warning('Attempt to log in with jsession resulted in being logged in as'

@@ -18,9 +18,10 @@ def or_(*args):
 
 
 class SearchField(property):
-    def __init__(self, search_class, field_name):
+    def __init__(self, search_class, field_name, type=None):
         self.search_class = search_class
         self.field_name = field_name
+        self.type = type
 
     def __repr__(self):
         return '<SearchField {}>'.format(self.identifier)
@@ -106,24 +107,10 @@ class Query(object):
                 sequence = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "sequence"))
                 sequence.text = str(idx)
                 type_ = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "type"))
-                # TODO: the type has to vary depending on the field
-                type_.text = 'string'
+                type_.text = str(x.type)
                 header = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "header"))
                 header.text = 'url'
-
-        #search_where = ElementTree.SubElement(bundle, ElementTree.QName(xdat_ns, "search_field"))
-        #element_name = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "element_name"))
-        #element_name.text = self.xsi_type
-        #field_id = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "field_ID"))
-        # TODO: This has to come from the querying class somehow
-        #field_id.text = 'ID'
-        #sequence = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "sequence"))
-        #sequence.text = '0'
-        #type_ = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "type"))
-        #type_.text = 'string'
-        #header = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "header"))
-        #header.text = 'url'
-
+        
         # Add criteria
         search_where = ElementTree.SubElement(bundle, ElementTree.QName(xdat_ns, "search_where"))
         search_where.set("method", "AND")
