@@ -445,10 +445,10 @@ def connect(server=None, user=None, password=None, verify=True, netrc_file=None,
     # Auto-detect server based on environment variables
     if server is None:
         # Try and detect if we are on a jupyter hub instance
-        server = os.environ.get('JH_XNAT_URL')
+        server = os.environ.get('XNAT_HOST')
         if server:
-            user = os.environ.get('JH_XNAT_USERNAME')
-            password = os.environ.get('JH_XNAT_PASSWORD')
+            user = os.environ.get('XNAT_USER')
+            password = os.environ.get('XNAT_PASS')
 
     if server is None:
         server = os.environ.get('XNATPY_HOST')
