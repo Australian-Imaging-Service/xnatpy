@@ -454,7 +454,7 @@ def connect(server=None, user=None, password=None, verify=True, netrc_file=None,
         server = os.environ.get('XNATPY_HOST')
 
     if server is None:
-        raise exceptions.XNATValueError('Cannot auto-detect which server to use, make sure either the JH_XNAT_URL'
+        raise exceptions.XNATValueError('Cannot auto-detect which server to use, make sure either the XNAT_HOST'
                                         ' or XNATPY_HOST environment variable is set!')
 
     # Generate a hash for the connection
