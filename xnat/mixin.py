@@ -133,7 +133,7 @@ class ProjectData(XNATBaseObject):
         if self.xnat_session.mount_data_dir is None:
             return None
 
-        data_dir = f"{self.xnat_session.mount_data_dir}/{self.id}"
+        data_dir = f"{self.xnat_session.mount_data_dir}/projects/{self.id}"
 
         if not os.path.isdir(data_dir):
             self.logger.info(f'Determined data_dir to be {data_dir}, but it does not exist!')
@@ -296,7 +296,7 @@ class ExperimentData(XNATBaseObject):
         if self.xnat_session.mount_data_dir is None:
             return None
 
-        data_dir = f"{self.xnat_session.mount_data_dir}/{self.project}/{self.label}"
+        data_dir = f"{self.xnat_session.mount_data_dir}/projects/{self.project}/experiments/{self.label}"
 
         if not os.path.isdir(data_dir):
             self.logger.info(f'Determined data_dir to be {data_dir}, but it does not exist!')
@@ -519,7 +519,7 @@ class ImageScanData(XNATBaseObject):
         if parent.data_dir is None:
             return None
 
-        data_dir = f"{parent.data_dir}/{self.id}"
+        data_dir = f"{parent.data_dir}/SCANS/{self.id}"
 
         if not os.path.isdir(data_dir):
             self.logger.info(f'Determined data_dir to be {data_dir}, but it does not exist!')
@@ -773,11 +773,11 @@ class AbstractResource(XNATBaseObject):
             return None
 
         if isinstance(parent, ProjectData):
-            data_dir = f"{parent.data_dir}/project-resources/{parent.id}/{self.format}"
+            data_dir = f"{parent.data_dir}/resources/{self.label}"
         elif isinstance(parent, SubjectData):
-            data_dir = f"{self.xnat_session.mount_data_dir}/projects/{parent.project}/subject-resources/{parent.label}/{self.format}"
+            data_dir = f"{self.xnat_session.mount_data_dir}/projects/{parent.project}/subjects/{parent.label}/{self.label}"
         elif isinstance(parent, ExperimentData):
-            data_dir = f"{parent.data_dir}/RESOURCES/{self.format}"
+            data_dir = f"{parent.data_dir}/RESOURCES/{self.label}"
         else:
             data_dir = f"{parent.data_dir}/{self.format}"
 

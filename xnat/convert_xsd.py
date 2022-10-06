@@ -147,7 +147,7 @@ class FileData(XNATObjectMixin):
         
         if data_path is not None:
             self.logger.warning('Opening file from filesystem!')
-            return open(data_path)
+            return open(data_path, 'rb')
         else:
             self.logger.warning('Opening file over http!')
             
@@ -206,11 +206,13 @@ class FileData(XNATObjectMixin):
     @property
     def data_path(self):
         parent = self.xnat_session.create_object(self.uri.split('/files/')[0])
+        filename = self.uri.split('/files/')[1]
 
         if parent.data_dir is None:
             return None
 
-        data_path = f"{{parent.data_dir}}/{{self.path}}"
+        # data_path = f"{{parent.data_dir}}/{{self.path}}"
+        data_path = f"{{parent.data_dir}}/{{filename}}"
 
         if not os.path.exists(data_path):
             self.logger.info(f'Determined data_path to be {{data_path}}, but it does not exist!')
