@@ -762,13 +762,24 @@ class AbstractResource(XNATBaseObject):
             self.logger.warning('Selected invalid upload directory method!')
 
     @property
+    def parent_obj(self):
+        return self.xnat_session.create_object(self.uri.split('/resources/')[0])
+
+    @property
     def data_dir(self):
-        parent = self.xnat_session.create_object(self.uri.split('/resources/')[0])
+        parent = self.parent_obj
 
         if parent.data_dir is None:
             return None
 
-        data_dir = f"{parent.data_dir}/{self.format}"
+        if isinstance(parent, ProjectData):
+            data_dir = f"{parent.data_dir}/project-resources/{parent.id}/{self.format}"
+        elif isinstance(parent, SubjectData):
+            data_dir = f"{self.xnat_session.mount_data_dir}/projects/{parent.project}/subject-resources/{parent.label}/{self.format}"
+        elif isinstance(parent, ExperimentData):
+            data_dir = f"{parent.data_dir}/RESOURCES/{self.format}"
+        else:
+            data_dir = f"{parent.data_dir}/{self.format}"
 
         if not os.path.isdir(data_dir):
             self.logger.info(f'Determined data_dir to be {data_dir}, but it does not exist!')
