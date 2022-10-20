@@ -143,6 +143,14 @@ class FileData(XNATObjectMixin):
         self.xnat_session.download_stream(self.uri, *args, **kwargs)
         
     def open(self):
+        data_path = self.data_path
+        
+        if data_path is not None:
+            self.logger.warning('Opening file from filesystem!')
+            return open(data_path, 'rb')
+        else:
+            self.logger.warning('Opening file over http!')
+            
         uri = self.xnat_session._format_uri(self.uri)
         request = self.xnat_session.interface.get(uri, stream=True)
         return RequestsFileLike(request)
@@ -193,6 +201,22 @@ class FileData(XNATObjectMixin):
     def size(self):
         response = self.xnat_session.head(self.uri, allow_redirects=True)
         return response.headers['Content-Length']
+        
+
+    @property
+    def data_path(self):
+        parent = self.xnat_session.create_object(self.uri.split('/files/')[0])
+
+        if parent.data_dir is None:
+            return None
+
+        data_path = f"{{parent.data_dir}}/{{self.path}}"
+
+        if not os.path.exists(data_path):
+            self.logger.info(f'Determined data_path to be {{data_path}}, but it does not exist!')
+            return None
+
+        return data_path
 
 
 # Empty class lookup to place all new lookup values

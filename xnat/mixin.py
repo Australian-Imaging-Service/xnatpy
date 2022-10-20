@@ -128,6 +128,19 @@ class ProjectData(XNATBaseObject):
     def cli_str(self):
         return "Project {name}: id={id}, full URI:{uri}".format(name=self.name, id=self.id, uri=self.fulluri)
 
+    @property
+    def data_dir(self):
+        if self.xnat_session.mount_data_dir is None:
+            return None
+
+        data_dir = f"{self.xnat_session.mount_data_dir}/projects/{self.id}"
+
+        if not os.path.isdir(data_dir):
+            self.logger.info(f'Determined data_dir to be {data_dir}, but it does not exist!')
+            return None
+
+        return data_dir
+
 
 class InvestigatorData(XNATBaseObject):
     def __str__(self):
@@ -277,6 +290,19 @@ class ExperimentData(XNATBaseObject):
 
     def cli_str(self):
         return "Session {name}".format(name=self.label)
+
+    @property
+    def data_dir(self):
+        if self.xnat_session.mount_data_dir is None:
+            return None
+
+        data_dir = f"{self.xnat_session.mount_data_dir}/projects/{self.project}/experiments/{self.label}"
+
+        if not os.path.isdir(data_dir):
+            self.logger.info(f'Determined data_dir to be {data_dir}, but it does not exist!')
+            return None
+
+        return data_dir
 
 
 class SubjectAssessorData(XNATBaseObject):
@@ -485,6 +511,21 @@ class ImageScanData(XNATBaseObject):
                                          force=force)
 
         return dicom_data
+
+    @property
+    def data_dir(self):
+        parent = self.xnat_session.create_object(self.uri.split('/scans/')[0])
+
+        if parent.data_dir is None:
+            return None
+
+        data_dir = f"{parent.data_dir}/SCANS/{self.id}"
+
+        if not os.path.isdir(data_dir):
+            self.logger.info(f'Determined data_dir to be {data_dir}, but it does not exist!')
+            return None
+
+        return data_dir
 
 
 class AbstractResource(XNATBaseObject):
@@ -718,4 +759,30 @@ class AbstractResource(XNATBaseObject):
                 fh.seek(0)
                 self.upload(fh, 'upload.tar.gz', overwrite=overwrite, extract=True, **kwargs)
         else:
-            print('Selected invalid upload directory method!')
+            self.logger.warning('Selected invalid upload directory method!')
+
+    @property
+    def parent_obj(self):
+        return self.xnat_session.create_object(self.uri.split('/resources/')[0])
+
+    @property
+    def data_dir(self):
+        parent = self.parent_obj
+
+        if parent.data_dir is None:
+            return None
+
+        if isinstance(parent, ProjectData):
+            data_dir = f"{parent.data_dir}/resources/{self.label}"
+        elif isinstance(parent, SubjectData):
+            data_dir = f"{self.xnat_session.mount_data_dir}/projects/{parent.project}/subjects/{parent.label}/{self.label}"
+        elif isinstance(parent, ExperimentData):
+            data_dir = f"{parent.data_dir}/RESOURCES/{self.label}"
+        else:
+            data_dir = f"{parent.data_dir}/{self.format}"
+
+        if not os.path.isdir(data_dir):
+            self.logger.info(f'Determined data_dir to be {data_dir}, but it does not exist!')
+            return None
+
+        return data_dir

@@ -20,6 +20,7 @@ from pathlib import Path
 
 import xnat
 
+
 def upload_files(session, project, subject, experiment, experiment_type, scan, scan_description, resource, data):
     if experiment_type not in ['CT', 'MR']:
         print(f"[ERROR] experiment type {experiment_type} not supported use 'MR' or 'CT'")
