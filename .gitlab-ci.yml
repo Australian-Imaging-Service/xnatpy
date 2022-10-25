@@ -94,7 +94,7 @@ release-test-pypi-py3:
     - pip install -U twine wheel setuptools
     - python setup.py sdist bdist_wheel
     - twine check dist/*
-    - twine upload --repository-url $TEST_PYPI_URL dist/*
+    - twine upload --repository testpypi dist/*
   rules:
     - if: $CI_COMMIT_BRANCH == "develop"
 
