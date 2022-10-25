@@ -370,9 +370,13 @@ def build_model(xnat_session, extension_types, connection_id):
     logger.debug('Loaded generated module')
 
     # Register all types parsed
-    for cls in parser.class_list.values():
+    for key, cls in parser.class_list.items():
         if not (cls.name is None or (cls.base_class is not None and cls.base_class.startswith('xs:'))):
-            getattr(xnat_module, cls.writer.python_name).__register__(xnat_module.XNAT_CLASS_LOOKUP)
+            cls_obj = getattr(xnat_module, cls.writer.python_name, None)
+            if cls_obj is not None:
+                cls_obj.__register__(xnat_module.XNAT_CLASS_LOOKUP)
+            else:
+                logger.warning("Cannot found class to register for {}".format(cls.name))
 
     xnat_module.SESSION = xnat_session
 

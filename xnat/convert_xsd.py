@@ -572,7 +572,7 @@ class BaseClassWriter(BaseWriter):
             header += "    _HAS_FIELDS = True\n"
 
         if self.parent_class is not None:
-            header += "    #_PARENT_CLASS = {}\n".format(self.python_parent_class)
+            header += "    _PARENT_CLASS = {}\n".format(self.python_parent_class)
             header += "    _FIELD_NAME = '{}'\n".format(self.field_name)
         elif self.name in FIELD_HINTS:
             header += "    _CONTAINED_IN = '{}'\n".format(FIELD_HINTS[self.name])
@@ -1427,6 +1427,7 @@ class SchemaParser(object):
 
     def prune_tree(self):
         to_remove = set()
+        renamed = {}
 
         for cls in self.class_list.values():
             for property_key, prop in cls.attributes.items():
@@ -1446,6 +1447,7 @@ class SchemaParser(object):
                         # The new element_class has to be updated to take the place of the old element_class
                         new_element_class = element_property.element_class
                         if new_element_class is not None:
+                            renamed[new_element_class.name] = element_class.name
                             new_element_class.name = element_class.name
                             new_element_class.field_name = '{}/{}'.format(element_class.field_name,
                                                                           new_element_class.field_name)
@@ -1457,11 +1459,16 @@ class SchemaParser(object):
                                     element_class.name)
                                 )
                             to_remove.add(element_class.name)
-
                         cls.attributes[property_key] = element_property
                     elif self.debug:
                         self.logger.debug("Ignoring non-listing...")
                         self.logger.debug("Element class: {}".format(element_class.__dict__))
+
+        for cls in self.class_list.values():
+            if cls.parent_class in renamed:
+                new_name = renamed[cls.parent_class]
+                self.logger.info(f'Fixing parent name after rename in pruning from {cls.parent_class} to {new_name}')
+                cls.parent_class = new_name
 
         for key in to_remove:
             del self.class_list[key]
@@ -1508,11 +1515,11 @@ class SchemaParser(object):
         self.logger.info('Pruning data structure')
         before = set(self.class_list.keys())
         if self.debug:
-            self.logger.debug('Classed before prune: {}'.format(before))
+            self.logger.debug('Classes before prune: {}'.format(before))
         self.prune_tree()
         after = set(self.class_list.keys())
         if self.debug:
-            self.logger.debug('Classed after prune: {}'.format(after))
+            self.logger.debug('Classes after prune: {}'.format(after))
             self.logger.info('Classes removed by pruning: {}'.format(sorted(before - after)))
 
         self.logger.info('Writing result')

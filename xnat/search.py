@@ -32,7 +32,15 @@ class SearchField(property):
     def identifier(self):
         # For the search criteria (where this is used) any xsitype/field
         # can be used (no need for display fields)
-        return '{}/{}'.format(self.search_class.__xsi_type__, self.field_name)
+        field_name = self.field_name
+
+        parent = self.search_class
+        while parent.fieldname is not None:
+            field_name = f'{parent.fieldname}/{field_name}'
+            if parent.parent is None:
+                break
+            parent = parent.parent
+        return '{}/{}'.format(self.search_class.__xsi_type__, field_name)
 
     def __eq__(self, other):
         return Constraint(self.identifier, '=', other)

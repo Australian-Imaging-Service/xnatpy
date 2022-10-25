@@ -190,6 +190,8 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
     _HAS_FIELDS = False
     _CONTAINED_IN = None
     _XSI_TYPE = 'xnat:baseObject'
+    _PARENT_CLASS = None
+    _FIELD_NAME = None
 
     def __init__(self, uri=None, xnat_session=None, id_=None, datafields=None, parent=None, fieldname=None, overwrites=None, **kwargs):
         if (uri is None or xnat_session is None) and parent is None:
@@ -302,7 +304,11 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
         setting fields in the object.
         """
 
-    @property
+    @mixedproperty
+    def parent(cls):
+        return cls._PARENT_CLASS
+
+    @parent.getter
     def parent(self):
         return self._parent
 
@@ -310,7 +316,11 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
     def logger(self):
         return self.xnat_session.logger
 
-    @property
+    @mixedproperty
+    def fieldname(self):
+        return self._FIELD_NAME
+
+    @fieldname.getter
     def fieldname(self):
         return self._fieldname
 
@@ -557,7 +567,19 @@ class XNATSubObject(XNATBaseObject):
     def uri(self):
         return self.parent.fulluri
 
-    @property
+    @mixedproperty
+    def __xsi_type__(cls):
+        parent = cls.parent
+        while not issubclass(parent, XNATBaseObject):
+            new_parent = parent.parent
+
+            if new_parent is None:
+                break
+
+            parent = new_parent
+        return parent.__xsi_type__
+
+    @__xsi_type__.getter
     def __xsi_type__(self):
         parent = self.parent
         while not isinstance(parent, XNATBaseObject):
