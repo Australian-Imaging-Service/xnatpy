@@ -62,14 +62,25 @@ class SearchField(property):
 
 
 class Query(object):
-    def __init__(self, queried_class, xnat_session, constraints=None):
+    def __init__(self, queried_class, xnat_session, fields=None, constraints=None):
         self.queried_class = queried_class
         self.xnat_session = xnat_session
+        self.fields = fields
         self.constraints = constraints
 
     @property
     def xsi_type(self):
         return self.queried_class.__xsi_type__
+
+    # for updating the fields to be returned from the query
+    def view(self, *fields):
+        if len(fields) == 0:
+            return self
+      
+        if self.fields is not None:
+            fields = self.fields + fields
+        
+        return Query(self.queried_class, self.xnat_session, fields, self.constraints)
 
     def filter(self, *constraints):
         if len(constraints) == 0:
@@ -82,7 +93,7 @@ class Query(object):
         if self.constraints is not None:
             constraints = CompoundConstraint((self.constraints, constraints), 'AND')
 
-        return Query(self.queried_class, self.xnat_session, constraints)
+        return Query(self.queried_class, self.xnat_session, self.fields, constraints)
 
     def to_xml(self):
         # Create main elements
@@ -91,19 +102,20 @@ class Query(object):
         root_elem_name.text = self.xsi_type
 
         # Add search fields
-        search_where = ElementTree.SubElement(bundle, ElementTree.QName(xdat_ns, "search_field"))
-        element_name = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "element_name"))
-        element_name.text = self.xsi_type
-        field_id = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "field_ID"))
-        # TODO: This has to come from the querying class somehow
-        field_id.text = 'ID'
-        sequence = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "sequence"))
-        sequence.text = '0'
-        type_ = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "type"))
-        type_.text = 'string'
-        header = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "header"))
-        header.text = 'url'
-
+        if self.fields is not None:
+            for idx, x in enumerate(self.fields):
+                search_where = ElementTree.SubElement(bundle, ElementTree.QName(xdat_ns, "search_field"))
+                element_name = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "element_name"))
+                element_name.text = x.xsi_type
+                field_id = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "field_ID"))
+                field_id.text = x.identifier
+                sequence = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "sequence"))
+                sequence.text = str(idx)
+                type_ = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "type"))
+                type_.text = str(x.type)
+                header = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "header"))
+                header.text = 'url'
+        
         # Add criteria
         search_where = ElementTree.SubElement(bundle, ElementTree.QName(xdat_ns, "search_where"))
         search_where.set("method", "AND")
