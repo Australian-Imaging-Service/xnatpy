@@ -6,8 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <http://keepachangelog.com/>`_
 and this project adheres to `Semantic Versioning <http://semver.org/>`_
 
-UNRELEASED VERSION
+0.4.3 - 2022-10-31
 ------------------
+
+Added
+~~~~~
+
+- Added initial support for XNAT/jupyterhub
+
+Improved
+~~~~~~~~
+
+- Fixed some of the plumbing for searching
 
 0.4.2 - 2022-04-07
 ------------------
