@@ -111,6 +111,11 @@ class BaseXNATSession(object):
         self.inspect = Inspect(self)
         self.request_timeout = default_timeout
 
+        # Detect mouting for container service/jupyter hub
+        self.mount_data_dir = os.environ.get('XNAT_DATA', None)
+        self.mount_xsi_type = os.environ.get('XNAT_XSI_TYPE', None)
+        self.mount_xnat_item_id = os.environ.get('XNAT_ITEM_ID', None)
+
         # Accepted status
         self.accepted_status_get = [200]
         self.accepted_status_post = [200, 201]
@@ -519,7 +524,7 @@ class BaseXNATSession(object):
 
         # Create the query string
         if len(query) > 0:
-            query_string = parse.urlencode(query, doseq=True)
+            query_string = parse.urlencode(query, safe='/', doseq=True)
         else:
             query_string = ''
 

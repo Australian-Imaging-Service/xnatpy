@@ -834,7 +834,6 @@ class XNATListing(XNATBaseListing):
         except KeyError:
             raise exceptions.XNATValueError('Query GET from {} returned invalid data: {}'.format(self.uri, result))
 
-        parent_id = None
         for entry in result:
             if 'URI' not in entry and 'ID' not in entry:
                 # HACK: This is a Resource, that misses the URI and ID field (let's fix that)
@@ -847,9 +846,7 @@ class XNATListing(XNATBaseListing):
                 if entry['URI'].startswith(self.parent.uri):
                     entry['path'] = entry['URI'].replace(self.parent.uri, '', 1)
                 else:
-                    if parent_id is None:
-                        parent_id = self.parent.id
-                    entry['path'] = re.sub(r'^.*/resources/{}/files/'.format(parent_id), '', entry['URI'], 1)
+                    entry['path'] = re.sub(r'^.*/resources/[^/]+/files/', '', entry['URI'], 1)
             else:
                 entry['URI'] = '{}/{}'.format(self.uri, entry['ID'])
 
@@ -1138,9 +1135,9 @@ class XNATSimpleListing(XNATBaseListing, MutableMapping, MutableSequence):
         }
         if self.secondary_lookup_field:
             query['{xpath}/{fieldname}[{lookup}]/{key}'.format(xpath=parent.xpath,
-                                                                fieldname=fieldname,
-                                                                lookup=lookup,
-                                                                key=key)] = 'NULL'
+                                                               fieldname=fieldname,
+                                                               lookup=lookup,
+                                                               key=key)] = 'NULL'
 
         self.xnat_session.put(self.parent.fulluri, query=query)
 
