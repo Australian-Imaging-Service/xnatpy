@@ -45,7 +45,7 @@ from .utils import JSessionAuth
 
 GEN_MODULES = {}
 
-__version__ = '0.4.3'
+__version__ = '0.4.4'
 __all__ = ['connect', 'exceptions']
 
 
@@ -385,7 +385,7 @@ def build_model(xnat_session, extension_types, connection_id):
     logger.info('Object model created successfully')
 
 
-def connect(server, user=None, password=None, verify=True, netrc_file=None, debug=False,
+def connect(server=None, user=None, password=None, verify=True, netrc_file=None, debug=False,
             extension_types=True, loglevel=None, logger=None, detect_redirect=True,
             no_parse_model=False, default_timeout=300, auth_provider=None, jsession=None,
             cli=False):
@@ -443,6 +443,21 @@ def connect(server, user=None, password=None, verify=True, netrc_file=None, debu
         Subjects in the SampleDICOM project: <XNATListing (CENTRAL_S01894, dcmtest1): <SubjectData CENTRAL_S01894>, (CENTRAL_S00461, PACE_HF_SUPINE): <SubjectData CENTRAL_S00461>>
         >>> connection.disconnect()
     """
+
+    # Auto-detect server based on environment variables
+    if server is None:
+        # Try and detect if we are on a jupyter hub instance
+        server = os.environ.get('XNAT_HOST')
+        if server:
+            user = os.environ.get('XNAT_USER')
+            password = os.environ.get('XNAT_PASS')
+
+    if server is None:
+        server = os.environ.get('XNATPY_HOST')
+
+    if server is None:
+        raise exceptions.XNATValueError('Cannot auto-detect which server to use, make sure either the XNAT_HOST'
+                                        ' or XNATPY_HOST environment variable is set!')
 
     # Generate a hash for the connection
     hasher = hashlib.md5()

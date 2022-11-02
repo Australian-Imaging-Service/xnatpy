@@ -64,6 +64,8 @@ test-py38:
 
 release-test-pypi-py3:
   needs:
+    - test-py27
+    - test-py36
     - test-py37
     - test-py38
   stage: release
@@ -75,7 +77,7 @@ release-test-pypi-py3:
     - pip install -U twine wheel setuptools
     - python setup.py sdist bdist_wheel
     - twine check dist/*
-    - twine upload --repository-url $TEST_PYPI_URL dist/*
+    - twine upload --repository testpypi dist/*
   rules:
     - if: $CI_COMMIT_BRANCH == "develop"
 

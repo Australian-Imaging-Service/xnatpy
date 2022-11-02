@@ -15,9 +15,10 @@ def or_(*args):
 
 
 class SearchField(property):
-    def __init__(self, search_class, field_name):
+    def __init__(self, search_class, field_name, type=None):
         self.search_class = search_class
         self.field_name = field_name
+        self.type = type
 
     def __repr__(self):
         return '<SearchField {}>'.format(self.identifier)
