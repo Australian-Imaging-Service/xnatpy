@@ -841,12 +841,13 @@ class XNATListing(XNATBaseListing):
                 entry['URI'] = '{}/{}'.format(self.uri, entry['xnat_abstractresource_id'])
             elif 'ID' not in entry:
                 # HACK: This is a File and it misses an ID field and has Name (let's fix that)
-                entry['ID'] = entry['Name']
-                entry['fieldname'] = type(self.parent).__name__
+                self.logger.warning(f"FILE ENTRY: {entry}")
                 if entry['URI'].startswith(self.parent.uri):
                     entry['path'] = entry['URI'].replace(self.parent.uri, '', 1)
                 else:
                     entry['path'] = re.sub(r'^.*/resources/[^/]+/files/', '', entry['URI'], 1)
+                entry['ID'] = entry['path']
+                entry['fieldname'] = type(self.parent).__name__
             else:
                 entry['URI'] = '{}/{}'.format(self.uri, entry['ID'])
 

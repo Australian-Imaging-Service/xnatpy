@@ -69,7 +69,7 @@ OVERRIDE_BASE = {
 SECONDARY_LOOKUP_FIELDS = {
     'xnat:projectData': 'name',
     'xnat:imageScanData': 'type',
-    'xnat:fileData': 'path',
+    'xnat:fileData': 'name',
 }
 
 # DEFAULT SCHEMAS IN XNAT 1.7
