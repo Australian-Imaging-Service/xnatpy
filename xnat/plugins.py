@@ -16,6 +16,7 @@
 from __future__ import absolute_import
 from __future__ import unicode_literals
 import json
+from collections.abc import Mapping
 from .core import XNATBaseObject, caching
 
 try:
@@ -75,11 +76,24 @@ class PluginConfiguration(XNATBaseObject):
         return "Plugin {name}".format(name=self.label)
 
 
-class Plugins(object):
+class Plugins(Mapping):
     def __init__(self, xnat_session):
         self._xnat_session = xnat_session
         self._cache = {}
         self._caching = True
+        self._data = None
+
+    def __repr__(self):
+        return f"<Plugins: {self.data}>"
+
+    def __len__(self):
+        return len(self._data)
+
+    def __getitem__(self, item):
+        return self.data[item]
+
+    def __iter__(self):
+        return iter(self.data)
 
     @property
     def caching(self):
@@ -100,22 +114,26 @@ class Plugins(object):
     def xnat_session(self):
         return self._xnat_session
 
-    def list(self):
+    @property
+    def data(self):
         """
         Get a list of all plugins
 
         :return: list of plugins
-        :rtype: json
+        :rtype: dict
         """
-        uri = '/xapi/plugins/'
+        if self._data is None:
+            uri = '/xapi/plugins/'
 
-        data = self.xnat_session.get_json(uri)
-        plugin_names = list(data.keys())
-        result = []
-        for plugin_name in plugin_names:
-            uri = '/xapi/plugins/{}'.format(plugin_name)
-            plugin_data = PluginConfiguration(uri, self.xnat_session)
+            data = self.xnat_session.get_json(uri)
+            plugin_names = list(data.keys())
+            result = {}
+            for plugin_name in plugin_names:
+                uri = '/xapi/plugins/{}'.format(plugin_name)
+                plugin_data = PluginConfiguration(uri, self.xnat_session)
 
-            result.append(plugin_data)
+                result[plugin_data.id] = plugin_data
 
-        return result
+            self._data = result
+
+        return self._data
