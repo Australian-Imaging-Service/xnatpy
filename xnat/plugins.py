@@ -16,12 +16,63 @@
 from __future__ import absolute_import
 from __future__ import unicode_literals
 import json
+from .core import XNATBaseObject, caching
 
 try:
     PYDICOM_LOADED = True
     import pydicom
 except ImportError:
     PYDICOM_LOADED = False
+
+
+class PluginConfiguration(XNATBaseObject):
+    @property
+    def id(self):
+        """
+        A unique ID for the plugin
+        :return:
+        """
+        return self.data['id']
+
+    @property
+    def name(self):
+        return self.data['name']
+
+    @property
+    def label(self):
+        return self.name
+
+    @property
+    def version(self):
+        return self.data['version']
+
+    @property
+    def plugin_class(self):
+        return self.data['pluginClass']
+
+    @property
+    def log_file(self):
+        return self.data['logConfigurationFile']
+
+    @property
+    def bean_name(self):
+        return self.data['beanName']
+
+    @property
+    def xpath(self):
+        return "xnatpy:pluginsSession"
+
+    @property
+    def fulldata(self):
+        return self.xnat_session.get_json(self.uri)
+
+    @property
+    @caching
+    def data(self):
+        return self.fulldata
+
+    def cli_str(self):
+        return "Plugin {name}".format(name=self.label)
 
 
 class Plugins(object):
@@ -49,7 +100,6 @@ class Plugins(object):
     def xnat_session(self):
         return self._xnat_session
 
-    @property
     def list(self):
         """
         Get a list of all plugins
@@ -60,6 +110,12 @@ class Plugins(object):
         uri = '/xapi/plugins/'
 
         data = self.xnat_session.get_json(uri)
+        plugin_names = list(data.keys())
+        result = []
+        for plugin_name in plugin_names:
+            uri = '/xapi/plugins/{}'.format(plugin_name)
+            plugin_data = PluginConfiguration(uri, self.xnat_session)
 
-        return json.dumps(data)
+            result.append(plugin_data)
 
+        return result
