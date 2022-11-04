@@ -31,6 +31,7 @@ from six.moves.urllib import parse
 from . import exceptions
 from .core import XNATListing, caching
 from .inspect import Inspect
+from .plugins import Plugins
 from .prearchive import Prearchive
 from .users import Users
 from .services import Services
@@ -53,6 +54,7 @@ class BaseXNATSession(object):
     * :py:meth:`XNATSession.projects <xnat.session.XNATSession.projects>`
     * :py:meth:`XNATSession.subjects <xnat.session.XNATSession.subjects>`
     * :py:meth:`XNATSession.experiments <xnat.session.XNATSession.experiments>`
+    * :py:meth:`XNATSession.plugins <xnat.session.XNATSession.plugins>`
     * :py:meth:`XNATSession.prearchive <xnat.session.XNATSession.prearchive>`
     * :py:meth:`XNATSession.services <xnat.session.XNATSession.services>`
     * :py:meth:`XNATSession.users <xnat.session.XNATSession.users>`
@@ -104,6 +106,7 @@ class BaseXNATSession(object):
         self.caching = True
         self._source_code_file = None
         self._services = Services(xnat_session=self)
+        self._plugins = Plugins(xnat_session=self)
         self._prearchive = Prearchive(xnat_session=self)
         self._users = Users(xnat_session=self)
         self._debug = debug
@@ -933,6 +936,13 @@ class BaseXNATSession(object):
         Collection of services, see :py:mod:`xnat.services`
         """
         return self._services
+
+    @property
+    def plugins(self):
+        """
+        Collection of plugins, see :py:mod:`xnat.plugins`
+        """
+        return self._plugins
 
     def clearcache(self):
         """
