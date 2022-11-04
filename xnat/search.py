@@ -5,7 +5,15 @@ import datetime
 from abc import ABCMeta, abstractmethod
 from xml.etree import ElementTree
 import csv
+from io import StringIO
 import six
+
+try:
+    import pandas
+    PANDAS_AVAILABLE = True
+except ImportError:
+    pandas = None
+    PANDAS_AVAILABLE = False
 
 xdat_ns = "http://nrg.wustl.edu/security"
 ElementTree.register_namespace("xdat", xdat_ns)
@@ -29,6 +37,10 @@ class SearchField(property):
         return '<SearchField {}>'.format(self.identifier)
 
     @property
+    def xsi_type(self):
+        return self.search_class.__xsi_type__
+
+    @property
     def identifier(self):
         # For the search criteria (where this is used) any xsitype/field
         # can be used (no need for display fields)
@@ -40,7 +52,7 @@ class SearchField(property):
             if parent.parent is None:
                 break
             parent = parent.parent
-        return '{}/{}'.format(self.search_class.__xsi_type__, field_name)
+        return '{}/{}'.format(self.xsi_type, field_name)
 
     def __eq__(self, other):
         return Constraint(self.identifier, '=', other)
@@ -102,6 +114,9 @@ class Query(object):
         root_elem_name.text = self.xsi_type
 
         # Add search fields
+        if self.fields is None and self.queried_class.DEFAULT_SEARCH_FIELDS:
+            self.fields = [getattr(self.queried_class, x) for x in self.queried_class.DEFAULT_SEARCH_FIELDS]
+
         if self.fields is not None:
             for idx, x in enumerate(self.fields):
                 search_where = ElementTree.SubElement(bundle, ElementTree.QName(xdat_ns, "search_field"))
@@ -115,7 +130,8 @@ class Query(object):
                 type_.text = str(x.type)
                 header = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "header"))
                 header.text = 'url'
-        
+
+
         # Add criteria
         search_where = ElementTree.SubElement(bundle, ElementTree.QName(xdat_ns, "search_where"))
         search_where.set("method", "AND")
@@ -127,7 +143,41 @@ class Query(object):
     def to_string(self):
         return ElementTree.tostring(self.to_xml())
 
-    def all(self):
+    def tabulate_csv(self):
+        result = self.xnat_session.post('/data/search', format='csv', data=self.to_string())
+
+        # Parse returned table
+        csv_text = str(result.text)
+
+        return csv_text
+
+    def tabulate_json(self):
+        result = self.xnat_session.post('/data/search', format='json', data=self.to_string())
+
+        # Parse returned table
+        json_text = str(result.text)
+
+        return json_text
+
+    def tabulate_pandas(self):
+        if not PANDAS_AVAILABLE:
+            raise ModuleNotFoundError('Cannot tabulate to pandas without pandas being installed!')
+        csv_data = self.tabulate_csv()
+        csv_data = StringIO(csv_data)
+        return pandas.read_csv(csv_data)
+
+    def tabulate_dict(self):
+        # Parse returned table
+        csv_text = self.tabulate_csv()
+        csv_dialect = csv.Sniffer().sniff(csv_text)
+        data = list(csv.reader(csv_text.splitlines(), dialect=csv_dialect))
+        header = data[0]
+
+        data = [dict(zip(header, x)) for x in data[1:]]
+
+        return data
+
+    def _run_query(self):
         result = self.xnat_session.post('/data/search', format='csv', data=self.to_string())
 
         # Parse returned table
@@ -137,8 +187,54 @@ class Query(object):
         header = data[0]
 
         data = [dict(zip(header, x)) for x in data[1:]]
-
         return data
+
+    def _create_object(self, row):
+        row['session_uri'] = self.xnat_session.fulluri
+        uri = self.queried_class.FROM_SEARCH_URI
+
+        if uri:
+            uri = uri.format(**row)
+            obj = self.xnat_session.create_object(uri=uri)
+        else:
+            obj = None
+
+        return obj
+
+    def all(self):
+        data = self._run_query()
+        objects = []
+        for row in data:
+            obj = self._create_object(row)
+            if obj:
+                objects.append(obj)
+
+        return objects
+
+    def first(self):
+        data = self._run_query()
+        return self._create_object(data[0])
+
+    def last(self):
+        data = self._run_query()
+        return self._create_object(data[-1])
+
+    def one(self):
+        data = self._run_query()
+
+        if len(data) != 1:
+            raise ValueError(f'Did not find exactly one result (found {len(data)})')
+        return self._create_object(data[0])
+
+    def one_or_none(self):
+        data = self._run_query()
+
+        if len(data) > 1:
+            raise ValueError(f'Did not find exactly one or no result (found {len(data)})')
+        elif len(data) == 0:
+            return None
+
+        return self._create_object(data[0])
 
 
 class BaseConstraint(six.with_metaclass(ABCMeta, object)):
