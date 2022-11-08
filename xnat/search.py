@@ -27,6 +27,20 @@ def or_(*args):
     return CompoundConstraint(tuple(args), 'OR')
 
 
+def inject_search_fields(session):
+    for datatype in session.inspect.datatypes():
+        cls = session.XNAT_CLASS_LOOKUP.get(datatype)
+        if cls is None:
+            session.logger.warning(f'Cannot find matching class for {datatype}')
+            continue
+        session.logger.warning(f'Inject fields for {datatype} to {cls}')
+        fields = session.inspect.datafields(datatype)
+        for field in fields:
+            name = field.split('/')[-1]
+            field = SearchField(cls, name, 'xs:string')
+            setattr(cls, name, field)
+
+
 class SearchField(property):
     def __init__(self, search_class, field_name, type=None):
         self.search_class = search_class
