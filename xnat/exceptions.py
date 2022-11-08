@@ -17,7 +17,6 @@
 The specific exceptions that are thrown by XNATpy
 """
 
-from __future__ import absolute_import
 import requests
 
 
