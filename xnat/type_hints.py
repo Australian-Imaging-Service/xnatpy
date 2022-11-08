@@ -1,5 +1,5 @@
-from typing import Any, Optional, Tuple, Union
+from typing import Any, List, Dict, Optional, Tuple, Union
 
 
 TimeoutType = Optional[Union[float, Tuple[float, float]]]
-JSONType = Any
+JSONType = Union[None, int, str, bool, List[Any], Dict[str, Any]]

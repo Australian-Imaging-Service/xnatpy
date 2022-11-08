@@ -210,7 +210,7 @@ class XNATBaseObject(metaclass=ABCMeta):
             elif self._CONTAINED_IN is not None:
                 parent = getattr(parent, self._CONTAINED_IN)
             else:
-                self.logger.debug('parent {}, self._CONTAINED_IN: {}'.format(parent, self._CONTAINED_IN))
+                self.logger.debug(f'parent {parent}, self._CONTAINED_IN: {self._CONTAINED_IN}')
                 raise exceptions.XNATValueError('Cannot determine PUT url!')
 
             # Check what argument to use to build the URL

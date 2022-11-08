@@ -64,7 +64,6 @@ test-py38:
 
 release-test-pypi-py3:
   needs:
-    - test-py27
     - test-py36
     - test-py37
     - test-py38

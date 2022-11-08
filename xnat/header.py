@@ -46,7 +46,7 @@ class XNATObjectMixin(XNATObject):
         return current_session()
 
     @classmethod
-    def query(cls, *constraints):
+    def query(cls, *constraints) -> search.Query:
         query = search.Query(cls, cls.xnat_session)
 
         # Add in constraints immediatly

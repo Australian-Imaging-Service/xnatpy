@@ -71,7 +71,7 @@ class ClassPrototype(object):
         self.source_schema = self.parser.current_schema
 
     def __repr__(self):
-        return "<ClassPrototype {}>".format(self.name)
+        return f"<ClassPrototype {self.name}>"
 
     @property
     def name(self):

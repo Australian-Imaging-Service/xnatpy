@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import datetime
-from typing import Union
+from typing import Union, Any, Mapping, Callable
 
 import isodate
 
@@ -118,7 +118,7 @@ def from_float(value: Union[str, float, int]) -> str:
 
 
 # Here to be after all needed function definitions
-TYPE_TO_MAP = {
+TYPE_TO_MAP:  Mapping[str, Callable[[str], Any]] = {
     'xs:anyURI': str,
     'xs:string': str,
     'xs:boolean': to_bool,
@@ -132,7 +132,7 @@ TYPE_TO_MAP = {
     'xs:duration': to_timedelta,
 }
 
-TYPE_FROM_MAP = {
+TYPE_FROM_MAP: Mapping[str, Callable[[Any], str]] = {
     'xs:anyURI': str,
     'xs:string': str,
     'xs:boolean': from_bool,
@@ -161,9 +161,9 @@ TYPE_TO_PYTHON = {
 }
 
 
-def convert_to(value, type_):
+def convert_to(value: str, type_: str) -> Any:
     return TYPE_TO_MAP.get(type_, str)(value)
 
 
-def convert_from(value, type_):
+def convert_from(value: Any, type_: str) -> str:
     return TYPE_FROM_MAP[type_](value)

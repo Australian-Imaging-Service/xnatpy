@@ -16,7 +16,7 @@
 import re
 import keyword
 from functools import update_wrapper
-from io import BytesIO,BufferedIOBase, SEEK_SET, SEEK_END
+from io import BytesIO, BufferedIOBase, SEEK_SET, SEEK_END
 
 import requests
 from requests.auth import AuthBase
