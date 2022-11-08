@@ -12,9 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional
+from typing import Optional, Dict, List, Set
 
-TYPE_HINTS: dict[str, Optional[str]] = {
+TYPE_HINTS: Dict[str, Optional[str]] = {
     'demographics': 'xnat:demographicData',
     'investigator': 'xnat:investigatorData',
     'metadata': 'xnat:subjectMetadata',
@@ -32,7 +32,7 @@ TYPE_HINTS: dict[str, Optional[str]] = {
     'files': 'xnat:fileData',
 }
 
-FIELD_HINTS: dict[str, str] = {
+FIELD_HINTS: Dict[str, str] = {
     'xnat:projectData': 'projects',
     'xnat:subjectData': 'subjects',
     'xnat:experimentData': 'experiments',
@@ -44,13 +44,13 @@ FIELD_HINTS: dict[str, str] = {
     'addParam': 'parameters/addParam',
 }
 
-DATA_FIELD_HINTS: dict[str, str] = {
+DATA_FIELD_HINTS: Dict[str, str] = {
     'addParam': 'addField'
 }
 
 # The following xsi_types are objects with their own REST paths, the
 # other are nested in the xml of their parent.
-CORE_REST_OBJECTS: set[str] = {
+CORE_REST_OBJECTS: Set[str] = {
     'xnat:projectData',
     'xnat:subjectData',
     'xnat:experimentData',
@@ -67,14 +67,14 @@ OVERRIDE_BASE = {
 }
 
 # These are additions to the DisplayIdentifier set in the xsd files
-SECONDARY_LOOKUP_FIELDS: dict[str, str] = {
+SECONDARY_LOOKUP_FIELDS: Dict[str, str] = {
     'xnat:projectData': 'name',
     'xnat:imageScanData': 'type',
     'xnat:fileData': 'name',
 }
 
 # DEFAULT SCHEMAS IN XNAT 1.7
-DEFAULT_SCHEMAS: list[str] = [
+DEFAULT_SCHEMAS: List[str] = [
     "security",
     "xnat",
     "assessments",
