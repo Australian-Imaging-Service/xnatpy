@@ -806,24 +806,12 @@ class SchemaParser(object):
             xml_schema_element = xml_schema_element_match.group(1)
             result = re.findall(r'xmlns:(?P<prefix>\w+)="(?P<ns>\S+)"', xml_schema_element)
 
-        # This is used locally only! Can change in between files, so clear it
-        self.namespaces = {}
-
         for prefix, namespace in result:
-
-            if namespace not in self.namespace_prefixes:
-                self.logger.debug('Registering prefix: {}  ->  {}'.format(namespace, prefix))
-                self.namespace_prefixes[namespace] = prefix
-            elif self.namespace_prefixes[namespace] != prefix:
-                self.logger.warning(f"Inconsitent prefix for namespace {namespace}:"
-                                    f"{prefix} vs {self.namespace_prefixes[prefix]}")
-
-            if prefix not in self.namespaces:
-                self.logger.debug('Registering namespace: {}  ->  {}'.format(prefix, namespace))
-                self.namespaces[prefix] = namespace
-            elif self.namespaces[prefix] != namespace:
-                self.logger.warning(f"Inconsistent namespace for prefix {prefix}"
-                                    f"{namespace} vs {self.namespaces[prefix]}")
+            self.logger.debug('Registering namespace: {}  ->  {}'.format(
+                prefix, namespace)
+            )
+            self.namespace_prefixes[namespace] = prefix
+            self.namespaces[prefix] = namespace
 
         # Register schema as being loaded
         self.schemas.append(schema_uri)
