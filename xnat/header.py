@@ -20,7 +20,7 @@ import tempfile  # Needed by generated code
 from gzip import GzipFile  # Needed by generated code
 from tarfile import TarFile  # Needed by generated code
 from zipfile import ZipFile  # Needed by generated code
-from six import BytesIO  # Needed by generated code
+from io import BytesIO  # Needed by generated code
 
 from xnat import search, mixin
 from xnat.core import XNATObject, XNATNestedObject, XNATSubObject, XNATListing, XNATSimpleListing, XNATSubListing, caching
@@ -46,7 +46,7 @@ class XNATObjectMixin(XNATObject):
         return current_session()
 
     @classmethod
-    def query(cls, *constraints):
+    def query(cls, *constraints) -> search.Query:
         query = search.Query(cls, cls.xnat_session)
 
         # Add in constraints immediatly

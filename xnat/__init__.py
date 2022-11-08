@@ -20,11 +20,10 @@ the https://central.xnat.org/schema/xnat/xnat.xsd schema and the xnatcore and
 xnatbase modules, using the convert_xsd.
 """
 
-from __future__ import absolute_import
-from __future__ import unicode_literals
 import getpass
 import hashlib
-import imp
+import importlib.machinery
+import importlib.util
 import logging
 import os
 import platform
@@ -36,7 +35,7 @@ import time
 import requests
 import requests.cookies
 import urllib3
-from six.moves.urllib import parse
+from urllib import parse
 
 from . import exceptions
 from .session import XNATSession, BaseXNATSession
@@ -46,7 +45,7 @@ from .utils import JSessionAuth
 
 GEN_MODULES = {}
 
-__version__ = '0.4.4'
+__version__ = '0.5.0'
 __all__ = ['connect', 'exceptions']
 
 
@@ -363,8 +362,11 @@ def build_model(xnat_session, extension_types, connection_id):
     logger.debug('Code file written to: {}'.format(code_file.name))
 
     # The module is loaded in its private namespace based on the code_file name
-    xnat_module = imp.load_source('xnat_gen_{}'.format(connection_id),
-                                  code_file.name)
+    module_name = 'xnat.generated.model_{}'.format(connection_id)
+    loader = importlib.machinery.SourceFileLoader(module_name, code_file.name)
+    spec = importlib.util.spec_from_loader(module_name, loader)
+    xnat_module = importlib.util.module_from_spec(spec)
+    loader.exec_module(xnat_module)
     xnat_module._SOURCE_CODE_FILE = code_file.name
 
     logger.debug('Loaded generated module')
@@ -427,19 +429,19 @@ def connect(server=None, user=None, password=None, verify=True, netrc_file=None,
     Preferred use::
 
         >>> import xnat
-        >>> with xnat.connect('https://central.xnat.org') as session:
-        ...    subjects = session.projects['Sample_DICOM'].subjects
+        >>> with xnat.connect('https://central.xnat.org') as connection:
+        ...    subjects = connection.projects['Sample_DICOM'].subjects
         ...    print('Subjects in the SampleDICOM project: {}'.format(subjects))
         Subjects in the SampleDICOM project: <XNATListing (CENTRAL_S01894, dcmtest1): <SubjectData CENTRAL_S01894>, (CENTRAL_S00461, PACE_HF_SUPINE): <SubjectData CENTRAL_S00461>>
 
     Alternative use::
 
         >>> import xnat
-        >>> session = xnat.connect('https://central.xnat.org')
-        >>> subjects = session.projects['Sample_DICOM'].subjects
+        >>> connection = xnat.connect('https://central.xnat.org')
+        >>> subjects = connection.projects['Sample_DICOM'].subjects
         >>> print('Subjects in the SampleDICOM project: {}'.format(subjects))
         Subjects in the SampleDICOM project: <XNATListing (CENTRAL_S01894, dcmtest1): <SubjectData CENTRAL_S01894>, (CENTRAL_S00461, PACE_HF_SUPINE): <SubjectData CENTRAL_S00461>>
-        >>> session.disconnect()
+        >>> connection.disconnect()
     """
 
     # Auto-detect server based on environment variables

@@ -25,8 +25,6 @@ import os
 import re
 from xml.etree import ElementTree
 
-import six
-
 from . import core
 from . import mixin
 from .datatypes import TYPE_TO_PYTHON
@@ -73,7 +71,7 @@ class ClassPrototype(object):
         self.source_schema = self.parser.current_schema
 
     def __repr__(self):
-        return "<ClassPrototype {}>".format(self.name)
+        return f"<ClassPrototype {self.name}>"
 
     @property
     def name(self):
@@ -766,7 +764,7 @@ class ListingPropertyWriter(AttributeWriter):
         if self.element_class is not None:
             element_class = self.element_class
             property_base += element_class.writer.create_listing(secondary_lookup=secondary_lookup, field_name=field_name)
-        elif isinstance(self.type, six.string_types) and not self.type.startswith('xs:'):
+        elif isinstance(self.type, str) and not self.type.startswith('xs:'):
             element_class = self.parser.class_list[self.type]
             property_base += element_class.writer.create_listing(secondary_lookup=secondary_lookup, field_name=field_name)
         else:
