@@ -34,6 +34,7 @@ except ImportError:
 
 class ProjectData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'name'
+    FROM_SEARCH_URI = '{session_uri}/projects/{id}'
 
     # just for consistency with subject/experiment for custom variable map
     @property
@@ -151,6 +152,7 @@ class InvestigatorData(XNATBaseObject):
 
 class SubjectData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'label'
+    FROM_SEARCH_URI = '{session_uri}/projects/{project}/subjects/{subjectid}'
 
     @property
     def fulluri(self):
@@ -254,6 +256,8 @@ class SubjectData(XNATBaseObject):
 
 class ExperimentData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'label'
+    FROM_SEARCH_URI = '{session_uri}/projects/{project}/subjects/{subject_id}/experiments/{session_id}'
+    DEFAULT_SEARCH_FIELDS = ['id', 'project', 'subject_id']
 
     @mixedproperty
     def label(cls):

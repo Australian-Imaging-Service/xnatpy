@@ -29,6 +29,14 @@ from .datatypes import convert_from, convert_to
 from .constants import TYPE_HINTS, DATA_FIELD_HINTS
 from .type_hints import TimeoutType, JSONType
 from .utils import mixedproperty, pythonize_attribute_name
+from.search import SearchField
+
+try:
+    import pandas
+    PANDAS_AVAILABLE = True
+except ImportError:
+    pandas = None
+    PANDAS_AVAILABLE = False
 
 if TYPE_CHECKING:
     from .session import BaseXNATSession
@@ -188,6 +196,8 @@ class CustomVariableDef:
 
 class XNATBaseObject(metaclass=ABCMeta):
     SECONDARY_LOOKUP_FIELD = None
+    FROM_SEARCH_URI = None
+    DEFAULT_SEARCH_FIELDS = None
     _DISPLAY_IDENTIFIER = None
     _HAS_FIELDS = False
     _CONTAINED_IN = None
@@ -428,7 +438,11 @@ class XNATBaseObject(metaclass=ABCMeta):
     def __xsi_type__(self) -> str:
         return self._XSI_TYPE
 
-    @property
+    @mixedproperty
+    def id(cls):
+        return SearchField(cls, "ID", "xs:string")
+
+    @id.getter
     @caching
     def id(self) -> str:
         object_id = self.data.get('ID', None)
@@ -1001,6 +1015,13 @@ class XNATListing(XNATBaseListing):
         # FIXME: A context would be nicer, but doesn't work in Python 2.7
         output.close()
         return result
+
+    def tabulate_pandas(self):
+        if not PANDAS_AVAILABLE:
+            raise ModuleNotFoundError('Cannot tabulate to pandas without pandas being installed!')
+        csv_data = self.tabulate_csv()
+        csv_data = six.StringIO(csv_data)
+        return pandas.read_csv(csv_data)
 
     @property
     def used_filters(self):

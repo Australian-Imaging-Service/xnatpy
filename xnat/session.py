@@ -28,6 +28,7 @@ import requests
 from urllib import parse
 
 from . import exceptions
+from .constants import FIELD_HINTS
 from .core import XNATBaseObject, XNATListing, caching
 from .inspect import Inspect
 from .plugins import Plugins
@@ -892,6 +893,11 @@ class BaseXNATSession(object):
         :param kwargs: arguments to pass to object creation
         :return: newly created xnatpy object
         """
+        if uri.startswith('/REST/'):
+            uri = uri.replace('/REST/', '/data/')
+        elif uri.startswith('/data/archive/'):
+            uri = uri.replace('/data/archive/', '/data/')
+
         if (uri, fieldname) not in self._cache['__objects__']:
             if type_ is None:
                 if self.xnat_session.debug:
@@ -902,6 +908,10 @@ class BaseXNATSession(object):
             else:
                 datafields = None
 
+            fieldname = FIELD_HINTS.get(type_, 'UNKNOWN')
+
+
+        if (uri, fieldname) not in self._cache['__objects__']:
             if self.xnat_session.debug:
                 self.logger.debug('Looking up type {} [{}]'.format(type_, type(type_).__name__))
             if type_ not in self.XNAT_CLASS_LOOKUP:
@@ -921,6 +931,9 @@ class BaseXNATSession(object):
                 overwrites = {'project': match.group(1)}
             else:
                 overwrites = None
+
+            if cls.SECONDARY_LOOKUP_FIELD not in kwargs:
+                kwargs[cls.SECONDARY_LOOKUP_FIELD] = datafields.get(cls.SECONDARY_LOOKUP_FIELD)
 
             obj = cls(uri, self, datafields=datafields, fieldname=fieldname, overwrites=overwrites, **kwargs)
 
