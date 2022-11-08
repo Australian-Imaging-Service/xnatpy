@@ -19,7 +19,7 @@ import os
 from setuptools import setup
 
 # Get information about the version (polling mercurial if possible)
-version = '0.4.4'
+version = '0.5.0'
 
 # When building something else than a release (tag) append the job id to the version.
 if os.environ.get('CI_COMMIT_TAG'):
@@ -68,6 +68,7 @@ if __name__ == '__main__':
             "Programming Language :: Python :: 3.8",
             "Programming Language :: Python :: 3.9",
             "Programming Language :: Python :: 3.10",
+            "Programming Language :: Python :: 3.11",
             "Topic :: Scientific/Engineering :: Bio-Informatics",
             "Topic :: Scientific/Engineering :: Medical Science Apps.",
             ]
