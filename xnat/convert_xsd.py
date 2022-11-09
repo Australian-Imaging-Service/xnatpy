@@ -882,6 +882,8 @@ class SchemaParser(object):
         tries = 0
         yielded_anything = True
         while len(visited) < len(self.class_list) and yielded_anything and tries < 25:
+            if self.debug:
+                self.logger.info(f"============ Iteration {tries} ============")
             yielded_anything = False
             for key, value in self.class_list.items():
                 if key in visited:
@@ -890,14 +892,14 @@ class SchemaParser(object):
                 base = value.base_class
                 if base is not None and not base.startswith('xs:') and base not in visited:
                     if self.debug:
-                        self.logger.debug("Wait with processing {} because base {} is not yet processed".format(
+                        self.logger.info("Wait with processing {} because base {} is not yet processed".format(
                             value.name, base
                         ))
                     continue
 
                 if value.parent_class is not None and value.parent_class not in visited:
                     if self.debug:
-                        self.logger.debug("Wait with processing {} because parent {} is not yet processed".format(
+                        self.logger.info("Wait with processing {} because parent {} is not yet processed".format(
                             value.name, value.parent_class
                         ))
                     continue
@@ -910,14 +912,13 @@ class SchemaParser(object):
             tries += 1
 
         expected = len(self.class_list) + nr_previsited  # We started with two "visited" classes
-        if self.debug:  # and len(visited) < len(self.class_list):
+        if len(visited) < expected:
             missed = sorted(set(self.class_list) - visited)
-            if self.debug:
-                self.logger.debug('Visited: {}, expected: {}'.format(len(visited), expected))
-                self.logger.debug('Visited: {}'.format(visited))
-                self.logger.info('Missed: {}'.format(missed))
-                self.logger.info('Missed base class: {}'.format([self.class_list[x].base_class for x in missed]))
-                self.logger.debug('Spent {} iterations'.format(tries))
+            self.logger.debug('Visited: {}, expected: {}'.format(len(visited), expected))
+            self.logger.debug('Visited: {}'.format(visited))
+            self.logger.info('Missed: {}'.format(missed))
+            self.logger.info('Missed base class: {}'.format([self.class_list[x].base_class for x in missed]))
+            self.logger.debug('Spent {} iterations'.format(tries))
 
     @contextlib.contextmanager
     def _descend(self, new_class=None, new_property=None, property_prefix=None):
@@ -1270,14 +1271,23 @@ class SchemaParser(object):
                         self.logger.debug("Ignoring non-listing...")
                         self.logger.debug("Element class: {}".format(element_class.__dict__))
 
+        for key in to_remove:
+            if self.debug:
+                self.logger.info(f'Removing pruned class {key}')
+            del self.class_list[key]
+
         for cls in self.class_list.values():
             if cls.parent_class in renamed:
                 new_name = renamed[cls.parent_class]
-                self.logger.info(f'Fixing parent name after rename in pruning from {cls.parent_class} to {new_name}')
+                if self.debug:
+                    self.logger.info(f'Fixing parent name after rename in pruning from {cls.parent_class} to {new_name}')
                 cls.parent_class = new_name
 
-        for key in to_remove:
-            del self.class_list[key]
+        for old_name, new_name in renamed.items():
+            if self.debug:
+                self.logger.info(f'Re-inserting renamed class {old_name} in class list under {new_name}')
+            item = self.class_list.pop(old_name)
+            self.class_list[new_name] = item
 
         for cls in self.class_list.values():
             for property_key, prop in cls.attributes.items():

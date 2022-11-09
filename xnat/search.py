@@ -25,6 +25,7 @@ def or_(*args):
 
 
 def inject_search_fields(session):
+    session.logger.info('Injecting display fields to classes')
     for datatype in session.inspect.datatypes():
         cls = session.XNAT_CLASS_LOOKUP.get(datatype)
         if cls is None:
