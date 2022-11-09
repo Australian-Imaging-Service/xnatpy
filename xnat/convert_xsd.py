@@ -370,7 +370,12 @@ class BaseClassWriter(BaseWriter):
             header += "    _DISPLAY_IDENTIFIER = '{}'\n".format(self.display_identifier)
 
         if 'fields' in self.attributes:
-            header += "    _HAS_FIELDS = True\n"
+            attribute = self.attributes['fields']
+            element_class = attribute.element_class
+            # Make sure it's only proper fields and not a subobject called fields (THIS DOES HAPPEN!)
+            if element_class.class_type == 'Simple':
+                header += "    _HAS_FIELDS = True\n"
+                header += "    custom_variables = search.SearchFieldMap('{name}')\n".format(name=self.name)
 
         if self.parent_class is not None:
             header += "    _PARENT_CLASS = {}\n".format(self.python_parent_class)

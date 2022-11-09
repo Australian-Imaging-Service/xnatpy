@@ -30,40 +30,40 @@ def inject_search_fields(session):
         if cls is None:
             session.logger.warning(f'Cannot find matching class for {datatype}')
             continue
-        session.logger.warning(f'Inject fields for {datatype} to {cls}')
+        session.logger.debug(f'Inject fields for {datatype} to {cls}')
         fields = session.inspect.datafields(datatype)
         for field in fields:
             name = field.split('/')[-1]
-            field = SearchField(cls, name, 'xs:string')
+            field = DisplayFieldSearchField(cls, name, 'xs:string')
             setattr(cls, name, field)
 
 
-class SearchField(property):
-    def __init__(self, search_class, field_name, type=None):
-        self.search_class = search_class
-        self.field_name = field_name
-        self.type = type
+class SearchFieldMap:
+    def __init__(self, xsi_type):
+        self._xsi_type = xsi_type
+
+    def __getitem__(self, item):
+        return CustomFieldSearchField(self._xsi_type, item)
+
+
+class BaseSearchField(property):
+    @property
+    @abstractmethod
+    def xsi_type(self):
+        return None
+
+    @property
+    @abstractmethod
+    def identifier(self):
+        return None
+
+    @property
+    @abstractmethod
+    def field_id(self):
+        return None
 
     def __repr__(self):
         return '<SearchField {}>'.format(self.identifier)
-
-    @property
-    def xsi_type(self):
-        return self.search_class.__xsi_type__
-
-    @property
-    def identifier(self):
-        # For the search criteria (where this is used) any xsitype/field
-        # can be used (no need for display fields)
-        field_name = self.field_name
-
-        parent = self.search_class
-        while parent.fieldname is not None:
-            field_name = f'{parent.fieldname}/{field_name}'
-            if parent.parent is None:
-                break
-            parent = parent.parent
-        return '{}/{}'.format(self.xsi_type, field_name)
 
     def __eq__(self, other):
         return Constraint(self.identifier, '=', other)
@@ -82,6 +82,64 @@ class SearchField(property):
 
     def like(self, other):
         return Constraint(self.identifier, ' LIKE ', other)
+
+
+class CustomFieldSearchField(BaseSearchField):
+    def __init__(self, xsi_type, field_name):
+        super().__init__()
+        self._xsi_type = xsi_type
+        self._field_name = field_name
+        self.type = 'string'
+
+    @property
+    def xsi_type(self):
+        return self._xsi_type
+
+    @property
+    def field_id(self):
+        xsi_type = self._xsi_type.upper().replace(':', '_')
+        identifier = f'{xsi_type}_FIELD_MAP={self._field_name.lower()}'
+        return identifier
+
+    @property
+    def identifier(self):
+        return f'{self.xsi_type}/{self.field_id}'
+
+
+class SearchField(BaseSearchField):
+    def __init__(self, search_class, field_name, type=None):
+        super().__init__()
+        self.search_class = search_class
+        self.field_name = field_name
+        self.type = type
+
+    @property
+    def xsi_type(self):
+        return self.search_class.__xsi_type__
+
+    @property
+    def field_id(self):
+        return self.identifier
+
+    @property
+    def identifier(self):
+        # For the search criteria (where this is used) any xsitype/field
+        # can be used (no need for display fields)
+        field_name = self.field_name
+
+        parent = self.search_class
+        while parent.fieldname is not None:
+            field_name = f'{parent.fieldname}/{field_name}'
+            if parent.parent is None:
+                break
+            parent = parent.parent
+        return '{}/{}'.format(self.xsi_type, field_name)
+
+
+class DisplayFieldSearchField(SearchField):
+    @property
+    def field_id(self):
+        return self.field_name
 
 
 class Query(object):
@@ -134,7 +192,7 @@ class Query(object):
                 element_name = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "element_name"))
                 element_name.text = x.xsi_type
                 field_id = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "field_ID"))
-                field_id.text = x.identifier
+                field_id.text = x.field_id
                 sequence = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "sequence"))
                 sequence.text = str(idx)
                 type_ = ElementTree.SubElement(search_where, ElementTree.QName(xdat_ns, "type"))

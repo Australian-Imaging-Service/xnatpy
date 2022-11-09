@@ -37,7 +37,7 @@ import requests.cookies
 import urllib3
 from urllib import parse
 
-from . import exceptions
+from . import exceptions, search
 from .session import XNATSession, BaseXNATSession
 from .constants import DEFAULT_SCHEMAS
 from .convert_xsd import SchemaParser
@@ -383,7 +383,7 @@ def build_model(xnat_session, extension_types, connection_id):
             if cls_obj is not None:
                 cls_obj.__register__(xnat_module.XNAT_CLASS_LOOKUP)
             else:
-                logger.warning("Cannot found class to register for {}".format(cls.name))
+                logger.warning("Cannot find class to register for {}".format(cls.name))
 
     xnat_module.SESSION = xnat_session
 
@@ -391,6 +391,7 @@ def build_model(xnat_session, extension_types, connection_id):
     xnat_session.XNAT_CLASS_LOOKUP.update(xnat_module.XNAT_CLASS_LOOKUP)
     xnat_session.classes = xnat_module
     xnat_session._source_code_file = code_file.name
+    search.inject_search_fields(xnat_session)
     logger.info('Object model created successfully')
 
 
