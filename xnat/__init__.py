@@ -127,10 +127,11 @@ def check_auth(requests_session, server, user, logger):
             match = re.search(r'<form name="form1" method="post" action="/xnat/login"', test_auth_request.text)
             if match:
                 message = 'Login attempt failed for {}, please make sure your credentials for user {} are correct!'.format(server, user)
+                logger.error(message)
                 raise exceptions.XNATLoginFailedError(message)
 
             message = 'Could not determine if login was successful!'
-            logger.error(message)
+            logger.critical(message)
             logger.debug(test_auth_request.text)
             raise exceptions.XNATAuthError(message)
         else:
