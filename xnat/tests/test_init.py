@@ -1,11 +1,13 @@
 import logging
+from unittest.mock import ANY, call
 
 import pytest
 import requests
 from requests_mock import Mocker
+from pytest_mock import MockerFixture
 
-from xnat import check_auth_guest, check_auth
-from xnat.exceptions import XNATAuthError, XNATLoginFailedError, XNATExpiredCredentialsError
+from xnat import check_auth_guest, check_auth, parse_schemas_17
+from xnat.exceptions import XNATAuthError, XNATLoginFailedError, XNATExpiredCredentialsError, XNATResponseError
 
 
 def test_check_auth_guest(requests_mock: Mocker):
@@ -96,3 +98,56 @@ def test_check_auth(requests_mock: Mocker, caplog: pytest.LogCaptureFixture):
         check_auth(requests_session=session, server=server, user='test', logger=logger)
     assert caplog.record_tuples == [('root', logging.ERROR, 'Login failed (in guest mode)!')]
 
+
+def test_parse_schemas_17(mocker: MockerFixture, caplog: pytest.LogCaptureFixture):
+    # Test a standard parser call
+    class FakeSession:
+        def get_json(self, uri):
+            return ['security',
+                    'xnat',
+                    'xdat/display',
+                    'xdat',
+                    'xdat/instance']
+
+    # Create mock parser
+    parser = mocker.Mock()
+    session = FakeSession()
+    parse_schemas_17(parser=parser, xnat_session=session)
+    assert len(parser.parse_schema_uri.mock_calls) == 5
+
+    parser.parse_schema_uri.assert_has_calls([
+        call(xnat_session=session, schema_uri='/xapi/schemas/security'),
+        call(xnat_session=session, schema_uri='/xapi/schemas/xnat'),
+        call(xnat_session=session, schema_uri='/xapi/schemas/xdat/display'),
+        call(xnat_session=session, schema_uri='/xapi/schemas/xdat'),
+        call(xnat_session=session, schema_uri='/xapi/schemas/xdat/instance')
+    ])
+
+    # Test error test call
+    error_msg = 'Test error in schema retrieval!'
+
+    class FailingFakeSession:
+        def get_json(self, uri):
+            raise XNATResponseError(error_msg)
+
+        @property
+        def logger(self):
+            return logging.getLogger()
+
+    session = FailingFakeSession()
+
+    caplog.clear()
+    with pytest.raises(ValueError):
+        parse_schemas_17(parser=parser, xnat_session=session)
+    assert caplog.record_tuples == [('root', logging.CRITICAL, f'Problem retrieving schemas list: {error_msg}')]
+
+    # Test default no extensions call
+    parser = mocker.Mock()
+    session = mocker.Mock()
+    parse_schemas_17(parser=parser, xnat_session=session, extension_types=False)
+    assert len(parser.parse_schema_uri.mock_calls) == 2
+
+    parser.parse_schema_uri.assert_has_calls([
+        call(xnat_session=session, schema_uri='/xapi/schemas/xnat'),
+        call(xnat_session=session, schema_uri='/xapi/schemas/xdat'),
+    ])
