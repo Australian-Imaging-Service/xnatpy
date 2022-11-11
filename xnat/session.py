@@ -20,7 +20,7 @@ from pathlib import Path
 import os
 import re
 import threading
-from typing import Any, BinaryIO, Callable, Container, Dict, List, Optional, Tuple, Union
+from typing import Any, BinaryIO, Callable, Container, Dict, List, Optional, Tuple, Union, IO
 
 from progressbar import AdaptiveETA, AdaptiveTransferSpeed, Bar, BouncingBar, \
     DataSize, Percentage, ProgressBar, Timer, UnknownLength
@@ -764,22 +764,58 @@ class BaseXNATSession(object):
         if not path.is_file():
             raise FileNotFoundError("The path points to a non-file object")
 
-        self.upload(uri=uri, file_=path, **kwargs)
+        with open(path) as file_handle:
+            self.upload_stream(uri=uri, stream=file_handle, **kwargs)
+
+    def upload_string(self,
+                      uri: str,
+                      data: Union[str, bytes],
+                      ** kwargs):
+        if not isinstance(data, str):
+            raise TypeError(f"The upload_string needs a string as the data to upload, found {type(data)}!")
+
+        if isinstance(data, str):
+            data_stream = io.StringIO(data)
+        else:
+            data_stream = io.BytesIO(data)
+
+        self.upload_stream(uri=uri,
+                           stream=data_stream,
+                           **kwargs)
 
     def upload(self,
                uri: str,
-               file_: Any,
-               retries: int = 1,
-               query: Optional[Dict[str, str]] = None,
-               content_type: Optional[str] = None,
-               method: str = 'put',
-               overwrite: bool = False,
-               timeout: TimeoutType = None):
+               data: Union[str, Path, IO],
+               **kwargs):
+        # Check if file is an opened file
+        if isinstance(data, (io.BufferedIOBase, io.TextIOBase)):
+            self.upload_stream(uri=uri,
+                               stream=data,
+                               **kwargs)
+        elif isinstance(data, Path) or (isinstance(data, str) and '\0' not in data and os.path.isfile(data)):
+            self.upload_file(uri=uri,
+                             path=data,
+                             **kwargs)
+        else:
+            # File is data to upload
+            self.upload_string(uri=uri,
+                               data=data,
+                               **kwargs)
+
+    def upload_stream(self,
+                      uri: str,
+                      stream: Union[IO, io.BufferedIOBase, io.TextIOBase],
+                      retries: int = 1,
+                      query: Optional[Dict[str, str]] = None,
+                      content_type: Optional[str] = None,
+                      method: str = 'put',
+                      overwrite: bool = False,
+                      timeout: TimeoutType = None):
         """
         Upload data or a file to XNAT
 
         :param uri: uri to upload to
-        :param file_: the file handle, path to a file or a string of data
+        :param stream: the file handle, path to a file or a string of data
                       (which should not be the path to an existing file!)
         :param retries: amount of times xnatpy should retry in case of
                         failure
@@ -800,50 +836,30 @@ class BaseXNATSession(object):
         uri = self._format_uri(uri, query=query)
         self.logger.info('UPLOAD URI {}'.format(uri))
         attempt = 0
-        file_handle = None
-        opened_file = False
+        response = None
 
-        try:
-            while attempt < retries:
-                if isinstance(file_, io.IOBase):
-                    # File is open file handle, seek to 0
-                    file_handle = file_
-                    file_.seek(0)
-                elif isinstance(file_, Path):
-                    file_handle = file_.open('rb')
-                    opened_file = True
-                # Make sure conditions are valid for os.path.isfile to function
-                elif isinstance(file_, str) and '\0' not in file_ and os.path.isfile(file_):
-                    # File is str path to file
-                    file_handle = open(file_, 'rb')
-                    opened_file = True
+        while attempt < retries:
+            stream.seek(0)
+            attempt += 1
+
+            # Set the content type header
+            if content_type is None:
+                headers = {'Content-Type': 'application/octet-stream'}
+            else:
+                headers = {'Content-Type': content_type}
+
+            try:
+                if method == 'put':
+                    response = self.interface.put(uri, data=stream, headers=headers, timeout=timeout)
+                elif method == 'post':
+                    response = self.interface.post(uri, data=stream, headers=headers, timeout=timeout)
                 else:
-                    # File is data to upload
-                    file_handle = file_
+                    raise ValueError('Invalid upload method "{}" should be either put or post.'.format(method))
 
-                attempt += 1
-
-                # Set the content type header
-                if content_type is None:
-                    headers = {'Content-Type': 'application/octet-stream'}
-                else:
-                    headers = {'Content-Type': content_type}
-
-                try:
-                    if method == 'put':
-                        response = self.interface.put(uri, data=file_handle, headers=headers, timeout=timeout)
-                    elif method == 'post':
-                        response = self.interface.post(uri, data=file_handle, headers=headers, timeout=timeout)
-                    else:
-                        raise ValueError('Invalid upload method "{}" should be either put or post.'.format(method))
-
-                    self._check_response(response)
-                    return response
-                except exceptions.XNATResponseError:
-                    pass
-        finally:
-            if opened_file:
-                file_handle.close()
+                self._check_response(response)
+                return response
+            except exceptions.XNATResponseError:
+                pass
 
         # We didn't return correctly, so we have an error
         raise exceptions.XNATUploadError(f'Upload failed after {retries} attempts! Status code'

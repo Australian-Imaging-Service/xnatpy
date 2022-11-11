@@ -229,7 +229,7 @@ class Services(object):
             query['import-handler'] = import_handler
 
         uri = '/data/services/import'
-        response = self.xnat_session.upload(uri=uri, file_=target, query=query, content_type=content_type, method='post')
+        response = self.xnat_session.upload(uri=uri, data=target, query=query, content_type=content_type, method='post')
 
         if response.status_code != 200:
             raise XNATResponseError('The response for uploading was ({}) {}'.format(response.status_code, response.text))
