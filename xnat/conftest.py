@@ -13,18 +13,42 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
 import logging
 from typing import Any, Pattern, Union
 from unittest.mock import patch
 
 import requests
 
-from pytest import fixture
+import pytest
 from pytest_mock import MockerFixture
 from requests_mock import Mocker
 
-from xnat.core import XNATObject
+from xnat4tests import start_xnat, stop_xnat, add_data, Config
+from xnat4tests.base import docker
+from xnat4tests.utils import set_loggers
+
+import xnat
 from xnat.session import XNATSession
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--run-functional", action="store_true", default=False, help="Run functional tests (default=False)"
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    run_functional = config.getoption('--run-functional')
+    docker_found = docker_available()  # Check if docker is available
+    skip_docker = pytest.mark.skip(reason='Need docker for this test, but docker not found on system')
+    skip_functional = pytest.mark.skip(reason='Need --run-functional to run functional tests')
+
+    for item in items:
+        if not docker_found and 'docker_test' in item.keywords:
+            item.add_marker(skip_docker)
+        if not run_functional and 'functional_test' in item.keywords:
+            item.add_marker(skip_functional)
 
 
 class CreatedObject:
@@ -54,13 +78,13 @@ class XnatpyRequestsMocker(Mocker):
 
 
 
-@fixture(scope='function')
+@pytest.fixture(scope='function')
 def xnatpy_mock():
     with XnatpyRequestsMocker() as mocker:
         yield mocker
 
 
-@fixture(scope='function')
+@pytest.fixture(scope='function')
 def xnatpy_connection(mocker: MockerFixture,
                       xnatpy_mock: XnatpyRequestsMocker):
     # Create a working mocked XNATpy connection object
@@ -120,3 +144,57 @@ def xnatpy_connection(mocker: MockerFixture,
 
     # Stop patch of threading
     mocker.stop(threading_patch)
+
+
+# Check if docker is available for xnat4tests
+def docker_available() -> bool:
+    try:
+        docker.from_env()
+    except Exception:
+        return False
+
+    return True
+
+
+# Fixtures for xnat4tests, setup a config, use the pytest tmp_path_factory fixture for the tmpdir
+@pytest.fixture(scope="session")
+def xnat4tests_config(tmp_path_factory):
+    tmp_path = tmp_path_factory.mktemp('config')
+    set_loggers(loglevel='INFO')
+    yield Config(
+        xnat_root_dir=tmp_path,
+        xnat_port=9999,
+        docker_image="xnatpy_xnat4tests",
+        docker_container="xnatpy_xnat4tests",
+        build_args={
+            "xnat_version": "1.8.5",
+            "xnat_cs_plugin_version": "3.2.0",
+        },
+        connection_attempts=30,
+        connection_attempt_sleep=10,
+    )
+
+
+# Create a context to ensure closure
+@contextlib.contextmanager
+def xnat4tests(config):
+    start_xnat(config_name=config)
+    try:
+        add_data("dummydicom", config_name=config)
+        yield config.xnat_uri
+    finally:
+        stop_xnat(config_name=config)
+
+
+# Fixtures for xnat4tests, start up a container and get the URI
+@pytest.fixture(scope="session")
+def xnat4tests_uri(xnat4tests_config):
+    with xnat4tests(xnat4tests_config):
+        yield xnat4tests_config.xnat_uri
+
+
+# Fixtures for xnat4tests, create an xnatpy connection
+@pytest.fixture(scope="session")
+def xnat4tests_connection(xnat4tests_uri):
+    with xnat.connect(xnat4tests_uri, user='admin', password='admin') as connection:
+        yield connection
