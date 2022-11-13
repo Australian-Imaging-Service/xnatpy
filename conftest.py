@@ -76,8 +76,6 @@ class XnatpyRequestsMocker(Mocker):
         patch('session')
 
 
-
-
 @pytest.fixture(scope='function')
 def xnatpy_mock():
     with XnatpyRequestsMocker() as mocker:

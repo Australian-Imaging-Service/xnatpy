@@ -4,8 +4,8 @@ from pathlib import Path
 import pytest
 from pytest import fixture
 from xnat import XNATSession
-from xnat.conftest import XnatpyRequestsMocker
-from xnat.prearchive import Prearchive, PrearchiveSession, PrearchiveScan, PrearchiveFile
+from conftest import XnatpyRequestsMocker
+from xnat.prearchive import Prearchive, PrearchiveSession, PrearchiveScan
 
 
 @fixture()
