@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import docker
 import pytest
 
 
@@ -32,3 +32,17 @@ def test_list_projects():
     from xnat import connect
     with connect('https://central.xnat.org') as connection:
         print('Projects on XNAT central: {}'.format(connection.projects))
+
+
+def test_print_env():
+    import os
+    import requests
+    print(os.environ)
+    print(f'DOCKER HOST: {os.environ.get("DOCKER_HOST")}')
+
+    response = requests.get('tcp://docker:2375/version')
+    print(f"Reponse: [{response.status_code}]: {response.text}")
+
+    docker_client = docker.from_env()
+    print(docker_client)
+    assert False
