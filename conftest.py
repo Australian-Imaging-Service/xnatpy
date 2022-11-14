@@ -15,6 +15,7 @@
 
 import contextlib
 import logging
+import warnings
 
 import requests
 import requests.cookies
@@ -39,12 +40,15 @@ except ImportError:
 
 # Check if docker is available for xnat4tests
 def docker_available() -> bool:
+    logger = logging.getLogger('xnatpy_test')
     if not DOCKER_IMPORTED:
+        warnings.warn('Cannot import docker module required for xnat4tests, skipping all docker-based tests!')
         return False
 
     try:
         docker.from_env()
-    except Exception:
+    except Exception as exception:
+        warnings.warn(f'Cannot load docker from env: {exception}, skipping all docker-based tests!')
         return False
 
     return True
