@@ -38,6 +38,8 @@ test:
   needs: []
   stage: test
   image: python:${PYTHON_VERSION}-slim
+  services:
+    - docker:dind
   allow_failure: false
   script:
     - pip install --upgrade pip wheel setuptools

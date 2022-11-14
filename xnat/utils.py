@@ -100,7 +100,7 @@ def pythonize_class_name(name: str) -> str:
     if ':' in name:
         name = name.split(':', 1)[-1]
 
-    parts = re.split('[\-\_\W]+', name)
+    parts = re.split(r'[\-_\W]+', name)
     parts = [x[0].upper() + x[1:] for x in parts]
     name = ''.join(parts)
     return name

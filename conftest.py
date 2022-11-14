@@ -15,29 +15,49 @@
 
 import contextlib
 import logging
-from typing import Any, Pattern, Union
-from unittest.mock import patch
 
 import requests
+import requests.cookies
 
 import pytest
 from pytest_mock import MockerFixture
-from requests_mock import Mocker
 
 from xnat4tests import start_xnat, stop_xnat, add_data, Config
-from xnat4tests.base import docker
 from xnat4tests.utils import set_loggers
 
 import xnat
 from xnat.session import XNATSession
+from xnat.tests.mock import XnatpyRequestsMocker, CreatedObject
+
+try:
+    import docker
+    DOCKER_IMPORTED = True
+except ImportError:
+    docker = None
+    DOCKER_IMPORTED = False
 
 
+# Check if docker is available for xnat4tests
+def docker_available() -> bool:
+    if not DOCKER_IMPORTED:
+        return False
+
+    try:
+        docker.from_env()
+    except Exception:
+        return False
+
+    return True
+
+
+# Add flag for functional tests
 def pytest_addoption(parser):
     parser.addoption(
         "--run-functional", action="store_true", default=False, help="Run functional tests (default=False)"
     )
 
 
+# Make sure docker tests are only run if docker is available and functional tests only if flag is given
 def pytest_collection_modifyitems(config, items):
     run_functional = config.getoption('--run-functional')
     docker_found = docker_available()  # Check if docker is available
@@ -51,40 +71,15 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip_functional)
 
 
-class CreatedObject:
-    def __init__(self, uri, type_, fieldname, **kwargs):
-        self.uri = uri
-        self.type = type_
-        self.fieldname = fieldname
-        self.kwargs = kwargs
-
-
-class XnatpyRequestsMocker(Mocker):
-    def request(
-      self,
-      method: str,
-      url: Union[str, Pattern[str]],
-      **kwargs: Any,
-    ):
-        url = f"https://xnat.example.com/{url.lstrip('/')}"
-        return super().request(method, url, **kwargs)
-
-    def create_object(self, obj=None):
-        if obj is None:
-            obj = CreatedObject(uri='/data/created/object')
-
-        patch('session')
-
-
 @pytest.fixture(scope='function')
-def xnatpy_mock():
+def xnatpy_mock() -> XnatpyRequestsMocker:
     with XnatpyRequestsMocker() as mocker:
         yield mocker
 
 
 @pytest.fixture(scope='function')
 def xnatpy_connection(mocker: MockerFixture,
-                      xnatpy_mock: XnatpyRequestsMocker):
+                      xnatpy_mock: XnatpyRequestsMocker) -> XNATSession:
     # Create a working mocked XNATpy connection object
     threading_patch = mocker.patch('xnat.session.threading')  # Avoid background threads getting started
     logger = logging.getLogger('xnatpy_test')
@@ -144,19 +139,9 @@ def xnatpy_connection(mocker: MockerFixture,
     mocker.stop(threading_patch)
 
 
-# Check if docker is available for xnat4tests
-def docker_available() -> bool:
-    try:
-        docker.from_env()
-    except Exception:
-        return False
-
-    return True
-
-
 # Fixtures for xnat4tests, setup a config, use the pytest tmp_path_factory fixture for the tmpdir
 @pytest.fixture(scope="session")
-def xnat4tests_config(tmp_path_factory):
+def xnat4tests_config(tmp_path_factory) -> Config:
     tmp_path = tmp_path_factory.mktemp('config')
     set_loggers(loglevel='INFO')
     yield Config(
@@ -175,7 +160,7 @@ def xnat4tests_config(tmp_path_factory):
 
 # Create a context to ensure closure
 @contextlib.contextmanager
-def xnat4tests(config):
+def xnat4tests(config) -> str:
     start_xnat(config_name=config)
     try:
         add_data("dummydicom", config_name=config)
@@ -186,13 +171,13 @@ def xnat4tests(config):
 
 # Fixtures for xnat4tests, start up a container and get the URI
 @pytest.fixture(scope="session")
-def xnat4tests_uri(xnat4tests_config):
+def xnat4tests_uri(xnat4tests_config) -> str:
     with xnat4tests(xnat4tests_config):
         yield xnat4tests_config.xnat_uri
 
 
 # Fixtures for xnat4tests, create an xnatpy connection
 @pytest.fixture(scope="session")
-def xnat4tests_connection(xnat4tests_uri):
+def xnat4tests_connection(xnat4tests_uri) -> XNATSession:
     with xnat.connect(xnat4tests_uri, user='admin', password='admin') as connection:
         yield connection
