@@ -44,7 +44,6 @@ test:
     - docker:dind
   allow_failure: false
   script:
-    - printenv
     - pip install --upgrade pip wheel setuptools
     - pip install -r test_requirements.txt
     - tox -e py${PYTHON_VERSION//./}
