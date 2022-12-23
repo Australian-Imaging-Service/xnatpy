@@ -876,6 +876,31 @@ class BaseXNATSession(object):
             # XNAT SERVER 1.7.x
             return self.get_json('/xapi/siteConfig/buildInfo')['version']
 
+    @property
+    def xnat_uptime(self):
+        """
+        The uptime of the XNAT server
+        """
+        try:
+            # XNAT SERVER 1.6.x
+            return self.get('/data/uptime').text
+        except exceptions.XNATResponseError:
+            # XNAT SERVER 1.7.x
+            return self.get_json('/xapi/siteConfig/uptime')
+
+    @property
+    @caching
+    def xnat_build_info(self):
+        """
+        The build info of the XNAT server
+        """
+        try:
+            # XNAT SERVER 1.6.x
+            return self.get('/data/buildInfo').text
+        except exceptions.XNATResponseError:
+            # XNAT SERVER 1.7.x
+            return self.get_json('/xapi/siteConfig/buildInfo')
+
     def create_object(self,
                       uri: str,
                       type_: Optional[str] = None,
