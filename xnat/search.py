@@ -1,11 +1,6 @@
-from __future__ import absolute_import
-from __future__ import unicode_literals
-
-import datetime
 from abc import ABCMeta, abstractmethod
 from xml.etree import ElementTree
 import csv
-import six
 
 xdat_ns = "http://nrg.wustl.edu/security"
 ElementTree.register_namespace("xdat", xdat_ns)
@@ -121,7 +116,7 @@ class Query(object):
         return data
 
 
-class BaseConstraint(six.with_metaclass(ABCMeta, object)):
+class BaseConstraint(metaclass=ABCMeta):
     @abstractmethod
     def to_xml(self):
         pass

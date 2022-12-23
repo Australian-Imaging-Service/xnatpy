@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from six.moves.collections_abc import Mapping
+from collections.abc import Mapping
 from .core import caching
 
 

@@ -13,9 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-from __future__ import unicode_literals
 import fnmatch
+from typing import List, Optional, Union
 
 from .core import XNATBaseObject
 
@@ -28,7 +27,9 @@ class Inspect(object):
     def xnat_session(self):
         return self._xnat_session
 
-    def datatypes(self, pattern='*', fields_pattern=None):
+    def datatypes(self,
+                  pattern: str = '*',
+                  fields_pattern: Optional[str] = None) -> List[str]:
         elements = self.xnat_session.get_json('/data/search/elements')
 
         elements = [x['ELEMENT_NAME'] for x in elements['ResultSet']['Result']]
@@ -42,7 +43,10 @@ class Inspect(object):
         else:
             return [field for element in elements for field in self.datafields(datatype=element, pattern=fields_pattern)]
 
-    def datafields(self, datatype, pattern='*', prepend_type=True):
+    def datafields(self,
+                   datatype: Union[str, XNATBaseObject],
+                   pattern: str = '*',
+                   prepend_type: bool = True) -> List[str]:
         if isinstance(datatype, XNATBaseObject):
             datatype = datatype.__xsi_type__
 
