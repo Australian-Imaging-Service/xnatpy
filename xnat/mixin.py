@@ -23,7 +23,8 @@ from io import BytesIO
 
 from .core import caching, XNATBaseObject, XNATListing
 from .search import SearchField
-from .utils import mixedproperty
+from .utils import mixedproperty, pythonize_attribute_name
+from . import exceptions
 
 try:
     PYDICOM_LOADED = True
@@ -254,6 +255,32 @@ class SubjectData(XNATBaseObject):
 
 class ExperimentData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'label'
+
+    def __init__(self, uri=None, xnat_session=None, id_=None, datafields=None, parent=None, fieldname=None, overwrites=None, **kwargs):
+
+        # If experiment is being created, check if experiment already exists
+        if uri is None and parent is not None:
+            if isinstance(parent, XNATListing):
+                check_parent = parent
+            elif self._CONTAINED_IN is not None:
+                check_parent = getattr(parent, self._CONTAINED_IN)
+            else:
+                self.logger.debug(f'parent {parent}, self._CONTAINED_IN: {self._CONTAINED_IN}')
+                raise exceptions.XNATValueError('Cannot determine parent for experiment!')
+
+            # Check what argument to use to build the URL
+            if self._DISPLAY_IDENTIFIER is not None:
+                url_part_argument = pythonize_attribute_name(self._DISPLAY_IDENTIFIER)
+            elif self.SECONDARY_LOOKUP_FIELD is not None:
+                url_part_argument = self.SECONDARY_LOOKUP_FIELD
+            
+            # Get extra required url part
+            url_part = str(kwargs.get(url_part_argument))
+            if check_parent.get(url_part):
+                self.logger.error("Experiment with label {url_part} already exists.")
+                raise exceptions.XNATObjectAlreadyExistsError(f'Experiment with label {url_part} already exists.')
+
+        super().__init__(uri, xnat_session, id_, datafields, parent, fieldname, overwrites, **kwargs)
 
     @mixedproperty
     def label(cls):
