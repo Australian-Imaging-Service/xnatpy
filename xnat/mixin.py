@@ -261,12 +261,14 @@ class ExperimentData(XNATBaseObject):
         # If experiment is being created, check if experiment already exists
         if uri is None and parent is not None:
             if isinstance(parent, XNATListing):
-                check_parent = parent
-            elif self._CONTAINED_IN is not None:
-                check_parent = getattr(parent, self._CONTAINED_IN)
+                check_parent = parent.parent
             else:
-                self.logger.debug(f'parent {parent}, self._CONTAINED_IN: {self._CONTAINED_IN}')
-                raise exceptions.XNATValueError('Cannot determine parent for experiment!')
+                check_parent = parent
+            
+            if not isinstance(check_parent, SubjectData):
+                raise exceptions.XNATValueError(f'Cannot determine parent for experiment, should be a SubjectData, found {type(parent)}!')
+
+            project = check_parent.xnat_session.projects[check_parent.project]
 
             # Check what argument to use to build the URL
             if self._DISPLAY_IDENTIFIER is not None:
@@ -276,9 +278,9 @@ class ExperimentData(XNATBaseObject):
             
             # Get extra required url part
             url_part = str(kwargs.get(url_part_argument))
-            if check_parent.get(url_part):
-                self.logger.error("Experiment with label {url_part} already exists.")
-                raise exceptions.XNATObjectAlreadyExistsError(f'Experiment with label {url_part} already exists.')
+            if project.experiments.get(url_part) and not overwrites:
+                self.logger.error(f"Experiment with label {url_part} already exists in project {project.id}.")
+                raise exceptions.XNATObjectAlreadyExistsError(f'Experiment with label {url_part} already exists in project {project.id}.')
 
         super().__init__(uri, xnat_session, id_, datafields, parent, fieldname, overwrites, **kwargs)
 
