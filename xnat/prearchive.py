@@ -518,10 +518,14 @@ class Prearchive(object):
 
             uri = '/data{}'.format(session_data['url'])
 
-            session = self._cache.get(uri, None)
+            session = None
+            if self.caching:  # Only retrieve from cache if caching is allowed
+                session = self._cache.get(uri, None)
 
             if session is None:
-                session = PrearchiveSession(uri, self.xnat_session)
+                session = PrearchiveSession(uri,
+                                            self.xnat_session,
+                                            datafields=session_data)
                 self._cache[uri] = session
 
             result.append(session)
