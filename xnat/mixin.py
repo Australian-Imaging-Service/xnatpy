@@ -37,6 +37,9 @@ class ProjectData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'name'
     FROM_SEARCH_URI = '{session_uri}/projects/{id}'
 
+    def _get_creation_uri(self, parent_uri, id_, secondary_lookup_value):
+        return f'/data/archive/projects/{id_}'
+
     # just for consistency with subject/experiment for custom variable map
     @property
     def project(self):

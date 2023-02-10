@@ -227,44 +227,46 @@ class XNATBaseObject(metaclass=ABCMeta):
 
             # Check what argument to use to build the URL
             if self._DISPLAY_IDENTIFIER is not None:
-                url_part_argument = pythonize_attribute_name(self._DISPLAY_IDENTIFIER)
+                secondary_lookup_attribute = pythonize_attribute_name(self._DISPLAY_IDENTIFIER)
             elif self.SECONDARY_LOOKUP_FIELD is not None:
-                url_part_argument = self.SECONDARY_LOOKUP_FIELD
+                secondary_lookup_attribute = self.SECONDARY_LOOKUP_FIELD
             else:
                 raise exceptions.XNATValueError('Cannot figure out correct object creation url for <{}>, '
                                                 'creation currently not supported!'.format(type(self).__name__))
 
             # Get extra required url part
-            url_part = str(kwargs.get(url_part_argument))
+            secondary_lookup_value = kwargs.get(secondary_lookup_attribute)
 
-            if url_part is not None:
-                uri = '{}/{}'.format(parent.uri, url_part)
-                self.logger.debug('PUT URI: {}'.format(uri))
-                query = {
-                    'xsiType': self.__xsi_type__,
-                    'req_format': 'qs',
-                }
-
-                # Add all kwargs to query with correct xpath to set the fields
-                for name, value in kwargs.items():
-                    xpath = '{}/{}'.format(self.xpath, name)
-                    query[xpath] = value
-
-                self.logger.debug('query: {}'.format(query))
-                result = self.xnat_session.put(uri, query=query)
-                self.logger.debug('PUT RESULT: [{}] {}'.format(result.status_code, result.text))
-                result_text = result.text.strip()
-
-                # This should be the ID of the newly created object, which is safer than
-                # labels that can contain weird characters and break stuff
-                if result_text:
-                    uri = '{}/{}'.format(parent.uri, result_text)
-                    self.logger.debug('UPDATED URI BASED ON RESPONSE: {}'.format(uri))
-            else:
+            if secondary_lookup_value is None:
                 raise exceptions.XNATValueError('The {} for a {} need to be specified on creation'.format(
-                    url_part_argument,
+                    secondary_lookup_attribute,
                     self.__xsi_type__
                 ))
+            else:
+                self.logger.debug(f'Found secondary lookup value: [{type(secondary_lookup_value)}] {secondary_lookup_value}')
+
+            uri = self._get_creation_uri(parent_uri=parent.uri, id_=id_, secondary_lookup_value=secondary_lookup_value)
+            self.logger.debug('PUT URI: {}'.format(uri))
+            query = {
+                'xsiType': self.__xsi_type__,
+                'req_format': 'qs',
+            }
+
+            # Add all kwargs to query with correct xpath to set the fields
+            for name, value in kwargs.items():
+                xpath = '{}/{}'.format(self.xpath, name)
+                query[xpath] = value
+
+            self.logger.debug('query: {}'.format(query))
+            result = self.xnat_session.put(uri, query=query)
+            self.logger.debug('PUT RESULT: [{}] {}'.format(result.status_code, result.text))
+            result_text = result.text.strip()
+
+            # This should be the ID of the newly created object, which is safer than
+            # labels that can contain weird characters and break stuff
+            if result_text:
+                uri = '{}/{}'.format(parent.uri, result_text)
+                self.logger.debug('UPDATED URI BASED ON RESPONSE: {}'.format(uri))
 
             # Clear parent cache
             parent.clearcache()
@@ -276,7 +278,7 @@ class XNATBaseObject(metaclass=ABCMeta):
             # Add url part to overwrites (it should be safe) but rest should be retrieved from server to be sure
             # the creation went correctly
             self._overwrites = overwrites or {}
-            self._overwrites[url_part_argument] = url_part
+            self._overwrites[secondary_lookup_attribute] = secondary_lookup_value
         else:
             # This is the creation of a Python proxy for an existing XNAT object
             self._uri = uri
@@ -297,6 +299,9 @@ class XNATBaseObject(metaclass=ABCMeta):
 
         if datafields is not None:
             self._cache['data'] = datafields
+
+    def _get_creation_uri(self, parent_uri, id_, secondary_lookup_value):
+        return f'{parent_uri}/{secondary_lookup_value}'
 
     def __str__(self) -> str:
         if self.SECONDARY_LOOKUP_FIELD is None:
