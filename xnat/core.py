@@ -29,6 +29,14 @@ from .datatypes import convert_from, convert_to
 from .constants import TYPE_HINTS, DATA_FIELD_HINTS
 from .type_hints import TimeoutType, JSONType
 from .utils import mixedproperty, pythonize_attribute_name
+from.search import SearchField
+
+try:
+    import pandas
+    PANDAS_AVAILABLE = True
+except ImportError:
+    pandas = None
+    PANDAS_AVAILABLE = False
 
 if TYPE_CHECKING:
     from .session import BaseXNATSession
@@ -188,10 +196,14 @@ class CustomVariableDef:
 
 class XNATBaseObject(metaclass=ABCMeta):
     SECONDARY_LOOKUP_FIELD = None
+    FROM_SEARCH_URI = None
+    DEFAULT_SEARCH_FIELDS = None
     _DISPLAY_IDENTIFIER = None
     _HAS_FIELDS = False
     _CONTAINED_IN = None
     _XSI_TYPE: str = 'xnat:baseObject'
+    _PARENT_CLASS = None
+    _FIELD_NAME = None
 
     def __init__(self, uri=None, xnat_session=None, id_=None, datafields=None, parent=None, fieldname=None, overwrites=None, **kwargs):
         if (uri is None or xnat_session is None) and parent is None:
@@ -215,44 +227,46 @@ class XNATBaseObject(metaclass=ABCMeta):
 
             # Check what argument to use to build the URL
             if self._DISPLAY_IDENTIFIER is not None:
-                url_part_argument = pythonize_attribute_name(self._DISPLAY_IDENTIFIER)
+                secondary_lookup_attribute = pythonize_attribute_name(self._DISPLAY_IDENTIFIER)
             elif self.SECONDARY_LOOKUP_FIELD is not None:
-                url_part_argument = self.SECONDARY_LOOKUP_FIELD
+                secondary_lookup_attribute = self.SECONDARY_LOOKUP_FIELD
             else:
                 raise exceptions.XNATValueError('Cannot figure out correct object creation url for <{}>, '
                                                 'creation currently not supported!'.format(type(self).__name__))
 
             # Get extra required url part
-            url_part = str(kwargs.get(url_part_argument))
+            secondary_lookup_value = kwargs.get(secondary_lookup_attribute)
 
-            if url_part is not None:
-                uri = '{}/{}'.format(parent.uri, url_part)
-                self.logger.debug('PUT URI: {}'.format(uri))
-                query = {
-                    'xsiType': self.__xsi_type__,
-                    'req_format': 'qs',
-                }
-
-                # Add all kwargs to query with correct xpath to set the fields
-                for name, value in kwargs.items():
-                    xpath = '{}/{}'.format(self.xpath, name)
-                    query[xpath] = value
-
-                self.logger.debug('query: {}'.format(query))
-                result = self.xnat_session.put(uri, query=query)
-                self.logger.debug('PUT RESULT: [{}] {}'.format(result.status_code, result.text))
-                result_text = result.text.strip()
-
-                # This should be the ID of the newly created object, which is safer than
-                # labels that can contain weird characters and break stuff
-                if result_text:
-                    uri = '{}/{}'.format(parent.uri, result_text)
-                    self.logger.debug('UPDATED URI BASED ON RESPONSE: {}'.format(uri))
-            else:
+            if secondary_lookup_value is None:
                 raise exceptions.XNATValueError('The {} for a {} need to be specified on creation'.format(
-                    url_part_argument,
+                    secondary_lookup_attribute,
                     self.__xsi_type__
                 ))
+            else:
+                self.logger.debug(f'Found secondary lookup value: [{type(secondary_lookup_value)}] {secondary_lookup_value}')
+
+            uri = self._get_creation_uri(parent_uri=parent.uri, id_=id_, secondary_lookup_value=secondary_lookup_value)
+            self.logger.debug('PUT URI: {}'.format(uri))
+            query = {
+                'xsiType': self.__xsi_type__,
+                'req_format': 'qs',
+            }
+
+            # Add all kwargs to query with correct xpath to set the fields
+            for name, value in kwargs.items():
+                xpath = '{}/{}'.format(self.xpath, name)
+                query[xpath] = value
+
+            self.logger.debug('query: {}'.format(query))
+            result = self.xnat_session.put(uri, query=query)
+            self.logger.debug('PUT RESULT: [{}] {}'.format(result.status_code, result.text))
+            result_text = result.text.strip()
+
+            # This should be the ID of the newly created object, which is safer than
+            # labels that can contain weird characters and break stuff
+            if result_text:
+                uri = '{}/{}'.format(parent.uri, result_text)
+                self.logger.debug('UPDATED URI BASED ON RESPONSE: {}'.format(uri))
 
             # Clear parent cache
             parent.clearcache()
@@ -264,7 +278,7 @@ class XNATBaseObject(metaclass=ABCMeta):
             # Add url part to overwrites (it should be safe) but rest should be retrieved from server to be sure
             # the creation went correctly
             self._overwrites = overwrites or {}
-            self._overwrites[url_part_argument] = url_part
+            self._overwrites[secondary_lookup_attribute] = secondary_lookup_value
         else:
             # This is the creation of a Python proxy for an existing XNAT object
             self._uri = uri
@@ -286,6 +300,9 @@ class XNATBaseObject(metaclass=ABCMeta):
         if datafields is not None:
             self._cache['data'] = datafields
 
+    def _get_creation_uri(self, parent_uri, id_, secondary_lookup_value):
+        return f'{parent_uri}/{secondary_lookup_value}'
+
     def __str__(self) -> str:
         if self.SECONDARY_LOOKUP_FIELD is None:
             return f'<{self.__class__.__name__} {self.id}>'
@@ -303,7 +320,11 @@ class XNATBaseObject(metaclass=ABCMeta):
         setting fields in the object.
         """
 
-    @property
+    @mixedproperty
+    def parent(cls):
+        return cls._PARENT_CLASS
+
+    @parent.getter
     def parent(self):
         return self._parent
 
@@ -311,7 +332,11 @@ class XNATBaseObject(metaclass=ABCMeta):
     def logger(self):
         return self.xnat_session.logger
 
-    @property
+    @mixedproperty
+    def fieldname(self) -> Union[str, int]:
+        return self._FIELD_NAME
+
+    @fieldname.getter
     def fieldname(self) -> Union[str, int]:
         return self._fieldname
 
@@ -418,7 +443,11 @@ class XNATBaseObject(metaclass=ABCMeta):
     def __xsi_type__(self) -> str:
         return self._XSI_TYPE
 
-    @property
+    @mixedproperty
+    def id(cls):
+        return SearchField(cls, "ID", "xs:string")
+
+    @id.getter
     @caching
     def id(self) -> str:
         object_id = self.data.get('ID', None)
@@ -571,7 +600,19 @@ class XNATSubObject(XNATBaseObject):
     def uri(self) -> str:
         return self.parent.fulluri
 
-    @property
+    @mixedproperty
+    def __xsi_type__(cls) -> str:
+        parent = cls.parent
+        while not issubclass(parent, XNATBaseObject):
+            new_parent = parent.parent
+
+            if new_parent is None:
+                break
+
+            parent = new_parent
+        return parent.__xsi_type__
+
+    @__xsi_type__.getter
     def __xsi_type__(self) -> str:
         parent = self.parent
         while not isinstance(parent, XNATBaseObject):
@@ -979,6 +1020,13 @@ class XNATListing(XNATBaseListing):
         # FIXME: A context would be nicer, but doesn't work in Python 2.7
         output.close()
         return result
+
+    def tabulate_pandas(self):
+        if not PANDAS_AVAILABLE:
+            raise ModuleNotFoundError('Cannot tabulate to pandas without pandas being installed!')
+        csv_data = self.tabulate_csv()
+        csv_data = six.StringIO(csv_data)
+        return pandas.read_csv(csv_data)
 
     @property
     def used_filters(self):

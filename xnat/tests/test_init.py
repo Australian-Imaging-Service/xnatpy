@@ -1,3 +1,18 @@
+# Copyright 2011-2015 Biomedical Imaging Group Rotterdam, Departments of
+# Medical Informatics and Radiology, Erasmus MC, Rotterdam, The Netherlands
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import logging
 from unittest.mock import ANY, call
 
@@ -42,14 +57,14 @@ def test_check_auth(requests_mock: Mocker, caplog: pytest.LogCaptureFixture):
     requests_mock.get(test_uri, status_code=401)
     caplog.clear()
     with pytest.raises(XNATLoginFailedError):
-        check_auth(requests_session=session, server=server, user='testuser', logger=logger)
+        check_auth(requests_session=session, server=server, user='testuser', jsession=None, logger=logger)
     assert caplog.record_tuples == [('root', logging.CRITICAL, "Login attempt failed for https://xnat.example.com, please make sure your credentials for user testuser are correct!")]
 
     # Check if a completely wrong server response leads to correct error
     requests_mock.get(test_uri, status_code=500, text='Random response')
     caplog.clear()
     with pytest.raises(XNATAuthError):
-        check_auth(requests_session=session, server=server, user='testuser', logger=logger)
+        check_auth(requests_session=session, server=server, user='testuser', jsession=None, logger=logger)
     assert caplog.record_tuples == [
         ('root', logging.WARNING, "Simple test requests did not return a 200 or 401 code! Server might not be functional!"),
         ('root', logging.CRITICAL, "Could not determine if login was successful!")
@@ -58,21 +73,21 @@ def test_check_auth(requests_mock: Mocker, caplog: pytest.LogCaptureFixture):
     # Check if username login is found in correct response
     requests_mock.get(test_uri, status_code=200, text='<html><body><div><span id="user_info">Logged in as: &nbsp;<a id="username-link" href="/app/template/XDATScreen_UpdateUser.vm">testuser</a></div></body></hmtl>')
     caplog.clear()
-    result = check_auth(requests_session=session, server=server, user='testuser', logger=logger)
+    result = check_auth(requests_session=session, server=server, user='testuser', jsession=None, logger=logger)
     assert result == 'testuser'
     assert caplog.record_tuples == [('root', logging.INFO, "Logged in successfully as testuser")]
 
     # Check if token login if found in correct response
     requests_mock.get(test_uri, status_code=200, text='<html><body><div><span id="user_info">Logged in as: &nbsp;<a id="username-link" href="/app/template/XDATScreen_UpdateUser.vm">tokenuser</a></div></body></hmtl>')
     caplog.clear()
-    result = check_auth(requests_session=session, server=server, user='c0195ced-6015-4d7a-a83b-67785b6e828d', logger=logger)
+    result = check_auth(requests_session=session, server=server, user='c0195ced-6015-4d7a-a83b-67785b6e828d', jsession=None, logger=logger)
     assert result == 'tokenuser'
     assert caplog.record_tuples == [('root', logging.INFO, "Token login successfully as tokenuser")]
 
     # Check if username login is found in correct response
     requests_mock.get(test_uri, status_code=200, text='<html><body><div><span id="user_info">Logged in as: &nbsp;<a id="username-link" href="/app/template/XDATScreen_UpdateUser.vm">otheruser</a></div></body></hmtl>')
     caplog.clear()
-    result = check_auth(requests_session=session, server=server, user='testuser', logger=logger)
+    result = check_auth(requests_session=session, server=server, user='testuser', jsession=None, logger=logger)
     assert result == 'otheruser'
     assert caplog.record_tuples == [('root', logging.WARNING, 'Logged in as otheruser but expected to be logged in as testuser')]
 
@@ -80,14 +95,14 @@ def test_check_auth(requests_mock: Mocker, caplog: pytest.LogCaptureFixture):
     requests_mock.get(test_uri, text='<html><body><div>Your password has expired.</div></body></hmtl>')
     caplog.clear()
     with pytest.raises(XNATExpiredCredentialsError):
-        check_auth(requests_session=session, server=server, user='testuser', logger=logger)
+        check_auth(requests_session=session, server=server, user='testuser', jsession=None, logger=logger)
     assert caplog.record_tuples == [('root', logging.ERROR, 'Your password has expired. Please try again after updating your password on XNAT.')]
 
     # Check failure if password is re-prompted
     requests_mock.get(test_uri, text='<html><body><div><form name="form1" method="post" action="/xnat/login">test</form></div></body></hmtl>')
     caplog.clear()
     with pytest.raises(XNATLoginFailedError):
-        check_auth(requests_session=session, server=server, user='testuser', logger=logger)
+        check_auth(requests_session=session, server=server, user='testuser', jsession=None, logger=logger)
     message = 'Login attempt failed for {}, please make sure your credentials for user testuser are correct!'.format(server)
     assert caplog.record_tuples == [('root', logging.ERROR, message)]
 
@@ -95,7 +110,7 @@ def test_check_auth(requests_mock: Mocker, caplog: pytest.LogCaptureFixture):
     requests_mock.get(test_uri, text='<html><body><div><span id="user_info">Logged in as: <span style="color:red;">Guest</span></div></body></hmtl>')
     caplog.clear()
     with pytest.raises(XNATLoginFailedError):
-        check_auth(requests_session=session, server=server, user='test', logger=logger)
+        check_auth(requests_session=session, server=server, user='test', jsession=None, logger=logger)
     assert caplog.record_tuples == [('root', logging.ERROR, 'Login failed (in guest mode)!')]
 
 

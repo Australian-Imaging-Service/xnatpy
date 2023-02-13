@@ -23,7 +23,8 @@ from io import BytesIO
 
 from .core import caching, XNATBaseObject, XNATListing
 from .search import SearchField
-from .utils import mixedproperty
+from .utils import mixedproperty, pythonize_attribute_name
+from . import exceptions
 
 try:
     PYDICOM_LOADED = True
@@ -34,6 +35,10 @@ except ImportError:
 
 class ProjectData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'name'
+    FROM_SEARCH_URI = '{session_uri}/projects/{id}'
+
+    def _get_creation_uri(self, parent_uri, id_, secondary_lookup_value):
+        return f'/data/archive/projects/{id_}'
 
     # just for consistency with subject/experiment for custom variable map
     @property
@@ -151,6 +156,7 @@ class InvestigatorData(XNATBaseObject):
 
 class SubjectData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'label'
+    FROM_SEARCH_URI = '{session_uri}/projects/{project}/subjects/{subjectid}'
 
     @property
     def fulluri(self):
@@ -254,6 +260,36 @@ class SubjectData(XNATBaseObject):
 
 class ExperimentData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'label'
+    FROM_SEARCH_URI = '{session_uri}/projects/{project}/subjects/{subject_id}/experiments/{session_id}'
+    DEFAULT_SEARCH_FIELDS = ['id', 'project', 'subject_id']
+
+    def __init__(self, uri=None, xnat_session=None, id_=None, datafields=None, parent=None, fieldname=None, overwrites=None, **kwargs):
+
+        # If experiment is being created, check if experiment already exists
+        if uri is None and parent is not None:
+            if isinstance(parent, XNATListing):
+                check_parent = parent.parent
+            else:
+                check_parent = parent
+            
+            if not isinstance(check_parent, SubjectData):
+                raise exceptions.XNATValueError(f'Cannot determine parent for experiment, should be a SubjectData, found {type(parent)}!')
+
+            project = check_parent.xnat_session.projects[check_parent.project]
+
+            # Check what argument to use to build the URL
+            if self._DISPLAY_IDENTIFIER is not None:
+                url_part_argument = pythonize_attribute_name(self._DISPLAY_IDENTIFIER)
+            elif self.SECONDARY_LOOKUP_FIELD is not None:
+                url_part_argument = self.SECONDARY_LOOKUP_FIELD
+            
+            # Get extra required url part
+            url_part = str(kwargs.get(url_part_argument))
+            if project.experiments.get(url_part) and not overwrites:
+                self.logger.error(f"Experiment with label {url_part} already exists in project {project.id}.")
+                raise exceptions.XNATObjectAlreadyExistsError(f'Experiment with label {url_part} already exists in project {project.id}.')
+
+        super().__init__(uri, xnat_session, id_, datafields, parent, fieldname, overwrites, **kwargs)
 
     @mixedproperty
     def label(cls):
