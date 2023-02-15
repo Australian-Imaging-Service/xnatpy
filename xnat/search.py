@@ -5,6 +5,8 @@ import datetime
 
 from io import StringIO
 
+from . import exceptions
+
 try:
     import pandas
     PANDAS_AVAILABLE = True
@@ -26,17 +28,27 @@ def or_(*args):
 
 def inject_search_fields(session):
     session.logger.info('Injecting display fields to classes')
+    failed_datatypes = []
     for datatype in session.inspect.datatypes():
         cls = session.XNAT_CLASS_LOOKUP.get(datatype)
         if cls is None:
             session.logger.warning(f'Cannot find matching class for {datatype}')
             continue
         session.logger.debug(f'Inject fields for {datatype} to {cls}')
-        fields = session.inspect.datafields(datatype)
+        try:
+            fields = session.inspect.datafields(datatype)
+        except exceptions.XNATResponseError as exception:
+            failed_datatypes.append(datatype)
+            session.logger.info(f'Could not retrieve display fields for {datatype}: {exception}')
+            continue
+
         for field in fields:
             name = field.split('/')[-1]
             field = DisplayFieldSearchField(cls, name, 'xs:string')
             setattr(cls, name, field)
+
+    if failed_datatypes:
+        session.logger.warning(f"Encountered errors retrieving display fields for: {', '.join(failed_datatypes)}")
 
 
 class SearchFieldMap:
