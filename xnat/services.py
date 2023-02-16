@@ -212,9 +212,9 @@ class Services(object):
         if import_handler is not None:
             query['import-handler'] = import_handler
 
-        uri = '/path/services/import'
+        uri = '/data/services/import'
 
-        # Call correct upload function for path/path argument
+        # Call correct upload function for data/path argument
         if path is not None and data is not None:
             raise XNATValueError('Only accepts either path or path, but not both!')
         elif path is not None:
@@ -238,7 +238,7 @@ class Services(object):
 
         # Create object, the return text should be the url, but it will have a \r\n at the end that needs to be stripped
         response_text = response.text.strip()
-        if response_text.startswith('/path/prearchive'):
+        if response_text.startswith('/data/prearchive'):
             return PrearchiveSession(response_text, self.xnat_session)
 
         return self.xnat_session.create_object(response_text)
