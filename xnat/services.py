@@ -17,8 +17,9 @@ import datetime
 import mimetypes
 import collections
 import os
+from pathlib import Path
 import tempfile
-from io import BytesIO
+from typing import IO, Optional, Union
 from zipfile import ZipFile, ZIP_DEFLATED
 
 from .core import XNATBaseObject
@@ -132,9 +133,18 @@ class Services(object):
 
         return self.xnat_session.get_json('/data/services/dicomdump', query=query_string)['ResultSet']['Result']
 
-    def import_(self, path=None, data=None, overwrite=None, quarantine=False, destination=None,
-                trigger_pipelines=None, project=None, subject=None,
-                experiment=None, content_type=None, import_handler=None):
+    def import_(self,
+                path: Optional[Union[str, Path]] = None,
+                data: Optional[Union[str, bytes, IO]] = None,
+                overwrite: Optional[str] = None,
+                quarantine: bool = False,
+                destination: Optional[str] = None,
+                trigger_pipelines: Optional[bool] = None,
+                project: Optional[str] = None,
+                subject: Optional[str] = None,
+                experiment: Optional[str] = None,
+                content_type: Optional[str] = None,
+                import_handler: Optional[str] = None):
         """
         Import a file into XNAT using the import service. See the
         `XNAT wiki <https://wiki.xnat.org/pages/viewpage.action?pageId=6226268>`_
@@ -145,8 +155,8 @@ class Services(object):
                      to read the data from
         :param str overwrite: how the handle existing data (none, append, delete)
         :param bool quarantine: flag to indicate session should be quarantined
-        :param bool trigger_pipelines: indicate that archiving should trigger pipelines
         :param str destination: the destination to upload the scan to
+        :param bool trigger_pipelines: indicate that archiving should trigger pipelines
         :param str project: the project in the archive to assign the session to
                             (only accepts project ID, not a label)
         :param str subject: the subject in the archive to assign the session to
@@ -154,7 +164,8 @@ class Services(object):
         :param str content_type: overwite the content_type (by default the mimetype will be
                                  guessed using the ``mimetypes`` package).
                                  This will often be ``application/zip``.
-        :return:
+        :param import_handler: The XNAT import handler to use, see
+                               https://wiki.xnat.org/display/XAPI/Image+Session+Import+Service+API
 
         .. note::
             The project has to be given using the project ID and *NOT* the label.
@@ -257,51 +268,40 @@ class Services(object):
                                    os.path.relpath(os.path.join(dirpath, f),
                                                    os.path.dirname(directory)))
 
-    def import_dir(self, directory, overwrite=None, quarantine=False, destination=None,
-                trigger_pipelines=None, project=None, subject=None,
-                experiment=None, method='zip_file', import_handler=None):
+    def import_dir(self,
+                   directory: Union[str, Path],
+                   overwrite: Optional[str] = None,
+                   quarantine: bool = False,
+                   destination: Optional[str] = None,
+                   trigger_pipelines: Optional[bool] = None,
+                   project: Optional[str] = None,
+                   subject: Optional[str] = None,
+                   experiment: Optional[str] = None,
+                   import_handler: Optional[str] = None):
         """
         Import a directory to an XNAT resource.
 
-        :param str directory: local path of the directory to upload and import
-        :param str overwrite: how the handle existing data (none, append, delete)
-        :param bool quarantine: flag to indicate session should be quarantined
-        :param bool trigger_pipelines: indicate that archiving should trigger pipelines
-        :param str destination: the destination to upload the scan to
-        :param str project: the project in the archive to assign the session to
+        :param directory: local path of the directory to upload and import
+        :param overwrite: how the handle existing data (none, append, delete)
+        :param quarantine: flag to indicate session should be quarantined
+        :param destination: the destination to upload the scan to
+        :param trigger_pipelines: indicate that archiving should trigger pipelines
+        :param project: the project in the archive to assign the session to
                             (only accepts project ID, not a label)
-        :param str subject: the subject in the archive to assign the session to
-        :param str experiment: the experiment in the archive to assign the session content to
-
-
-        The method has 2 options, default is zip_file:
-
-        #. ``zip_file``: Create a temporary zip file and upload that
-        #. ``zip_memory``: Create a temporary zip file in memory and upload it
-
-        The considerations are that sometimes you can fit things in memory so
-        you can save disk IO by putting it in memory.
-
+        :param subject: the subject in the archive to assign the session to
+        :param experiment: the experiment in the archive to assign the session content to
+        :param import_handler: The XNAT import handler to use, see
+                               https://wiki.xnat.org/display/XAPI/Image+Session+Import+Service+API
         """
-        # Make sure that a None or empty string is replaced by the default
-        method = method or 'zip_file'
-
         # Make sure the directory is an existing directory
         if not os.path.isdir(directory):
             raise XNATValueError('The given directory argument ({}) is not a path to a valid directory!'.format(directory))
 
         content_type = 'application/zip'
-        if method == 'zip_file':
-            # Max-size is 256 MB
-            fh = tempfile.SpooledTemporaryFile(max_size=268435456, mode='wb+')
-            self._zip_directory(directory=directory, fh=fh)
-        elif method == 'zip_memory':
-            fh = BytesIO()
-            self._zip_directory(directory=directory, fh=fh)
-        else:
-            message = 'Selected invalid import directory method: {}!'.format(method)
-            self.xnat_session.logger.error(message)
-            raise XNATValueError(message)
+
+        # Max-size in memory is 256 MB
+        fh = tempfile.SpooledTemporaryFile(max_size=268435456, mode='wb+')
+        self._zip_directory(directory=directory, fh=fh)
 
         fh.seek(0)
         session = self.import_(data=fh, overwrite=overwrite, quarantine=quarantine, destination=destination,
