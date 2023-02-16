@@ -165,22 +165,6 @@ class Services(object):
             set the ``content_type`` parameter to ``application/zip`` manually.
 
         """
-        if path is not None and data is not None:
-            raise XNATValueError('Only accepts either path or data, but not both!')
-        elif path is not None:
-            if not os.path.exists(path):
-                raise FileNotFoundError("The file you are trying to import does not exist.")
-
-            # Get mimetype of file
-            if content_type is None and isinstance(path, str):
-                content_type = self.guess_content_type(path)
-
-            target = path
-        elif data is not None:
-            target = data
-        else:
-            raise XNATValueError('The path or data argument should be provided!')
-
         query = {}
         if overwrite is not None:
             if overwrite not in ['none', 'append', 'delete']:
@@ -228,15 +212,33 @@ class Services(object):
         if import_handler is not None:
             query['import-handler'] = import_handler
 
-        uri = '/data/services/import'
-        response = self.xnat_session.upload(uri=uri, data=target, query=query, content_type=content_type, method='post')
+        uri = '/path/services/import'
+
+        # Call correct upload function for path/path argument
+        if path is not None and data is not None:
+            raise XNATValueError('Only accepts either path or path, but not both!')
+        elif path is not None:
+            if not os.path.exists(path):
+                raise FileNotFoundError("The file you are trying to import does not exist.")
+
+            # Get mimetype of file
+            if content_type is None and isinstance(path, str):
+                content_type = self.guess_content_type(path)
+
+            response = self.xnat_session.upload_file(uri=uri, path=path, query=query, content_type=content_type, method='post')
+        elif data is not None and isinstance(data, str):
+            response = self.xnat_session.upload_string(uri=uri, data=data, query=query, content_type=content_type, method='post')
+        elif data is not None:
+            response = self.xnat_session.upload_stream(uri=uri, stream=data, query=query, content_type=content_type, method='post')
+        else:
+            raise XNATValueError('The path or path argument should be provided!')
 
         if response.status_code != 200:
             raise XNATResponseError('The response for uploading was ({}) {}'.format(response.status_code, response.text))
 
         # Create object, the return text should be the url, but it will have a \r\n at the end that needs to be stripped
         response_text = response.text.strip()
-        if response_text.startswith('/data/prearchive'):
+        if response_text.startswith('/path/prearchive'):
             return PrearchiveSession(response_text, self.xnat_session)
 
         return self.xnat_session.create_object(response_text)
