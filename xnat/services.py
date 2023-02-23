@@ -227,7 +227,7 @@ class Services(object):
 
         # Call correct upload function for data/path argument
         if path is not None and data is not None:
-            raise XNATValueError('Only accepts either path or path, but not both!')
+            raise XNATValueError('Only accepts either data or path, but not both!')
         elif path is not None:
             if not os.path.exists(path):
                 raise FileNotFoundError("The file you are trying to import does not exist.")
@@ -242,7 +242,7 @@ class Services(object):
         elif data is not None:
             response = self.xnat_session.upload_stream(uri=uri, stream=data, query=query, content_type=content_type, method='post')
         else:
-            raise XNATValueError('The path or path argument should be provided!')
+            raise XNATValueError('The data or path argument should be provided!')
 
         if response.status_code != 200:
             raise XNATResponseError('The response for uploading was ({}) {}'.format(response.status_code, response.text))

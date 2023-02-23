@@ -809,7 +809,7 @@ class BaseXNATSession(object):
 
         .. warning::
 
-            This method can have unexpected behaviour (e.g. if you supply a str with
+            DEPRECATED: This method can have unexpected behaviour (e.g. if you supply a str with
             a path but the file does not exist, it will upload the path as a string
             instead). This method will be removed in a future release of XNATpy
 
@@ -824,29 +824,23 @@ class BaseXNATSession(object):
         :param overwrite: indicate if previous path should be overwritten
         :param timeout: timeout in seconds, float or (connection timeout, read timeout)
         """
+        self.logger.warning("The upload method attempts to autodetect the type of the path, this can lead to "
+                            "unexpected behaviour. It is advised to use upload_stream , upload_file, or "
+                            "upload_string instead. The upload method might be removed in a future release.")
         # Check if file is an opened file
         if isinstance(data, (io.BufferedIOBase, io.TextIOBase)):
-            self.logger.warning("The upload method attempts to autodetect the type of the path, this can lead to"
-                                " unexpected behaviour. It is advised to use upload_stream (which is auto-selected "
-                                "in this case), upload_file, or upload_string instead. The upload method might be"
-                                "deprecated in a future release.")
+            self.logger.info("Auto-selected upload_stream to handle the upload")
             self.upload_stream(uri=uri,
                                stream=data,
                                **kwargs)
         elif isinstance(data, Path) or (isinstance(data, str) and '\0' not in data and os.path.isfile(data)):
-            self.logger.warning("The upload method attempts to autodetect the type of the path, this can lead to"
-                                " unexpected behaviour. It is advised to use upload_stream, upload_file (which is"
-                                " auto-selected in this case)  , or upload_string instead. The upload method might be"
-                                "deprecated in a future release.")
+            self.logger.info("Auto-selected upload_file to handle the upload")
             self.upload_file(uri=uri,
                              path=data,
                              **kwargs)
         elif isinstance(data, (str, bytes)):
             # File is path to upload
-            self.logger.warning("The upload method attempts to autodetect the type of the path, this can lead to"
-                                " unexpected behaviour. It is advised to use upload_stream, upload_file, or "
-                                "upload_string (which is auto-selected in this case) instead. The upload method might"
-                                " be deprecated in a future release.")
+            self.logger.info("Auto-selected upload_string to handle the upload")
             self.upload_string(uri=uri,
                                data=data,
                                **kwargs)
