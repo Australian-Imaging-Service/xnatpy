@@ -14,10 +14,12 @@
 # limitations under the License.
 
 import os
+from pathlib import Path
 import tempfile
 from zipfile import ZipFile
 import tarfile
 import shutil
+from typing import Optional, Union, IO
 
 from io import BytesIO
 
@@ -618,7 +620,7 @@ class AbstractResource(XNATBaseObject):
         return self.fulldata
 
     @property
-    def file_size(self):
+    def file_size(self) -> int:
         file_size = self.data['file_size']
         if file_size.strip() == '':
             return 0
@@ -626,7 +628,7 @@ class AbstractResource(XNATBaseObject):
             return int(file_size)
 
     @property
-    def file_count(self):
+    def file_count(self) -> int:
         file_count = self.data['file_count']
         if file_count.strip() == '':
             return 0
@@ -695,23 +697,32 @@ class AbstractResource(XNATBaseObject):
                     scan_directory = os.path.join(target_dir, unique_extraction_sub_directories[0])
 
         if verbose:
-            self.logger.info('Downloaded resource data to {}'.format(scan_directory))
+            self.logger.info('Downloaded resource path to {}'.format(scan_directory))
         return scan_directory
 
-    def upload(self, data, remotepath, overwrite=False, extract=False, file_content=None, file_format=None, file_tags=None, **kwargs):
+    def upload(self,
+               path: Union[str, Path],
+               remotepath: str,
+               overwrite: bool = False,
+               extract: bool = False,
+               file_content: Optional[str] = None,
+               file_format: Optional[str] = None,
+               file_tags: Optional[str] = None,
+               **kwargs):
         """
         Upload a file as an XNAT resource.
 
-        :param str data: The path to the file to upload
-        :param str remotepath: The remote path to which to uploadt
-        :param bool overwrite: Flag to force overwriting of files
-        :param bool extract: Extract the files on the XNAT server
-        :param str file_content: Set the Content of the file on XNAT
-        :param str file_format: Set the format of the file on XNAT
-        :param str file_tags: Set the tags of the file on XNAT
+        :param path: The path to the file to upload
+        :param remotepath: The remote path to which to upload to
+        :param overwrite: Flag to force overwriting of files
+        :param extract: Extract the files on the XNAT server
+        :param file_content: Set the Content of the file on XNAT
+        :param file_format: Set the format of the file on XNAT
+        :param file_tags: Set the tags of the file on XNAT
         """
-        uri = '{}/files/{}'.format(self.uri, remotepath.lstrip('/'))
+        uri = f"{self.uri}/files/{remotepath.lstrip('/')}"
         query = {}
+
         if extract:
             query['extract'] = 'true'
         if file_content is not None:
@@ -721,10 +732,53 @@ class AbstractResource(XNATBaseObject):
         if file_tags is not None:
             query['tags'] = file_tags
 
-        self.xnat_session.upload(uri, data, overwrite=overwrite, query=query, **kwargs)
+        self.xnat_session.upload_file(uri, path=path, overwrite=overwrite, query=query, **kwargs)
         self.files.clearcache()
 
-    def upload_dir(self, directory, overwrite=False, method='tgz_file', **kwargs):
+    def upload_data(self,
+                    data: Union[str, bytes, IO],
+                    remotepath: str,
+                    overwrite: bool = False,
+                    extract: bool = False,
+                    file_content: Optional[str] = None,
+                    file_format: Optional[str] = None,
+                    file_tags: Optional[str] = None,
+                    **kwargs):
+        """
+        Upload a file as an XNAT resource.
+
+        :param str data: The data to upload, either a str, bytes or an IO object
+        :param str remotepath: The remote path to which to uploadt
+        :param bool overwrite: Flag to force overwriting of files
+        :param bool extract: Extract the files on the XNAT server
+        :param str file_content: Set the Content of the file on XNAT
+        :param str file_format: Set the format of the file on XNAT
+        :param str file_tags: Set the tags of the file on XNAT
+        """
+        uri = f"{self.uri}/files/{remotepath.lstrip('/')}"
+        query = {}
+
+        if extract:
+            query['extract'] = 'true'
+        if file_content is not None:
+            query['content'] = file_content
+        if file_format is not None:
+            query['format'] = file_format
+        if file_tags is not None:
+            query['tags'] = file_tags
+
+        if isinstance(data, (str, bytes)):
+            self.xnat_session.upload_string(uri, data=data, overwrite=overwrite, query=query, **kwargs)
+        else:
+            self.xnat_session.upload_stream(uri, stream=data, overwrite=overwrite, query=query, **kwargs)
+
+        self.files.clearcache()
+
+    def upload_dir(self,
+                   directory: Union[str, Path],
+                   overwrite: bool = False,
+                   method: str = 'tgz_file',
+                   **kwargs):
         """
         Upload a directory to an XNAT resource. This means that if you do
         resource.upload_dir(directory) that if there is a file directory/a.txt
@@ -743,31 +797,32 @@ class AbstractResource(XNATBaseObject):
         create additional archives, but has one request per file so might be
         slow when uploading many files.
 
-        :param str directory: The directory to upload
-        :param bool overwrite: Flag to force overwriting of files
-        :param str method: The method to use
+        :param directory: The directory to upload
+        :param overwrite: Flag to force overwriting of files
+        :param method: The method to use
         """
-        if not isinstance(directory, str):
-            directory = str(directory)
+        if not isinstance(directory, Path):
+            directory = Path(directory)
+
+        if not directory.is_dir():
+            raise exceptions.XNATValueError(f'The argument directory {directory} is not a path to a valid directory')
 
         # Make sure that a None or empty string is replaced by the default
         method = method or 'tgz_file'
 
         if method == 'per_file':
-            for root, _, files in os.walk(directory):
-                for filename in files:
-                    file_path = os.path.join(root, filename)
-                    if os.path.getsize(file_path) == 0:
-                        continue
+            for file_path in directory.rglob('*'):
+                if os.path.getsize(file_path) == 0:
+                    continue
 
-                    target_path = os.path.relpath(file_path, directory)
-                    self.upload(file_path, target_path, overwrite=overwrite, **kwargs)
+                target_path = str(file_path.relative_to(directory))
+                self.upload(file_path, target_path, overwrite=overwrite, **kwargs)
         elif method == 'tar_memory':
             fh = BytesIO()
             with tarfile.open(mode='w', fileobj=fh) as tar_file:
                 tar_file.add(directory, '')
             fh.seek(0)
-            self.upload(fh, 'upload.tar', overwrite=overwrite, extract=True, **kwargs)
+            self.upload_data(fh, 'upload.tar', overwrite=overwrite, extract=True, **kwargs)
             fh.close()
         elif method == 'tgz_memory':
             fh = BytesIO()
@@ -775,7 +830,7 @@ class AbstractResource(XNATBaseObject):
                 tar_file.add(directory, '')
 
             fh.seek(0)
-            self.upload(fh, 'upload.tar.gz', overwrite=overwrite, extract=True, **kwargs)
+            self.upload_data(fh, 'upload.tar.gz', overwrite=overwrite, extract=True, **kwargs)
             fh.close()
         elif method == 'tar_file':
             # Max-size is 256 MB
@@ -783,7 +838,7 @@ class AbstractResource(XNATBaseObject):
                 with tarfile.open(mode='w', fileobj=fh) as tar_file:
                     tar_file.add(directory, '')
                 fh.seek(0)
-                self.upload(fh, 'upload.tar', overwrite=overwrite, extract=True, **kwargs)
+                self.upload_data(fh, 'upload.tar', overwrite=overwrite, extract=True, **kwargs)
         elif method == 'tgz_file':
             # Max-size is 256 MB
             with tempfile.SpooledTemporaryFile(max_size=268435456, mode='wb+') as fh:
@@ -791,7 +846,7 @@ class AbstractResource(XNATBaseObject):
                         tar_file.add(directory, '')
 
                 fh.seek(0)
-                self.upload(fh, 'upload.tar.gz', overwrite=overwrite, extract=True, **kwargs)
+                self.upload_data(fh, 'upload.tar.gz', overwrite=overwrite, extract=True, **kwargs)
         else:
             self.logger.warning('Selected invalid upload directory method!')
 

@@ -20,7 +20,7 @@ from pathlib import Path
 import os
 import re
 import threading
-from typing import Any, BinaryIO, Callable, Container, Dict, List, Optional, Tuple, Union
+from typing import Any, BinaryIO, Callable, Container, Dict, List, Optional, Tuple, Union, IO
 
 from progressbar import AdaptiveETA, AdaptiveTransferSpeed, Bar, BouncingBar, \
     DataSize, Percentage, ProgressBar, Timer, UnknownLength
@@ -740,7 +740,7 @@ class BaseXNATSession(object):
                     path: Union[str, Path],
                     **kwargs):
         """
-        Upload data or a file to XNAT
+        Upload a file to XNAT
 
         :param str uri: uri to upload to
         :param str path: path to the file to be uploaded (str)
@@ -756,7 +756,7 @@ class BaseXNATSession(object):
         :return:
         """
 
-        if isinstance(path, str):
+        if not isinstance(path, Path):
             path = Path(path)
 
         if not path.exists():
@@ -765,22 +765,102 @@ class BaseXNATSession(object):
         if not path.is_file():
             raise FileNotFoundError("The path points to a non-file object")
 
-        self.upload(uri=uri, file_=path, **kwargs)
+        with open(path) as file_handle:
+            self.upload_stream(uri=uri, stream=file_handle, **kwargs)
+
+    def upload_string(self,
+                      uri: str,
+                      data: Union[str, bytes],
+                      ** kwargs):
+        """
+        Upload path from a string to XNAT
+
+        :param uri: uri to upload to
+        :param data: the string to upload (has to be of type str), this string will
+                     become the content of the target.
+        :param retries: amount of times xnatpy should retry in case of
+                        failure
+        :param query: extra query string content
+        :param content_type: the content type of the file, if not given it will
+                             default to ``application/octet-stream``
+        :param method: either ``put`` (default) or ``post``
+        :param overwrite: indicate if previous path should be overwritten
+        :param timeout: timeout in seconds, float or (connection timeout, read timeout)
+        """
+        if not isinstance(data, (str, bytes)):
+            raise TypeError(f"The upload_string needs a string as the path to upload, found {type(data)}!")
+
+        if isinstance(data, str):
+            data_stream = io.StringIO(data)
+        else:
+            data_stream = io.BytesIO(data)
+
+        self.upload_stream(uri=uri,
+                           stream=data_stream,
+                           **kwargs)
 
     def upload(self,
                uri: str,
-               file_: Any,
-               retries: int = 1,
-               query: Optional[Dict[str, str]] = None,
-               content_type: Optional[str] = None,
-               method: str = 'put',
-               overwrite: bool = False,
-               timeout: TimeoutType = None):
+               data: Union[str, bytes, Path, IO],
+               **kwargs):
         """
-        Upload data or a file to XNAT
+        Upload path to XNAT, this method attempt to automatically figure out what
+        the type of the source path is.
+
+        .. warning::
+
+            DEPRECATED: This method can have unexpected behaviour (e.g. if you supply a str with
+            a path but the file does not exist, it will upload the path as a string
+            instead). This method will be removed in a future release of XNATpy
 
         :param uri: uri to upload to
-        :param file_: the file handle, path to a file or a string of data
+        :param data: the path to upload
+        :param retries: amount of times xnatpy should retry in case of
+                        failure
+        :param query: extra query string content
+        :param content_type: the content type of the file, if not given it will
+                             default to ``application/octet-stream``
+        :param method: either ``put`` (default) or ``post``
+        :param overwrite: indicate if previous path should be overwritten
+        :param timeout: timeout in seconds, float or (connection timeout, read timeout)
+        """
+        self.logger.warning("The upload method attempts to autodetect the type of the path, this can lead to "
+                            "unexpected behaviour. It is advised to use upload_stream , upload_file, or "
+                            "upload_string instead. The upload method might be removed in a future release.")
+        # Check if file is an opened file
+        if isinstance(data, (io.BufferedIOBase, io.TextIOBase)):
+            self.logger.info("Auto-selected upload_stream to handle the upload")
+            self.upload_stream(uri=uri,
+                               stream=data,
+                               **kwargs)
+        elif isinstance(data, Path) or (isinstance(data, str) and '\0' not in data and os.path.isfile(data)):
+            self.logger.info("Auto-selected upload_file to handle the upload")
+            self.upload_file(uri=uri,
+                             path=data,
+                             **kwargs)
+        elif isinstance(data, (str, bytes)):
+            # File is path to upload
+            self.logger.info("Auto-selected upload_string to handle the upload")
+            self.upload_string(uri=uri,
+                               data=data,
+                               **kwargs)
+        else:
+            raise XNATValueError(f'Cannot find correct method to upload data of type {type(data)}')
+
+    def upload_stream(self,
+                      uri: str,
+                      stream: Union[IO, io.BufferedIOBase, io.TextIOBase],
+                      retries: int = 1,
+                      query: Optional[Dict[str, str]] = None,
+                      content_type: Optional[str] = None,
+                      method: str = 'put',
+                      overwrite: bool = False,
+                      timeout: TimeoutType = None):
+        """
+        Upload path from a stream to XNAT
+
+        :param uri: uri to upload to
+        :param stream: the file handle, path to a file or a string of path
                       (which should not be the path to an existing file!)
         :param retries: amount of times xnatpy should retry in case of
                         failure
@@ -801,50 +881,30 @@ class BaseXNATSession(object):
         uri = self._format_uri(uri, query=query)
         self.logger.info('UPLOAD URI {}'.format(uri))
         attempt = 0
-        file_handle = None
-        opened_file = False
+        response = None
 
-        try:
-            while attempt < retries:
-                if isinstance(file_, io.IOBase):
-                    # File is open file handle, seek to 0
-                    file_handle = file_
-                    file_.seek(0)
-                elif isinstance(file_, Path):
-                    file_handle = file_.open('rb')
-                    opened_file = True
-                # Make sure conditions are valid for os.path.isfile to function
-                elif isinstance(file_, str) and '\0' not in file_ and os.path.isfile(file_):
-                    # File is str path to file
-                    file_handle = open(file_, 'rb')
-                    opened_file = True
-                else:
-                    # File is data to upload
-                    file_handle = file_
+        # Set the content type header
+        if content_type is None:
+            headers = {'Content-Type': 'application/octet-stream'}
+        else:
+            headers = {'Content-Type': content_type}
 
-                attempt += 1
+        while attempt < retries:
+            stream.seek(0)
+            attempt += 1
 
-                # Set the content type header
-                if content_type is None:
-                    headers = {'Content-Type': 'application/octet-stream'}
-                else:
-                    headers = {'Content-Type': content_type}
+            if method == 'put':
+                response = self.interface.put(uri, data=stream, headers=headers, timeout=timeout)
+            elif method == 'post':
+                response = self.interface.post(uri, data=stream, headers=headers, timeout=timeout)
+            else:
+                raise ValueError('Invalid upload method "{}" should be either put or post.'.format(method))
 
-                try:
-                    if method == 'put':
-                        response = self.interface.put(uri, data=file_handle, headers=headers, timeout=timeout)
-                    elif method == 'post':
-                        response = self.interface.post(uri, data=file_handle, headers=headers, timeout=timeout)
-                    else:
-                        raise ValueError('Invalid upload method "{}" should be either put or post.'.format(method))
-
-                    self._check_response(response)
-                    return response
-                except exceptions.XNATResponseError:
-                    pass
-        finally:
-            if opened_file:
-                file_handle.close()
+            try:
+                self._check_response(response)
+                return response
+            except exceptions.XNATResponseError:
+                pass
 
         # We didn't return correctly, so we have an error
         raise exceptions.XNATUploadError(f'Upload failed after {retries} attempts! Status code'
