@@ -295,7 +295,26 @@ using the ``download`` method for :py:meth:`experiments <xnat.classes.ImageSessi
 Custom variables
 ----------------
 
-The custom variables are exposed as a ``dict``-like object in ``xnatpy``. They are located in the
+Custom variable are exposes primiary using the ``object.custom_variables`` property.
+This is a mapping that exposes the custom variable groups. Each group is a mapping
+that gives access to the variables::
+
+    In [4]: subject.custom_variables
+    Out[4]: <CustomVariableMap groups: [default]>
+
+    In [5]: subject.custom_variables['default']
+    Out[5]: <CustomVariableGroup default {Notes (string): "some note", Diagnosis (string): None}>
+
+    In [6]: subject.custom_variables['default']['Notes']
+    Out[6]: "some note"
+
+    In [7]: subject.custom_variables['default']['Notes'] = "update note"
+
+The good thing about this way of accessing custom variables this way is that
+they are casted to the right type and constraints are checked client side when
+trying to update them.
+
+The custom variables are also exposed as a ``dict``-like object in ``xnatpy``. They are located in the
 ``field`` attribute under the objects that can have custom variables::
 
     In [18]: experiment = project.subjects['ANONYMIZ'].experiments['ANONYMIZ']
@@ -313,6 +332,12 @@ The custom variables are exposed as a ``dict``-like object in ``xnatpy``. They a
 
     In [27]: experiment.fields['brain_volume']
     Out[27]: u'42.0'
+
+.. note::
+
+    Accessing custom variables via ``.fields`` is low-level and bypasses
+    all typing and constraints set via the XNAT interface. Also non-defined
+    fields can be added and retrieved (those will not show in the interface).
 
 Getting external urls of an object
 ----------------------------------
@@ -388,7 +413,8 @@ Searching
 
 XNATpy allows using the XNAT search via the REST API. For this XNAT expects an
 XML document that specifies your query. The general information on search with
-the XNAT REST API is taken from `https://wiki.xnat.org/display/XAPI/How+to+Query+the+XNAT+Search+Engine+with+REST+API`_
+the XNAT REST API is taken from
+`XNAT wiki: How to Query the XNAT Search Engine with REST API <https://wiki.xnat.org/display/XAPI/How+to+Query+the+XNAT+Search+Engine+with+REST+API>`_
 
 To make it simple to search, XNATpy
 offers its own search intertface. It is inspired by SQLAlchemy and allows using
