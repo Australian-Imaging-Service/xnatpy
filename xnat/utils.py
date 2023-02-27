@@ -13,22 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-from __future__ import unicode_literals
-
 import re
 import keyword
 from functools import update_wrapper
+from io import BytesIO, BufferedIOBase, SEEK_SET, SEEK_END
 
-import six
+import requests
 from requests.auth import AuthBase
-
-if six.PY3:
-    from io import BufferedIOBase, SEEK_SET, SEEK_END
-    superclass = BufferedIOBase
-else:
-    from os import SEEK_SET, SEEK_END
-    superclass = object
 
 
 class JSessionAuth(AuthBase):
@@ -40,7 +31,7 @@ class JSessionAuth(AuthBase):
         return r
 
 
-class mixedproperty(object):
+class mixedproperty:
     """
     A special property-like class that can act as a property for a class as
     well as a property for an object. These properties can have different
@@ -97,7 +88,7 @@ class mixedproperty(object):
         return type(self)(self.fcget, self.fget, self.fset, fdel)
 
 
-def pythonize_class_name(name):
+def pythonize_class_name(name: str) -> str:
     """
     Turns string into a valid PEP8 class name, meaning camel cased
     (e.g. someValue -> SomeValue)
@@ -115,7 +106,7 @@ def pythonize_class_name(name):
     return name
 
 
-def pythonize_attribute_name(name):
+def pythonize_attribute_name(name: str) -> str:
     """
     Turns string into a valid PEP8 class name, meaning lower case with
     underscores when needed (e.g. someValue -> some_value)
@@ -142,17 +133,13 @@ def pythonize_attribute_name(name):
     return name
 
 
-class RequestsFileLike(object):
-    def __init__(self, request, chunk_size=512*1024):
-        self._bytes = six.BytesIO()
-        self._request = request
-        self._iterator = request.iter_content(chunk_size)
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+class RequestsFileLike(BufferedIOBase):
+    def __init__(self,
+                 request_response: requests.Response,
+                 chunk_size: int = 512*1024):
+        self._bytes = BytesIO()
+        self._request_response = request_response
+        self._iterator = request_response.iter_content(chunk_size)
 
     def _load_all(self):
         self._bytes.seek(0, SEEK_END)
@@ -167,8 +154,17 @@ class RequestsFileLike(object):
             except StopIteration:
                 break
 
-    def tell(self):
+    def fileno(self) -> int:
+        raise OSError('No fileno used for RequestFileLike')
+
+    def tell(self) -> int:
         return self._bytes.tell()
+
+    def readable(self) -> bool:
+        return True
+
+    def seekable(self) -> bool:
+        return True
 
     def read(self, size=None):
         current_position = self._bytes.tell()
@@ -182,7 +178,7 @@ class RequestsFileLike(object):
         self._bytes.seek(current_position)
         return self._bytes.read(size)
 
-    def seek(self, position, whence=SEEK_SET):
+    def seek(self, position: int, whence: int = SEEK_SET):
         if whence == SEEK_END:
             self._load_all()
         else:
@@ -190,10 +186,10 @@ class RequestsFileLike(object):
 
     def close(self):
         self._bytes.close()
-        self._request.close()
+        self._request_response.close()
 
 
-def full_class_name(cls):
+def full_class_name(cls) -> str:
     module = cls.__module__
 
     if module is None or module == str.__module__:

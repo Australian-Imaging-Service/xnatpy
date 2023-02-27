@@ -17,7 +17,6 @@
 The specific exceptions that are thrown by XNATpy
 """
 
-from __future__ import absolute_import
 import requests
 
 
@@ -91,4 +90,10 @@ class XNATNotConnectedError(XNATError):
 class XNATObjectDestroyedError(XNATError):
     """
     The object manipulated is deleted and therefore destroyed. It should not be used anymore!
+    """
+
+
+class XNATObjectAlreadyExistsError(XNATError):
+    """
+    The object being created already exists.
     """

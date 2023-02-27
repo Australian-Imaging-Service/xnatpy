@@ -25,8 +25,6 @@ import os
 import re
 from xml.etree import ElementTree
 
-import six
-
 from . import core
 from . import mixin
 from .datatypes import TYPE_TO_PYTHON
@@ -35,202 +33,8 @@ from .utils import pythonize_class_name, pythonize_attribute_name, full_class_na
 
 
 XNATPY_NAMESPACE = 'https://gitlab.com/radiology/infrastructure/xnatpy'
-FILE_HEADER = '''
-# Copyright 2011-2015 Biomedical Imaging Group Rotterdam, Departments of
-# Medical Informatics and Radiology, Erasmus MC, Rotterdam, The Netherlands
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-from __future__ import absolute_import
-from __future__ import unicode_literals
-import os
-import tempfile  # Needed by generated code
-from gzip import GzipFile  # Needed by generated code
-from tarfile import TarFile  # Needed by generated code
-from zipfile import ZipFile  # Needed by generated code
-from six import BytesIO  # Needed by generated code
-
-from xnat import search, mixin
-from xnat.core import XNATObject, XNATNestedObject, XNATSubObject, XNATListing, XNATSimpleListing, XNATSubListing, caching
-from xnat.utils import mixedproperty, RequestsFileLike
-
-try:
-    PYDICOM_LOADED = True
-    import pydicom
-except ImportError:
-    PYDICOM_LOADED = False
-
-SESSION = None
-
-
-def current_session():
-    return SESSION
-
-
-# These mixins are to set the xnat_session automatically in all created classes
-class XNATObjectMixin(XNATObject):
-    @mixedproperty
-    def xnat_session(self):
-        return current_session()
-
-    @classmethod
-    def query(cls, *constraints):
-        query = search.Query(cls, cls.xnat_session)
-
-        # Add in constraints immediatly
-        if len(constraints) > 0:
-            query = query.filter(*constraints)
-
-        return query
-
-
-class XNATNestedObjectMixin(XNATNestedObject):
-    @mixedproperty
-    def xnat_session(self):
-        return current_session()
-
-
-class XNATSubObjectMixin(XNATSubObject):
-    @mixedproperty
-    def xnat_session(self):
-        return current_session()
-
-
-class FileData(XNATObjectMixin):
-    SECONDARY_LOOKUP_FIELD = "{file_secondary_lookup}"
-    _XSI_TYPE = 'xnat:fileData'
-
-    def __init__(self, uri=None, xnat_session=None, id_=None, datafields=None, parent=None, fieldname=None, overwrites=None, path=None):
-        super(FileData, self).__init__(uri=uri,
-                                       xnat_session=xnat_session,
-                                       id_=id_,
-                                       datafields=datafields,
-                                       parent=parent,
-                                       fieldname=fieldname,
-                                       overwrites=overwrites)
-
-        # Save id because we need it if cache gets wiped
-        self._id = id_
-        
-        if path is not None:
-            self._path = path
-            
-    @property
-    def id(self):
-        return self._id
-
-    @property
-    def path(self):
-        return self._path
-
-    def delete(self):
-        self.xnat_session.delete(self.uri)
-
-    def download(self, *args, **kwargs):
-        self.xnat_session.download(self.uri, *args, **kwargs)
-
-    def download_stream(self, *args, **kwargs):
-        self.xnat_session.download_stream(self.uri, *args, **kwargs)
-        
-    def open(self):
-        data_path = self.data_path
-        
-        if data_path is not None:
-            self.logger.info('Opening file from filesystem!')
-            return open(data_path, 'rb')
-        else:
-            self.logger.info('Opening file over http!')
-            
-        uri = self.xnat_session._format_uri(self.uri)
-        request = self.xnat_session.interface.get(uri, stream=True)
-        return RequestsFileLike(request)
-        
-    @property
-    @caching
-    def fulldata(self):
-        listing_uri = self.uri[:-len(self.id)-1]
-        data = self.xnat_session.get_json(listing_uri)
-        data = data['ResultSet']['Result']
-        item = next(x for x in data if x['Name'] == self.id)
-        return item
-        
-    @property
-    def data(self):
-        return self.fulldata
-        
-    @property
-    def cat_id(self):
-        return self.get('cat_ID', str)
-        
-    @property
-    def collection(self):
-        return self.get('collection', str)
-        
-    @property
-    def digest(self):
-        return self.get('digest', str)
-        
-    @property
-    def file_content(self):
-        return self.get('file_content', str)
-        
-    @property
-    def file_format(self):
-        return self.get('file_format', str)
-        
-    @property
-    def file_tags(self):
-        return self.get('file_tags', str)
-        
-    @property
-    def file_size(self):
-        return self.get('Size', str)
-
-    @property
-    @caching
-    def size(self):
-        response = self.xnat_session.head(self.uri, allow_redirects=True)
-        return response.headers['Content-Length']
-        
-
-    @property
-    def data_path(self):
-        parent = self.xnat_session.create_object(self.uri.split('/files/')[0])
-
-        if parent.data_dir is None:
-            return None
-
-        data_path = f"{{parent.data_dir}}/{{self.path}}"
-
-        if not os.path.exists(data_path):
-            self.logger.info(f'Determined data_path to be {{data_path}}, but it does not exist!')
-            return None
-
-        return data_path
-
-
-# Empty class lookup to place all new lookup values
-XNAT_CLASS_LOOKUP = {{
-    "xnat:fileData": FileData,
-}}
-
-
-# The following code represents the data structure of the XNAT server
-# It is automatically generated using
-{schemas}
-
-
-'''
+with open(os.path.join(os.path.dirname(__file__), 'header.py')) as fin:
+    FILE_HEADER = fin.read()
 
 # TODO: Add more fields to FileData from [Name, Size, URI, cat_ID, collection, file_content, file_format, tile_tags]?
 # TODO: Add display identifiers support (DONE?)
@@ -241,11 +45,8 @@ XNAT_CLASS_LOOKUP = {{
 # <xs:documentation>An individual person involved in experimental research</xs:documentation>
 # </xs:annotation>
 # <xs:sequence>
-# TODO: Add XPATHs for setting SubObjects (SEMI-DONE)
 # TODO: Make Listings without key and with numeric index possible (inProgress)
 # TODO: Fix scan parameters https://groups.google.com/forum/#!topic/xnat_discussion/GBZoamC2ZmY
-# TODO: Check the nesting weirdness in petScanDataParametersFramesFrames (DONE?)
-# TODO: Figure out the object/subobject/semi-subobject mess.
 # TODO: Move all system function to use a __ prefix
 
 
@@ -270,7 +71,7 @@ class ClassPrototype(object):
         self.source_schema = self.parser.current_schema
 
     def __repr__(self):
-        return "<ClassPrototype {}>".format(self.name)
+        return f"<ClassPrototype {self.name}>"
 
     @property
     def name(self):
@@ -569,10 +370,15 @@ class BaseClassWriter(BaseWriter):
             header += "    _DISPLAY_IDENTIFIER = '{}'\n".format(self.display_identifier)
 
         if 'fields' in self.attributes:
-            header += "    _HAS_FIELDS = True\n"
+            attribute = self.attributes['fields']
+            element_class = attribute.element_class
+            # Make sure it's only proper fields and not a subobject called fields (THIS DOES HAPPEN!)
+            if element_class.class_type == 'Simple':
+                header += "    _HAS_FIELDS = True\n"
+                header += "    custom_variables = search.SearchFieldMap('{name}')\n".format(name=self.name)
 
         if self.parent_class is not None:
-            header += "    #_PARENT_CLASS = {}\n".format(self.python_parent_class)
+            header += "    _PARENT_CLASS = {}\n".format(self.python_parent_class)
             header += "    _FIELD_NAME = '{}'\n".format(self.field_name)
         elif self.name in FIELD_HINTS:
             header += "    _CONTAINED_IN = '{}'\n".format(FIELD_HINTS[self.name])
@@ -963,7 +769,7 @@ class ListingPropertyWriter(AttributeWriter):
         if self.element_class is not None:
             element_class = self.element_class
             property_base += element_class.writer.create_listing(secondary_lookup=secondary_lookup, field_name=field_name)
-        elif isinstance(self.type, six.string_types) and not self.type.startswith('xs:'):
+        elif isinstance(self.type, str) and not self.type.startswith('xs:'):
             element_class = self.parser.class_list[self.type]
             property_base += element_class.writer.create_listing(secondary_lookup=secondary_lookup, field_name=field_name)
         else:
@@ -1076,6 +882,8 @@ class SchemaParser(object):
         tries = 0
         yielded_anything = True
         while len(visited) < len(self.class_list) and yielded_anything and tries < 25:
+            if self.debug:
+                self.logger.info(f"============ Iteration {tries} ============")
             yielded_anything = False
             for key, value in self.class_list.items():
                 if key in visited:
@@ -1084,14 +892,14 @@ class SchemaParser(object):
                 base = value.base_class
                 if base is not None and not base.startswith('xs:') and base not in visited:
                     if self.debug:
-                        self.logger.debug("Wait with processing {} because base {} is not yet processed".format(
+                        self.logger.info("Wait with processing {} because base {} is not yet processed".format(
                             value.name, base
                         ))
                     continue
 
                 if value.parent_class is not None and value.parent_class not in visited:
                     if self.debug:
-                        self.logger.debug("Wait with processing {} because parent {} is not yet processed".format(
+                        self.logger.info("Wait with processing {} because parent {} is not yet processed".format(
                             value.name, value.parent_class
                         ))
                     continue
@@ -1104,14 +912,13 @@ class SchemaParser(object):
             tries += 1
 
         expected = len(self.class_list) + nr_previsited  # We started with two "visited" classes
-        if self.debug:  # and len(visited) < len(self.class_list):
+        if len(visited) < expected:
             missed = sorted(set(self.class_list) - visited)
-            if self.debug:
-                self.logger.debug('Visited: {}, expected: {}'.format(len(visited), expected))
-                self.logger.debug('Visited: {}'.format(visited))
-                self.logger.info('Missed: {}'.format(missed))
-                self.logger.info('Missed base class: {}'.format([self.class_list[x].base_class for x in missed]))
-                self.logger.debug('Spent {} iterations'.format(tries))
+            self.logger.debug('Visited: {}, expected: {}'.format(len(visited), expected))
+            self.logger.debug('Visited: {}'.format(visited))
+            self.logger.info('Missed: {}'.format(missed))
+            self.logger.info('Missed base class: {}'.format([self.class_list[x].base_class for x in missed]))
+            self.logger.debug('Spent {} iterations'.format(tries))
 
     @contextlib.contextmanager
     def _descend(self, new_class=None, new_property=None, property_prefix=None):
@@ -1427,6 +1234,7 @@ class SchemaParser(object):
 
     def prune_tree(self):
         to_remove = set()
+        renamed = {}
 
         for cls in self.class_list.values():
             for property_key, prop in cls.attributes.items():
@@ -1446,6 +1254,7 @@ class SchemaParser(object):
                         # The new element_class has to be updated to take the place of the old element_class
                         new_element_class = element_property.element_class
                         if new_element_class is not None:
+                            renamed[new_element_class.name] = element_class.name
                             new_element_class.name = element_class.name
                             new_element_class.field_name = '{}/{}'.format(element_class.field_name,
                                                                           new_element_class.field_name)
@@ -1457,14 +1266,28 @@ class SchemaParser(object):
                                     element_class.name)
                                 )
                             to_remove.add(element_class.name)
-
                         cls.attributes[property_key] = element_property
                     elif self.debug:
                         self.logger.debug("Ignoring non-listing...")
                         self.logger.debug("Element class: {}".format(element_class.__dict__))
 
         for key in to_remove:
+            if self.debug:
+                self.logger.info(f'Removing pruned class {key}')
             del self.class_list[key]
+
+        for cls in self.class_list.values():
+            if cls.parent_class in renamed:
+                new_name = renamed[cls.parent_class]
+                if self.debug:
+                    self.logger.info(f'Fixing parent name after rename in pruning from {cls.parent_class} to {new_name}')
+                cls.parent_class = new_name
+
+        for old_name, new_name in renamed.items():
+            if self.debug:
+                self.logger.info(f'Re-inserting renamed class {old_name} in class list under {new_name}')
+            item = self.class_list.pop(old_name)
+            self.class_list[new_name] = item
 
         for cls in self.class_list.values():
             for property_key, prop in cls.attributes.items():
@@ -1508,11 +1331,11 @@ class SchemaParser(object):
         self.logger.info('Pruning data structure')
         before = set(self.class_list.keys())
         if self.debug:
-            self.logger.debug('Classed before prune: {}'.format(before))
+            self.logger.debug('Classes before prune: {}'.format(before))
         self.prune_tree()
         after = set(self.class_list.keys())
         if self.debug:
-            self.logger.debug('Classed after prune: {}'.format(after))
+            self.logger.debug('Classes after prune: {}'.format(after))
             self.logger.info('Classes removed by pruning: {}'.format(sorted(before - after)))
 
         self.logger.info('Writing result')

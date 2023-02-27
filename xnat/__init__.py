@@ -20,11 +20,10 @@ the https://central.xnat.org/schema/xnat/xnat.xsd schema and the xnatcore and
 xnatbase modules, using the convert_xsd.
 """
 
-from __future__ import absolute_import
-from __future__ import unicode_literals
 import getpass
 import hashlib
-import imp
+import importlib.machinery
+import importlib.util
 import logging
 import os
 import platform
@@ -36,9 +35,9 @@ import time
 import requests
 import requests.cookies
 import urllib3
-from six.moves.urllib import parse
+from urllib import parse
 
-from . import exceptions
+from . import exceptions, search
 from .session import XNATSession, BaseXNATSession
 from .constants import DEFAULT_SCHEMAS
 from .convert_xsd import SchemaParser
@@ -46,7 +45,7 @@ from .utils import JSessionAuth
 
 GEN_MODULES = {}
 
-__version__ = '0.4.3'
+__version__ = '0.5.0'
 __all__ = ['connect', 'exceptions']
 
 
@@ -86,7 +85,7 @@ def check_auth_guest(requests_session, server, logger):
     return username
 
 
-def check_auth(requests_session, server, user, logger):
+def check_auth(requests_session, server, user, jsession, logger):
     """
     Try to figure out of the requests session is properly logged in as the desired user
 
@@ -128,10 +127,11 @@ def check_auth(requests_session, server, user, logger):
             match = re.search(r'<form name="form1" method="post" action="/xnat/login"', test_auth_request.text)
             if match:
                 message = 'Login attempt failed for {}, please make sure your credentials for user {} are correct!'.format(server, user)
+                logger.error(message)
                 raise exceptions.XNATLoginFailedError(message)
 
             message = 'Could not determine if login was successful!'
-            logger.error(message)
+            logger.critical(message)
             logger.debug(test_auth_request.text)
             raise exceptions.XNATAuthError(message)
         else:
@@ -142,10 +142,15 @@ def check_auth(requests_session, server, user, logger):
         username = match.group('username')
         if username == user:
             logger.info('Logged in successfully as {}'.format(username))
-        elif re.match(r"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}", user):
-            logger.info('Token login successfully as {}'.format(username))
-        else:
-            logger.warning('Logged in as {} but expected to be logged in as {}'.format(username, user))
+        # changed check_auth to take jsession, so user=None doesn't cause a type error, and re.match here compares against a different pattern specific to jsession
+        elif user is not None:
+            if re.match(r"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}", user):
+                logger.info('Token login successfully as {}'.format(username))
+            else:
+                logger.warning('Logged in as {} but expected to be logged in as {}'.format(username, user))
+        elif jsession is not None:
+            if re.match("[\w]{32}", jsession):
+                logger.info('JSESSION login successful for {}'.format(username))
 
         return username
 
@@ -363,16 +368,23 @@ def build_model(xnat_session, extension_types, connection_id):
     logger.debug('Code file written to: {}'.format(code_file.name))
 
     # The module is loaded in its private namespace based on the code_file name
-    xnat_module = imp.load_source('xnat_gen_{}'.format(connection_id),
-                                  code_file.name)
+    module_name = 'xnat.generated.model_{}'.format(connection_id)
+    loader = importlib.machinery.SourceFileLoader(module_name, code_file.name)
+    spec = importlib.util.spec_from_loader(module_name, loader)
+    xnat_module = importlib.util.module_from_spec(spec)
+    loader.exec_module(xnat_module)
     xnat_module._SOURCE_CODE_FILE = code_file.name
 
     logger.debug('Loaded generated module')
 
     # Register all types parsed
-    for cls in parser.class_list.values():
+    for key, cls in parser.class_list.items():
         if not (cls.name is None or (cls.base_class is not None and cls.base_class.startswith('xs:'))):
-            getattr(xnat_module, cls.writer.python_name).__register__(xnat_module.XNAT_CLASS_LOOKUP)
+            cls_obj = getattr(xnat_module, cls.writer.python_name, None)
+            if cls_obj is not None:
+                cls_obj.__register__(xnat_module.XNAT_CLASS_LOOKUP)
+            else:
+                logger.warning("Cannot find class to register for {}".format(cls.name))
 
     xnat_module.SESSION = xnat_session
 
@@ -380,6 +392,7 @@ def build_model(xnat_session, extension_types, connection_id):
     xnat_session.XNAT_CLASS_LOOKUP.update(xnat_module.XNAT_CLASS_LOOKUP)
     xnat_session.classes = xnat_module
     xnat_session._source_code_file = code_file.name
+    search.inject_search_fields(xnat_session)
     logger.info('Object model created successfully')
 
 
@@ -427,19 +440,19 @@ def connect(server=None, user=None, password=None, verify=True, netrc_file=None,
     Preferred use::
 
         >>> import xnat
-        >>> with xnat.connect('https://central.xnat.org') as session:
-        ...    subjects = session.projects['Sample_DICOM'].subjects
+        >>> with xnat.connect('https://central.xnat.org') as connection:
+        ...    subjects = connection.projects['Sample_DICOM'].subjects
         ...    print('Subjects in the SampleDICOM project: {}'.format(subjects))
         Subjects in the SampleDICOM project: <XNATListing (CENTRAL_S01894, dcmtest1): <SubjectData CENTRAL_S01894>, (CENTRAL_S00461, PACE_HF_SUPINE): <SubjectData CENTRAL_S00461>>
 
     Alternative use::
 
         >>> import xnat
-        >>> session = xnat.connect('https://central.xnat.org')
-        >>> subjects = session.projects['Sample_DICOM'].subjects
+        >>> connection = xnat.connect('https://central.xnat.org')
+        >>> subjects = connection.projects['Sample_DICOM'].subjects
         >>> print('Subjects in the SampleDICOM project: {}'.format(subjects))
         Subjects in the SampleDICOM project: <XNATListing (CENTRAL_S01894, dcmtest1): <SubjectData CENTRAL_S01894>, (CENTRAL_S00461, PACE_HF_SUPINE): <SubjectData CENTRAL_S00461>>
-        >>> session.disconnect()
+        >>> connection.disconnect()
     """
 
     # Auto-detect server based on environment variables
@@ -583,7 +596,7 @@ def connect(server=None, user=None, password=None, verify=True, netrc_file=None,
             logged_in_user = check_auth_guest(requests_session, server=server, logger=logger)
         else:
             logger.debug('Checking login for {}, jsession argument {}'.format(user, jsession))
-            logged_in_user = check_auth(requests_session, server=server, user=user, logger=logger)
+            logged_in_user = check_auth(requests_session, server=server, user=user, jsession=jsession, logger=logger)
 
         if jsession and logged_in_user == 'guest':
             logger.warning('Attempt to log in with jsession resulted in being logged in as'

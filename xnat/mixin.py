@@ -13,19 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-from __future__ import unicode_literals
 import os
+from pathlib import Path
 import tempfile
 from zipfile import ZipFile
 import tarfile
 import shutil
+from typing import Optional, Union, IO
 
-from six import BytesIO
+from io import BytesIO
 
 from .core import caching, XNATBaseObject, XNATListing
 from .search import SearchField
-from .utils import mixedproperty
+from .utils import mixedproperty, pythonize_attribute_name
+from . import exceptions
 
 try:
     PYDICOM_LOADED = True
@@ -36,6 +37,10 @@ except ImportError:
 
 class ProjectData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'name'
+    FROM_SEARCH_URI = '{session_uri}/projects/{id}'
+
+    def _get_creation_uri(self, parent_uri, id_, secondary_lookup_value):
+        return f'/data/archive/projects/{id_}'
 
     # just for consistency with subject/experiment for custom variable map
     @property
@@ -85,8 +90,8 @@ class ProjectData(XNATBaseObject):
                            secondary_lookup_field='label',
                            xsi_type='xnat:resourceCatalog')
 
-    def create_resource(self, label, format=None, data_dir=None, method=None):
-        uri = '{}/resources/{}'.format(self.fulluri, label)
+    def create_resource(self, label, format=None, data_dir=None, method=None) -> 'AbstractResource':
+        uri = f'{self.fulluri}/resources/{label}'
         self.xnat_session.put(uri, format=format)
         self.clearcache()  # The resources changed, so we have to clear the cache
         resource = self.xnat_session.create_object(uri, type_='xnat:resourceCatalog')
@@ -153,6 +158,7 @@ class InvestigatorData(XNATBaseObject):
 
 class SubjectData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'label'
+    FROM_SEARCH_URI = '{session_uri}/projects/{project}/subjects/{subjectid}'
 
     @property
     def fulluri(self):
@@ -256,6 +262,36 @@ class SubjectData(XNATBaseObject):
 
 class ExperimentData(XNATBaseObject):
     SECONDARY_LOOKUP_FIELD = 'label'
+    FROM_SEARCH_URI = '{session_uri}/projects/{project}/subjects/{subject_id}/experiments/{session_id}'
+    DEFAULT_SEARCH_FIELDS = ['id', 'project', 'subject_id']
+
+    def __init__(self, uri=None, xnat_session=None, id_=None, datafields=None, parent=None, fieldname=None, overwrites=None, **kwargs):
+
+        # If experiment is being created, check if experiment already exists
+        if uri is None and parent is not None:
+            if isinstance(parent, XNATListing):
+                check_parent = parent.parent
+            else:
+                check_parent = parent
+            
+            if not isinstance(check_parent, SubjectData):
+                raise exceptions.XNATValueError(f'Cannot determine parent for experiment, should be a SubjectData, found {type(parent)}!')
+
+            project = check_parent.xnat_session.projects[check_parent.project]
+
+            # Check what argument to use to build the URL
+            if self._DISPLAY_IDENTIFIER is not None:
+                url_part_argument = pythonize_attribute_name(self._DISPLAY_IDENTIFIER)
+            elif self.SECONDARY_LOOKUP_FIELD is not None:
+                url_part_argument = self.SECONDARY_LOOKUP_FIELD
+            
+            # Get extra required url part
+            url_part = str(kwargs.get(url_part_argument))
+            if project.experiments.get(url_part) and not overwrites:
+                self.logger.error(f"Experiment with label {url_part} already exists in project {project.id}.")
+                raise exceptions.XNATObjectAlreadyExistsError(f'Experiment with label {url_part} already exists in project {project.id}.')
+
+        super().__init__(uri, xnat_session, id_, datafields, parent, fieldname, overwrites, **kwargs)
 
     @mixedproperty
     def label(cls):
@@ -584,7 +620,7 @@ class AbstractResource(XNATBaseObject):
         return self.fulldata
 
     @property
-    def file_size(self):
+    def file_size(self) -> int:
         file_size = self.data['file_size']
         if file_size.strip() == '':
             return 0
@@ -592,7 +628,7 @@ class AbstractResource(XNATBaseObject):
             return int(file_size)
 
     @property
-    def file_count(self):
+    def file_count(self) -> int:
         file_count = self.data['file_count']
         if file_count.strip() == '':
             return 0
@@ -661,23 +697,32 @@ class AbstractResource(XNATBaseObject):
                     scan_directory = os.path.join(target_dir, unique_extraction_sub_directories[0])
 
         if verbose:
-            self.logger.info('Downloaded resource data to {}'.format(scan_directory))
+            self.logger.info('Downloaded resource path to {}'.format(scan_directory))
         return scan_directory
 
-    def upload(self, data, remotepath, overwrite=False, extract=False, file_content=None, file_format=None, file_tags=None, **kwargs):
+    def upload(self,
+               path: Union[str, Path],
+               remotepath: str,
+               overwrite: bool = False,
+               extract: bool = False,
+               file_content: Optional[str] = None,
+               file_format: Optional[str] = None,
+               file_tags: Optional[str] = None,
+               **kwargs):
         """
         Upload a file as an XNAT resource.
 
-        :param str data: The path to the file to upload
-        :param str remotepath: The remote path to which to uploadt
-        :param bool overwrite: Flag to force overwriting of files
-        :param bool extract: Extract the files on the XNAT server
-        :param str file_content: Set the Content of the file on XNAT
-        :param str file_format: Set the format of the file on XNAT
-        :param str file_tags: Set the tags of the file on XNAT
+        :param path: The path to the file to upload
+        :param remotepath: The remote path to which to upload to
+        :param overwrite: Flag to force overwriting of files
+        :param extract: Extract the files on the XNAT server
+        :param file_content: Set the Content of the file on XNAT
+        :param file_format: Set the format of the file on XNAT
+        :param file_tags: Set the tags of the file on XNAT
         """
-        uri = '{}/files/{}'.format(self.uri, remotepath.lstrip('/'))
+        uri = f"{self.uri}/files/{remotepath.lstrip('/')}"
         query = {}
+
         if extract:
             query['extract'] = 'true'
         if file_content is not None:
@@ -687,10 +732,53 @@ class AbstractResource(XNATBaseObject):
         if file_tags is not None:
             query['tags'] = file_tags
 
-        self.xnat_session.upload(uri, data, overwrite=overwrite, query=query, **kwargs)
+        self.xnat_session.upload_file(uri, path=path, overwrite=overwrite, query=query, **kwargs)
         self.files.clearcache()
 
-    def upload_dir(self, directory, overwrite=False, method='tgz_file', **kwargs):
+    def upload_data(self,
+                    data: Union[str, bytes, IO],
+                    remotepath: str,
+                    overwrite: bool = False,
+                    extract: bool = False,
+                    file_content: Optional[str] = None,
+                    file_format: Optional[str] = None,
+                    file_tags: Optional[str] = None,
+                    **kwargs):
+        """
+        Upload a file as an XNAT resource.
+
+        :param str data: The data to upload, either a str, bytes or an IO object
+        :param str remotepath: The remote path to which to uploadt
+        :param bool overwrite: Flag to force overwriting of files
+        :param bool extract: Extract the files on the XNAT server
+        :param str file_content: Set the Content of the file on XNAT
+        :param str file_format: Set the format of the file on XNAT
+        :param str file_tags: Set the tags of the file on XNAT
+        """
+        uri = f"{self.uri}/files/{remotepath.lstrip('/')}"
+        query = {}
+
+        if extract:
+            query['extract'] = 'true'
+        if file_content is not None:
+            query['content'] = file_content
+        if file_format is not None:
+            query['format'] = file_format
+        if file_tags is not None:
+            query['tags'] = file_tags
+
+        if isinstance(data, (str, bytes)):
+            self.xnat_session.upload_string(uri, data=data, overwrite=overwrite, query=query, **kwargs)
+        else:
+            self.xnat_session.upload_stream(uri, stream=data, overwrite=overwrite, query=query, **kwargs)
+
+        self.files.clearcache()
+
+    def upload_dir(self,
+                   directory: Union[str, Path],
+                   overwrite: bool = False,
+                   method: str = 'tgz_file',
+                   **kwargs):
         """
         Upload a directory to an XNAT resource. This means that if you do
         resource.upload_dir(directory) that if there is a file directory/a.txt
@@ -709,31 +797,32 @@ class AbstractResource(XNATBaseObject):
         create additional archives, but has one request per file so might be
         slow when uploading many files.
 
-        :param str directory: The directory to upload
-        :param bool overwrite: Flag to force overwriting of files
-        :param str method: The method to use
+        :param directory: The directory to upload
+        :param overwrite: Flag to force overwriting of files
+        :param method: The method to use
         """
-        if not isinstance(directory, str):
-            directory = str(directory)
+        if not isinstance(directory, Path):
+            directory = Path(directory)
+
+        if not directory.is_dir():
+            raise exceptions.XNATValueError(f'The argument directory {directory} is not a path to a valid directory')
 
         # Make sure that a None or empty string is replaced by the default
         method = method or 'tgz_file'
 
         if method == 'per_file':
-            for root, _, files in os.walk(directory):
-                for filename in files:
-                    file_path = os.path.join(root, filename)
-                    if os.path.getsize(file_path) == 0:
-                        continue
+            for file_path in directory.rglob('*'):
+                if os.path.getsize(file_path) == 0:
+                    continue
 
-                    target_path = os.path.relpath(file_path, directory)
-                    self.upload(file_path, target_path, overwrite=overwrite, **kwargs)
+                target_path = str(file_path.relative_to(directory))
+                self.upload(file_path, target_path, overwrite=overwrite, **kwargs)
         elif method == 'tar_memory':
             fh = BytesIO()
             with tarfile.open(mode='w', fileobj=fh) as tar_file:
                 tar_file.add(directory, '')
             fh.seek(0)
-            self.upload(fh, 'upload.tar', overwrite=overwrite, extract=True, **kwargs)
+            self.upload_data(fh, 'upload.tar', overwrite=overwrite, extract=True, **kwargs)
             fh.close()
         elif method == 'tgz_memory':
             fh = BytesIO()
@@ -741,7 +830,7 @@ class AbstractResource(XNATBaseObject):
                 tar_file.add(directory, '')
 
             fh.seek(0)
-            self.upload(fh, 'upload.tar.gz', overwrite=overwrite, extract=True, **kwargs)
+            self.upload_data(fh, 'upload.tar.gz', overwrite=overwrite, extract=True, **kwargs)
             fh.close()
         elif method == 'tar_file':
             # Max-size is 256 MB
@@ -749,7 +838,7 @@ class AbstractResource(XNATBaseObject):
                 with tarfile.open(mode='w', fileobj=fh) as tar_file:
                     tar_file.add(directory, '')
                 fh.seek(0)
-                self.upload(fh, 'upload.tar', overwrite=overwrite, extract=True, **kwargs)
+                self.upload_data(fh, 'upload.tar', overwrite=overwrite, extract=True, **kwargs)
         elif method == 'tgz_file':
             # Max-size is 256 MB
             with tempfile.SpooledTemporaryFile(max_size=268435456, mode='wb+') as fh:
@@ -757,7 +846,7 @@ class AbstractResource(XNATBaseObject):
                         tar_file.add(directory, '')
 
                 fh.seek(0)
-                self.upload(fh, 'upload.tar.gz', overwrite=overwrite, extract=True, **kwargs)
+                self.upload_data(fh, 'upload.tar.gz', overwrite=overwrite, extract=True, **kwargs)
         else:
             self.logger.warning('Selected invalid upload directory method!')
 

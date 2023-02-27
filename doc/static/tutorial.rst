@@ -295,7 +295,26 @@ using the ``download`` method for :py:meth:`experiments <xnat.classes.ImageSessi
 Custom variables
 ----------------
 
-The custom variables are exposed as a ``dict``-like object in ``xnatpy``. They are located in the
+Custom variable are exposes primiary using the ``object.custom_variables`` property.
+This is a mapping that exposes the custom variable groups. Each group is a mapping
+that gives access to the variables::
+
+    In [4]: subject.custom_variables
+    Out[4]: <CustomVariableMap groups: [default]>
+
+    In [5]: subject.custom_variables['default']
+    Out[5]: <CustomVariableGroup default {Notes (string): "some note", Diagnosis (string): None}>
+
+    In [6]: subject.custom_variables['default']['Notes']
+    Out[6]: "some note"
+
+    In [7]: subject.custom_variables['default']['Notes'] = "update note"
+
+The good thing about this way of accessing custom variables this way is that
+they are casted to the right type and constraints are checked client side when
+trying to update them.
+
+The custom variables are also exposed as a ``dict``-like object in ``xnatpy``. They are located in the
 ``field`` attribute under the objects that can have custom variables::
 
     In [18]: experiment = project.subjects['ANONYMIZ'].experiments['ANONYMIZ']
@@ -313,6 +332,12 @@ The custom variables are exposed as a ``dict``-like object in ``xnatpy``. They a
 
     In [27]: experiment.fields['brain_volume']
     Out[27]: u'42.0'
+
+.. note::
+
+    Accessing custom variables via ``.fields`` is low-level and bypasses
+    all typing and constraints set via the XNAT interface. Also non-defined
+    fields can be added and retrieved (those will not show in the interface).
 
 Getting external urls of an object
 ----------------------------------
@@ -382,6 +407,150 @@ This gives a list of ``PrearchiveSessions`` in the archive. It is possible to
 :py:meth:`delete <xnat.prearchive.PrearchiveSession.delete>`
 the session using simple methods. For more information
 see :py:class:`PrearchiveSession <xnat.prearchive.PrearchiveSession>`
+
+Searching
+---------
+
+XNATpy allows using the XNAT search via the REST API. For this XNAT expects an
+XML document that specifies your query. The general information on search with
+the XNAT REST API is taken from
+`XNAT wiki: How to Query the XNAT Search Engine with REST API <https://wiki.xnat.org/display/XAPI/How+to+Query+the+XNAT+Search+Engine+with+REST+API>`_
+
+To make it simple to search, XNATpy
+offers its own search intertface. It is inspired by SQLAlchemy and allows using
+the object model to specify your query::
+
+    >>> SubjectData = connection.classes.SubjectData
+    >>> SubjectData.query().filter(SubjectData.project == 'sandbox').all()
+    [<SubjectData ANONYMIZ (BMIAXNAT03_S00525)>,
+     <SubjectData case001 (BMIAXNAT07_S00009)>,
+     <SubjectData SUBJECT001 (BMIAXNAT12_S00261)>,
+     <SubjectData TEST_001 (BMIAXNAT15_S00874)>,
+     <SubjectData Brain-0001 (BMIAXNAT34_S00001)>,
+     <SubjectData Brain-0002 (BMIAXNAT34_S00002)>,
+     <SubjectData TEST01 (BMIAXNAT_S17618)>]
+
+In the example above, we use the subject data class to query. We get the generated class
+from ``connection.classes`` and give it a local name for convenience. Then we create a query
+for this class, so the result of our query will be subjects. Subsequently we add a filter
+where we constrain the results to match a certain project id. Finally we request all matching
+objects.
+
+Multiple constraints can be used by giving multiple arguments to filter::
+
+    >>> SubjectData.query().filter(SubjectData.project == 'sandbox', SubjectData.label.like('Brain*')).all()
+    [<SubjectData Brain-0001 (BMIAXNAT34_S00001)>,
+     <SubjectData Brain-0002 (BMIAXNAT34_S00002)>]
+
+Also, filter can be called on the resulting query to stack filters::
+
+    >>> SubjectData.query().filter(SubjectData.project == 'sandbox').filter(SubjectData.label.like('Brain*')).all()
+    [<SubjectData Brain-0001 (BMIAXNAT34_S00001)>,
+     <SubjectData Brain-0002 (BMIAXNAT34_S00002)>]
+
+Finally compound constraints can be created using the ``&`` (for and) and ``|`` (for or) operators::
+
+    >>> SubjectData.query().filter((SubjectData.project == 'sandbox') & (SubjectData.label.like('Brain*'))).all()
+    [<SubjectData Brain-0001 (BMIAXNAT34_S00001)>,
+     <SubjectData Brain-0002 (BMIAXNAT34_S00002)>]
+
+The following operators can be used for creating constraints on properties:
+
+======== ==============================
+Operator Description
+======== ==============================
+``==``   Equals
+``<=``   Smaller or equal
+``<``    Smaller
+``>=``   Larger or equal
+``>``    Larger
+``like`` Like for fuzzy string matching
+======== ==============================
+
+The following compounding multiple contstrains operators are available:
+
+======== ==============================
+Operator Description
+======== ==============================
+``&``    AND operator
+``|``    OR operator
+======== ==============================
+
+.. note::
+
+     Do not forget to use the correct parenthesis as the & and | operators have a high
+     priority in Python, e.g. ``a == b & c == d`` will fail, use ``(a == b) & (c == d)``
+
+The search query can be executed using the ``all()`` method to find all matching objects.
+There are other options available as well ways to create a table of results similar to the
+original XNAT search. For example::
+
+    >>> query = SubjectData.query().filter((SubjectData.project == 'sandbox') & (SubjectData.label.like('Brain*')))
+    >>> query.all()
+    [<SubjectData Brain-0001 (BMIAXNAT34_S00001)>,
+     <SubjectData Brain-0002 (BMIAXNAT34_S00002)>]
+
+    >>> query.first()
+    <SubjectData Brain-0001 (BMIAXNAT34_S00001)>
+
+    >>> query.last()
+    <SubjectData Brain-0002 (BMIAXNAT34_S00002)>
+
+    >>> query.tabulate_csv()
+    'subject_label,subjectid,insert_user,insert_date,projects,project,gender,handedness,dob,educ,ses,quarantine_status\nBrain-0001,BMIAXNAT34_S00001,ibocharov,2022-11-15 22:26:38.676,",<sandbox>",sandbox,,,,,,active\nBrain-0002,BMIAXNAT34_S00002,ibocharov,2022-11-15 22:42:20.324,",<sandbox>",sandbox,,,,,,active\n'
+
+    >>> query.tabulate_dict()
+    [{'subject_label': 'Brain-0001',
+      'subjectid': 'BMIAXNAT34_S00001',
+      'insert_user': 'ibocharov',
+      'insert_date': '2022-11-15 22:26:38.676',
+      'projects': ',<sandbox>',
+      'project': 'sandbox',
+      'gender': '',
+      'handedness': '',
+      'dob': '',
+      'educ': '',
+      'ses': '',
+      'quarantine_status': 'active'},
+     {'subject_label': 'Brain-0002',
+      'subjectid': 'BMIAXNAT34_S00002',
+      'insert_user': 'ibocharov',
+      'insert_date': '2022-11-15 22:42:20.324',
+      'projects': ',<sandbox>',
+      'project': 'sandbox',
+      'gender': '',
+      'handedness': '',
+      'dob': '',
+      'educ': '',
+      'ses': '',
+      'quarantine_status': 'active'}]
+
+    # This requires pandas to be installed
+    >>> query.tabulate_pandas()
+      subject_label          subjectid insert_user              insert_date  ... dob educ  ses  quarantine_status
+    0    Brain-0001  BMIAXNAT34_S00001   ibocharov  2022-11-15 22:26:38.676  ... NaN  NaN  NaN             active
+    1    Brain-0002  BMIAXNAT34_S00002   ibocharov  2022-11-15 22:42:20.324  ... NaN  NaN  NaN             active
+
+    [2 rows x 12 columns]
+
+As you can see there are quite some ways to request the result from a query,
+for completeness see the following table:
+
+=================== =================================================================
+Method              Description
+=================== =================================================================
+``all``             Get all objects
+``first``           Get first matching object
+``last``            Get last matching object
+``one``             Get one object, throws error if not exactly one object is matched
+``one_or_none``     Get one object or return None if no match is found. Throws error
+                    if not exactly zero or one objects are matched.
+``tabulate_csv``    Return a string containing a CSV tabulation of the data
+``tabulate_dict``   Return a list of dicts representing a tabulation of the data
+``tabulate_json``   Return a string with the JSON response from the server
+``tabulate_pandas`` Return a pandas DataFrame with the tabulation of the data
+=================== =================================================================
+
 
 Object creation
 ---------------

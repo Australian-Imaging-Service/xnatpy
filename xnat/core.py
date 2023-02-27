@@ -13,25 +13,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-from __future__ import unicode_literals
-from abc import ABCMeta, abstractproperty
+from abc import ABCMeta, abstractmethod
 from collections import namedtuple, OrderedDict
 import csv
-from six.moves.collections_abc import MutableMapping, MutableSequence, Mapping, Sequence
+from collections.abc import MutableMapping, MutableSequence, Mapping, Sequence
 import fnmatch
+import io
 import keyword
 import re
 from functools import update_wrapper
+from typing import Any, Callable, Dict, List, Optional, Union, TYPE_CHECKING
 
 from . import exceptions
 from .datatypes import convert_from, convert_to
 from .constants import TYPE_HINTS, DATA_FIELD_HINTS
+from .type_hints import TimeoutType, JSONType
 from .utils import mixedproperty, pythonize_attribute_name
-import six
+from.search import SearchField
+
+try:
+    import pandas
+    PANDAS_AVAILABLE = True
+except ImportError:
+    pandas = None
+    PANDAS_AVAILABLE = False
+
+if TYPE_CHECKING:
+    from .session import BaseXNATSession
 
 
-def caching(func):
+def caching(func) -> Callable:
     """
     This decorator caches the value in self._cache to avoid data to be
     retrieved multiple times. This works for properties or functions without
@@ -67,17 +78,17 @@ class CustomVariableMap(Mapping):
         #              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                                                                                ^^^^^^
         #                This is the problem due to xsi mess                                                                                     and xpath mess with index
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<CustomVariableMap groups: [{}]>'.format(', '.join(self.definitions.keys()))
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: str):
         return self.definitions[item]
 
     def __iter__(self):
         for key in self.definitions:
             yield key
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.definitions)
 
     # The next 3 cache properties are to avoid a loop on object creation for Projects (it would try to self-reference)
@@ -113,7 +124,7 @@ class CustomVariableMap(Mapping):
         return self.parent.fields
 
     @property
-    def caching(self):
+    def caching(self) -> bool:
         if self._caching is not None:
             return self._caching
         else:
@@ -134,13 +145,13 @@ class CustomVariableGroup(MutableMapping):
                                                  datatype=value.datatype,
                                                  options=value.possible_values.listing)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<CustomVariableGroup {} {{{}}}>'.format(
             self.definition.id,
             ', '.join('{} ({}): {!r}'.format(x.name, x.datatype, self[x.name]) for x in self.fields.values())
         )
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str):
         field = self.fields[key]
         value = self.parent.fields.get(key)
 
@@ -152,7 +163,7 @@ class CustomVariableGroup(MutableMapping):
 
         return value
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: str, value):
         field = self.fields[key]
         value = convert_from(value, 'xs:{}'.format(field.datatype))
 
@@ -161,35 +172,38 @@ class CustomVariableGroup(MutableMapping):
 
         self.parent.fields[key] = value
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: str):
         self.parent.logger.warning('Deletion of custom variable is not possible!')
 
-    def __iter__(self):
+    def __iter__(self) -> str:
         for field in self.fields.keys():
             yield field
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.fields)
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self.definition.id
 
 
 class CustomVariableDef:
-    def __init__(self, name, datatype, options):
-        self.name = name
-        self.datatype = datatype
-        self.options = options
+    def __init__(self, name: str, datatype: str, options: Optional[List[str]]):
+        self.name: str = name
+        self.datatype: str = datatype
+        self.options: Optional[List[str]] = options
 
 
-@six.python_2_unicode_compatible
-class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
+class XNATBaseObject(metaclass=ABCMeta):
     SECONDARY_LOOKUP_FIELD = None
+    FROM_SEARCH_URI = None
+    DEFAULT_SEARCH_FIELDS = None
     _DISPLAY_IDENTIFIER = None
     _HAS_FIELDS = False
     _CONTAINED_IN = None
-    _XSI_TYPE = 'xnat:baseObject'
+    _XSI_TYPE: str = 'xnat:baseObject'
+    _PARENT_CLASS = None
+    _FIELD_NAME = None
 
     def __init__(self, uri=None, xnat_session=None, id_=None, datafields=None, parent=None, fieldname=None, overwrites=None, **kwargs):
         if (uri is None or xnat_session is None) and parent is None:
@@ -208,49 +222,51 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
             elif self._CONTAINED_IN is not None:
                 parent = getattr(parent, self._CONTAINED_IN)
             else:
-                self.logger.debug('parent {}, self._CONTAINED_IN: {}'.format(parent, self._CONTAINED_IN))
+                self.logger.debug(f'parent {parent}, self._CONTAINED_IN: {self._CONTAINED_IN}')
                 raise exceptions.XNATValueError('Cannot determine PUT url!')
 
             # Check what argument to use to build the URL
             if self._DISPLAY_IDENTIFIER is not None:
-                url_part_argument = pythonize_attribute_name(self._DISPLAY_IDENTIFIER)
+                secondary_lookup_attribute = pythonize_attribute_name(self._DISPLAY_IDENTIFIER)
             elif self.SECONDARY_LOOKUP_FIELD is not None:
-                url_part_argument = self.SECONDARY_LOOKUP_FIELD
+                secondary_lookup_attribute = self.SECONDARY_LOOKUP_FIELD
             else:
                 raise exceptions.XNATValueError('Cannot figure out correct object creation url for <{}>, '
                                                 'creation currently not supported!'.format(type(self).__name__))
 
             # Get extra required url part
-            url_part = six.text_type(kwargs.get(url_part_argument))
+            secondary_lookup_value = kwargs.get(secondary_lookup_attribute)
 
-            if url_part is not None:
-                uri = '{}/{}'.format(parent.uri, url_part)
-                self.logger.debug('PUT URI: {}'.format(uri))
-                query = {
-                    'xsiType': self.__xsi_type__,
-                    'req_format': 'qs',
-                }
-
-                # Add all kwargs to query with correct xpath to set the fields
-                for name, value in kwargs.items():
-                    xpath = '{}/{}'.format(self.xpath, name)
-                    query[xpath] = value
-
-                self.logger.debug('query: {}'.format(query))
-                result = self.xnat_session.put(uri, query=query)
-                self.logger.debug('PUT RESULT: [{}] {}'.format(result.status_code, result.text))
-                result_text = result.text.strip()
-
-                # This should be the ID of the newly created object, which is safer than
-                # labels that can contain weird characters and break stuff
-                if result_text:
-                    uri = '{}/{}'.format(parent.uri, result_text)
-                    self.logger.debug('UPDATED URI BASED ON RESPONSE: {}'.format(uri))
-            else:
+            if secondary_lookup_value is None:
                 raise exceptions.XNATValueError('The {} for a {} need to be specified on creation'.format(
-                    url_part_argument,
+                    secondary_lookup_attribute,
                     self.__xsi_type__
                 ))
+            else:
+                self.logger.debug(f'Found secondary lookup value: [{type(secondary_lookup_value)}] {secondary_lookup_value}')
+
+            uri = self._get_creation_uri(parent_uri=parent.uri, id_=id_, secondary_lookup_value=secondary_lookup_value)
+            self.logger.debug('PUT URI: {}'.format(uri))
+            query = {
+                'xsiType': self.__xsi_type__,
+                'req_format': 'qs',
+            }
+
+            # Add all kwargs to query with correct xpath to set the fields
+            for name, value in kwargs.items():
+                xpath = '{}/{}'.format(self.xpath, name)
+                query[xpath] = value
+
+            self.logger.debug('query: {}'.format(query))
+            result = self.xnat_session.put(uri, query=query)
+            self.logger.debug('PUT RESULT: [{}] {}'.format(result.status_code, result.text))
+            result_text = result.text.strip()
+
+            # This should be the ID of the newly created object, which is safer than
+            # labels that can contain weird characters and break stuff
+            if result_text:
+                uri = '{}/{}'.format(parent.uri, result_text)
+                self.logger.debug('UPDATED URI BASED ON RESPONSE: {}'.format(uri))
 
             # Clear parent cache
             parent.clearcache()
@@ -262,7 +278,7 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
             # Add url part to overwrites (it should be safe) but rest should be retrieved from server to be sure
             # the creation went correctly
             self._overwrites = overwrites or {}
-            self._overwrites[url_part_argument] = url_part
+            self._overwrites[secondary_lookup_attribute] = secondary_lookup_value
         else:
             # This is the creation of a Python proxy for an existing XNAT object
             self._uri = uri
@@ -284,25 +300,31 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
         if datafields is not None:
             self._cache['data'] = datafields
 
-    def __str__(self):
-        if self.SECONDARY_LOOKUP_FIELD is None:
-            return six.text_type('<{} {}>').format(self.__class__.__name__, self.id)
-        else:
-            return six.text_type('<{} {} ({})>').format(self.__class__.__name__,
-                                                        getattr(self, self.SECONDARY_LOOKUP_FIELD),
-                                                        self.id)
+    def _get_creation_uri(self, parent_uri, id_, secondary_lookup_value):
+        return f'{parent_uri}/{secondary_lookup_value}'
 
-    def __repr__(self):
+    def __str__(self) -> str:
+        if self.SECONDARY_LOOKUP_FIELD is None:
+            return f'<{self.__class__.__name__} {self.id}>'
+        else:
+            return f'<{self.__class__.__name__} {getattr(self, self.SECONDARY_LOOKUP_FIELD)} ({self.id})>'
+
+    def __repr__(self) -> str:
         return str(self)
 
-    @abstractproperty
-    def xpath(self):
+    @property
+    @abstractmethod
+    def xpath(self) -> str:
         """
         The xpath of the object as seen from the root of the data. Used for
         setting fields in the object.
         """
 
-    @property
+    @mixedproperty
+    def parent(cls):
+        return cls._PARENT_CLASS
+
+    @parent.getter
     def parent(self):
         return self._parent
 
@@ -310,8 +332,12 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
     def logger(self):
         return self.xnat_session.logger
 
-    @property
-    def fieldname(self):
+    @mixedproperty
+    def fieldname(self) -> Union[str, int]:
+        return self._FIELD_NAME
+
+    @fieldname.getter
+    def fieldname(self) -> Union[str, int]:
         return self._fieldname
 
     def get(self, name, type_=None):
@@ -321,7 +347,7 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
             value = self.data.get(name)
 
         if type_ is not None and value is not None:
-            if isinstance(type_, six.string_types):
+            if isinstance(type_, str):
                 value = convert_to(value, type_)
             else:
                 value = type_(value)
@@ -347,10 +373,12 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
         return self.xnat_session.create_object(self.uri, type_=type_, parent=self, fieldname=fieldname)
 
     @property
-    def fulluri(self):
+    def fulluri(self) -> str:
         return self.uri
 
-    def external_uri(self, query=None, scheme=None):
+    def external_uri(self,
+                     query: Dict[str, str] = None,
+                     scheme: str = None) -> str:
         """
         Return the external url for this object, not just a REST path
 
@@ -360,13 +388,16 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
         """
         return self.xnat_session.url_for(self, query=query, scheme=scheme)
 
-    def _resolve_xsi_type(self):
+    def _resolve_xsi_type(self) -> str:
         parent = self
         while not isinstance(parent, XNATObject):
             parent = parent.parent
         return parent.__xsi_type__
 
-    def mset(self, values=None, timeout=None, **kwargs):
+    def mset(self,
+             values: Dict[str, str] = None,
+             timeout: TimeoutType = None,
+             **kwargs):
         if not isinstance(values, dict):
             values = kwargs
 
@@ -383,16 +414,21 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
         if hasattr(self.parent, 'clearcache'):
             self.parent.clearcache()
 
-    def set(self, name, value, type_=None, timeout=None):
+    def set(self,
+            name: str,
+            value: Any,
+            type_: Optional[Union[str, Callable[[Any], str]]] = None,
+            timeout: TimeoutType = None):
         """
         Set a field in the current object
 
         :param str name: name of the field
         :param value:  value to set
         :param type_: type of the field
+        :param timeout: time for the set request
         """
         if type_ is not None:
-            if isinstance(type_, six.string_types):
+            if isinstance(type_, str):
                 # Make sure we have a valid string here that is properly casted
                 value = convert_from(value, type_)
             else:
@@ -400,16 +436,20 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
 
         self.mset({name: value}, timeout=timeout)
 
-    def del_(self, name):
+    def del_(self, name: str):
         self.mset({name: 'NULL'})
 
     @mixedproperty
-    def __xsi_type__(self):
+    def __xsi_type__(self) -> str:
         return self._XSI_TYPE
 
-    @property
+    @mixedproperty
+    def id(cls):
+        return SearchField(cls, "ID", "xs:string")
+
+    @id.getter
     @caching
-    def id(self):
+    def id(self) -> str:
         object_id = self.data.get('ID', None)
         if object_id is not None:
             return object_id
@@ -420,27 +460,29 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
         else:
             return '#NOID#'
 
-    @abstractproperty
-    def data(self):
+    @property
+    @abstractmethod
+    def data(self) -> JSONType:
         """
         The data of the current object (data fields only)
         """
 
-    @abstractproperty
-    def fulldata(self):
+    @property
+    @abstractmethod
+    def fulldata(self) -> JSONType:
         """
         The full data of the current object (incl children, meta etc)
         """
 
     @property
-    def xnat_session(self):
+    def xnat_session(self) -> 'BaseXNATSession':
         if self._uri is None:
             raise exceptions.XNATObjectDestroyedError('This object is delete and cannot be used anymore!')
 
         return self._xnat_session
 
     @property
-    def uri(self):
+    def uri(self) -> str:
         if self._uri is None:
             raise exceptions.XNATObjectDestroyedError('This object is delete and cannot be used anymore!')
 
@@ -453,7 +495,7 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
     # This needs to be at the end of the class because it shadows the caching
     # decorator for the remainder of the scope.
     @property
-    def caching(self):
+    def caching(self) -> bool:
         if self._caching is not None:
             return self._caching
         else:
@@ -467,7 +509,8 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
     def caching(self):
         self._caching = None
 
-    def delete(self, remove_files=True):
+    def delete(self,
+               remove_files: bool = True):
         """
         Remove the item from XNATSession
         """
@@ -490,21 +533,21 @@ class XNATBaseObject(six.with_metaclass(ABCMeta, object)):
 class XNATObject(XNATBaseObject):
     @property
     @caching
-    def fulldata(self):
+    def fulldata(self) -> JSONType:
         return next(x for x in self.xnat_session.get_json(self.uri)['items'] if not x['meta']['isHistory'])
 
     @property
-    def data(self):
+    def data(self) -> JSONType:
         return self.fulldata['data_fields']
 
     @property
-    def xpath(self):
+    def xpath(self) -> str:
         return '{}'.format(self.__xsi_type__)
 
 
 class XNATNestedObject(XNATBaseObject):
     @property
-    def fulldata(self):
+    def fulldata(self) -> JSONType:
         try:
             if isinstance(self.parent.fulldata, dict):
                 data = next(x for x in self.parent.fulldata['children'] if x['field'] == self.fieldname)['items']
@@ -524,15 +567,15 @@ class XNATNestedObject(XNATBaseObject):
         return data
 
     @property
-    def data(self):
+    def data(self) -> JSONType:
         return self.fulldata['data_fields']
 
     @property
-    def uri(self):
+    def uri(self) -> str:
         return self.parent.uri
 
     @property
-    def xpath(self):
+    def xpath(self) -> str:
         if isinstance(self.parent, XNATBaseObject):
             return '{}/{}[@xsi:type={}]'.format(self.parent.xpath,
                                                 self.fieldname,
@@ -554,18 +597,30 @@ class XNATSubObject(XNATBaseObject):
     _PARENT_CLASS = None
 
     @property
-    def uri(self):
+    def uri(self) -> str:
         return self.parent.fulluri
 
-    @property
-    def __xsi_type__(self):
+    @mixedproperty
+    def __xsi_type__(cls) -> str:
+        parent = cls.parent
+        while not issubclass(parent, XNATBaseObject):
+            new_parent = parent.parent
+
+            if new_parent is None:
+                break
+
+            parent = new_parent
+        return parent.__xsi_type__
+
+    @__xsi_type__.getter
+    def __xsi_type__(self) -> str:
         parent = self.parent
         while not isinstance(parent, XNATBaseObject):
             parent = parent.parent
         return parent.__xsi_type__
 
     @property
-    def xpath(self):
+    def xpath(self) -> str:
         if isinstance(self.parent, XNATBaseObject):
             # XPath is this plus fieldname
             return '{}/{}'.format(self.parent.xpath, self.fieldname)
@@ -582,7 +637,7 @@ class XNATSubObject(XNATBaseObject):
             raise TypeError('Type of parent is invalid! (Found {})'.format(type(self.parent).__name__))
 
     @property
-    def fulldata(self):
+    def fulldata(self) -> JSONType:
         prefix = '{}/'.format(self.fieldname)
 
         result = self.parent.fulldata
@@ -608,7 +663,7 @@ class XNATSubObject(XNATBaseObject):
         return result
 
     @property
-    def data(self):
+    def data(self) -> JSONType:
         return self.fulldata['data_fields']
 
     def clearcache(self):
@@ -616,11 +671,15 @@ class XNATSubObject(XNATBaseObject):
         self.parent.clearcache()
 
 
-@six.python_2_unicode_compatible
-class XNATBaseListing(Mapping, Sequence):
+class XNATBaseListing(Mapping, Sequence, metaclass=ABCMeta):
     __ALL_LISTINGS__ = []
 
-    def __init__(self, parent, field_name, secondary_lookup_field=None, xsi_type=None, **kwargs):
+    def __init__(self,
+                 parent: XNATBaseObject,
+                 field_name,
+                 secondary_lookup_field: Optional[str] = None,
+                 xsi_type: Optional[str] = None,
+                 **kwargs):
         # Cache fields
         self._cache = {}
         self._caching = None
@@ -652,7 +711,7 @@ class XNATBaseListing(Mapping, Sequence):
         # Register listing
         self.__ALL_LISTINGS__.append(self)
 
-    def sanitize_name(self, name):
+    def sanitize_name(self, name: str) -> str:
         name = re.sub('[^0-9a-zA-Z]+', '_', name)
 
         # Change CamelCaseString to camel_case_string
@@ -671,10 +730,7 @@ class XNATBaseListing(Mapping, Sequence):
         return name
 
     @property
-    def xnat_session(self):
-        return self._xnat_session
-
-    @abstractproperty
+    @abstractmethod
     def data_maps(self):
         """
         The generator function (should be cached) of all the data access
@@ -710,11 +766,7 @@ class XNATBaseListing(Mapping, Sequence):
         """
         return self.data_maps[3]
 
-    @abstractproperty
-    def xnat_session(self):
-        pass
-
-    def __str__(self):
+    def __str__(self) -> str:
         if self.secondary_lookup_field is not None:
             content = ', '.join('({}, {}): {}'.format(k, getattr(v, self.sanitize_name(self.secondary_lookup_field)), v) for k, v in self.items())
             content = '{{{}}}'.format(content)
@@ -723,7 +775,7 @@ class XNATBaseListing(Mapping, Sequence):
             content = '[{}]'.format(content)
         return '<{} {}>'.format(type(self).__name__, content)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)
 
     def __getitem__(self, item):
@@ -753,12 +805,13 @@ class XNATBaseListing(Mapping, Sequence):
             else:
                 yield index
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.listing)
 
     @property
-    def uri(self):
-        return self._uri
+    @abstractmethod
+    def uri(self) -> str:
+        pass
 
     @property
     def logger(self):
@@ -817,6 +870,10 @@ class XNATListing(XNATBaseListing):
         self._used_filters = filter or {}
 
     @property
+    def uri(self) -> str:
+        return self._uri
+
+    @property
     @caching
     def data_maps(self):
         columns = 'ID,URI'
@@ -841,12 +898,12 @@ class XNATListing(XNATBaseListing):
                 entry['URI'] = '{}/{}'.format(self.uri, entry['xnat_abstractresource_id'])
             elif 'ID' not in entry:
                 # HACK: This is a File and it misses an ID field and has Name (let's fix that)
-                entry['ID'] = entry['Name']
-                entry['fieldname'] = type(self.parent).__name__
                 if entry['URI'].startswith(self.parent.uri):
                     entry['path'] = entry['URI'].replace(self.parent.uri, '', 1)
                 else:
                     entry['path'] = re.sub(r'^.*/resources/[^/]+/files/', '', entry['URI'], 1)
+                entry['ID'] = entry['path']
+                entry['fieldname'] = type(self.parent).__name__
             else:
                 entry['URI'] = '{}/{}'.format(self.uri, entry['ID'])
 
@@ -946,7 +1003,7 @@ class XNATListing(XNATBaseListing):
             return ()
 
     def tabulate_csv(self, columns=None, filter=None, header=True):
-        output = six.StringIO()
+        output = io.StringIO()
         data = self._tabulate(columns=columns, filter=filter)
 
         if not data:
@@ -963,6 +1020,13 @@ class XNATListing(XNATBaseListing):
         # FIXME: A context would be nicer, but doesn't work in Python 2.7
         output.close()
         return result
+
+    def tabulate_pandas(self):
+        if not PANDAS_AVAILABLE:
+            raise ModuleNotFoundError('Cannot tabulate to pandas without pandas being installed!')
+        csv_data = self.tabulate_csv()
+        csv_data = six.StringIO(csv_data)
+        return pandas.read_csv(csv_data)
 
     @property
     def used_filters(self):
@@ -1028,7 +1092,7 @@ class XNATSimpleListing(XNATBaseListing, MutableMapping, MutableSequence):
             if self._data_field_name in DATA_FIELD_HINTS:
                 self._data_field_name = DATA_FIELD_HINTS[self._data_field_name]
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.secondary_lookup_field is not None:
             content = ', '.join('{!r}: {!r}'.format(key, value) for key, value in self.items())
             content = '{{{}}}'.format(content)
@@ -1064,6 +1128,10 @@ class XNATSimpleListing(XNATBaseListing, MutableMapping, MutableSequence):
             if child['field'] == fieldname:
                 return child['items']
         return []
+
+    @property
+    def uri(self):
+        return self.parent.fulluri
 
     @property
     @caching
