@@ -9,6 +9,32 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED
 ----------
 
+Changed
+~~~~~~~
+
+- Dropped Python 2 support, code can now use more modern features and is easier to maintain
+
+Added
+~~~~~
+
+- Support for XNAT search engine usings XNATpy
+- Exposes more server information (xnat_uptime, xnat_build_info, plugins list)
+
+
+Improved
+~~~~~~~~
+
+- Reworked upload functions to have more clear behaviour
+
+Fixed
+~~~~~
+
+- Creating experiments with an existing label now does not acccidentally move the
+  experiment to a different subject (added safety checks)
+- Files had the ID/path swapped, making it possible to have non-unique IDs
+- ProjectData creation now uses the id parameter correctly
+
+
 0.4.3 - 2022-10-31
 ------------------
 
