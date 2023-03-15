@@ -978,11 +978,14 @@ class BaseXNATSession(object):
         :param kwargs: arguments to pass to object creation
         :return: newly created xnatpy object
         """
+        # Normalise url here so in the cache lookup it is consistent
         if uri.startswith('/REST/'):
             uri = uri.replace('/REST/', '/data/')
         elif uri.startswith('/data/archive/'):
             uri = uri.replace('/data/archive/', '/data/')
 
+        # If the object is not in cache, check type and try to see if fieldname needs updating
+        datafields = {}
         if (uri, fieldname) not in self._cache['__objects__']:
             if type_ is None:
                 if self.xnat_session.debug:
@@ -990,12 +993,10 @@ class BaseXNATSession(object):
                 data = self.xnat_session.get_json(uri)
                 type_ = data['items'][0]['meta']['xsi:type']
                 datafields = data['items'][0]['data_fields']
-            else:
-                datafields = None
 
             fieldname = FIELD_HINTS.get(type_, 'UNKNOWN')
 
-
+        # If object no in cache, create the object and add it to the cache
         if (uri, fieldname) not in self._cache['__objects__']:
             if self.xnat_session.debug:
                 self.logger.debug('Looking up type {} [{}]'.format(type_, type(type_).__name__))
@@ -1017,15 +1018,18 @@ class BaseXNATSession(object):
             else:
                 overwrites = None
 
-            if cls.SECONDARY_LOOKUP_FIELD not in kwargs:
-                kwargs[cls.SECONDARY_LOOKUP_FIELD] = datafields.get(cls.SECONDARY_LOOKUP_FIELD)
+            # If the secondary lookup wasn't given in kwargs but is in the extracted datafields, use that instead
+            if cls.SECONDARY_LOOKUP_FIELD not in kwargs and cls.SECONDARY_LOOKUP_FIELD in datafields:
+                kwargs[cls.SECONDARY_LOOKUP_FIELD] = datafields[cls.SECONDARY_LOOKUP_FIELD]
 
+            # Call object constructor based on collected desired class and arguments
             obj = cls(uri, self, datafields=datafields, fieldname=fieldname, overwrites=overwrites, **kwargs)
 
             self._cache['__objects__'][uri, fieldname] = obj
         elif self.debug:
             self.logger.debug('Fetching object {} from cache'.format(uri))
 
+        # Return the object from cache
         return self._cache['__objects__'][uri, fieldname]
 
     def remove_object(self, obj: XNATBaseObject):
