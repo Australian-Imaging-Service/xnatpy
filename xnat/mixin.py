@@ -77,7 +77,7 @@ class ProjectData(XNATBaseObject):
                            xnat_session=self.xnat_session,
                            parent=self,
                            field_name='files',
-                           secondary_lookup_field='path',
+                           secondary_lookup_field='Name',
                            xsi_type='xnat:fileData')
 
     @property
@@ -203,7 +203,7 @@ class SubjectData(XNATBaseObject):
                            xnat_session=self.xnat_session,
                            parent=self,
                            field_name='files',
-                           secondary_lookup_field='path',
+                           secondary_lookup_field='Name',
                            xsi_type='xnat:fileData')
 
     def download_dir(self, target_dir, verbose=True, progress_callback=None):
@@ -359,7 +359,7 @@ class ImageSessionData(XNATBaseObject):
                            xnat_session=self.xnat_session,
                            parent=self,
                            field_name='files',
-                           secondary_lookup_field='path',
+                           secondary_lookup_field='Name',
                            xsi_type='xnat:fileData')
 
     def create_assessor(self, label, type_):
@@ -426,7 +426,7 @@ class DerivedData(XNATBaseObject):
                            xnat_session=self.xnat_session,
                            parent=self,
                            field_name='files',
-                           secondary_lookup_field='path',
+                           secondary_lookup_field='Name',
                            xsi_type='xnat:fileData')
 
     @property
@@ -468,7 +468,7 @@ class ImageScanData(XNATBaseObject):
                            xnat_session=self.xnat_session,
                            parent=self,
                            field_name='files',
-                           secondary_lookup_field='path',
+                           secondary_lookup_field='Name',
                            xsi_type='xnat:fileData')
 
     @property
@@ -648,7 +648,7 @@ class AbstractResource(XNATBaseObject):
                            xnat_session=self.xnat_session,
                            parent=self,
                            field_name='files',
-                           secondary_lookup_field='path',
+                           secondary_lookup_field='Name',
                            xsi_type='xnat:fileData')
 
     def download(self, path, verbose=True):

@@ -898,10 +898,7 @@ class XNATListing(XNATBaseListing):
                 entry['URI'] = '{}/{}'.format(self.uri, entry['xnat_abstractresource_id'])
             elif 'ID' not in entry:
                 # HACK: This is a File and it misses an ID field and has Name (let's fix that)
-                if entry['URI'].startswith(self.parent.uri):
-                    entry['path'] = entry['URI'].replace(self.parent.uri, '', 1)
-                else:
-                    entry['path'] = re.sub(r'^.*/resources/[^/]+/files/', '', entry['URI'], 1)
+                entry['path'] = re.sub(r'^.*/resources/[^/]+/files/', '', entry['URI'], 1)
                 entry['ID'] = entry['path']
                 entry['fieldname'] = type(self.parent).__name__
             else:
@@ -917,19 +914,21 @@ class XNATListing(XNATBaseListing):
         listing = []
         non_unique = {None}
         for x in result:
+            # HACK: xsi_type of resources is called element_name... yay!
             xsi_type = x.get('xsiType', x.get('element_name', self._xsi_type)).strip()
             if x['ID'].strip() == "" or xsi_type == "":
                 self.logger.warning("Found empty object {}, skipping!".format(x.get('URI')))
                 continue
 
-            # HACK: xsi_type of resources is called element_name... yay!
             if self.secondary_lookup_field is not None:
                 secondary_lookup_value = x.get(self.secondary_lookup_field)
+                # Note that if XNAT has the secondary_lookup field with a capital, we want it to be lowercase for
+                # create object argument, as we like python-style names
                 new_object = self.xnat_session.create_object(x['URI'],
                                                              type_=xsi_type,
                                                              id_=x['ID'],
                                                              fieldname=x.get('fieldname'),
-                                                             **{self.secondary_lookup_field: secondary_lookup_value})
+                                                             **{self.secondary_lookup_field.lower(): secondary_lookup_value})
                 if secondary_lookup_value in key_map:
                     non_unique.add(secondary_lookup_value)
                 key_map[secondary_lookup_value] = new_object
