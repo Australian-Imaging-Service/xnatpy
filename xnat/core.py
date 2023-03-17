@@ -1025,7 +1025,7 @@ class XNATListing(XNATBaseListing):
         if not PANDAS_AVAILABLE:
             raise ModuleNotFoundError('Cannot tabulate to pandas without pandas being installed!')
         csv_data = self.tabulate_csv()
-        csv_data = six.StringIO(csv_data)
+        csv_data = io.StringIO(csv_data)
         return pandas.read_csv(csv_data)
 
     @property

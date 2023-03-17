@@ -1,11 +1,9 @@
 #!/usr/bin/env python
-import argparse
 import os
 import tempfile
 import shutil
 
-import six
-from six.moves import html_parser
+from html.parser import HTMLParser
 
 import xnat
 
@@ -26,7 +24,7 @@ class XNATProjectCopier:
     def copy_fields(self, source, destination, prefix=''):
         for field_id, value in source.fields.items():
             # Avoid double escaping of html chars
-            destination.fields[field_id] = html_parser.HTMLParser().unescape(value)
+            destination.fields[field_id] = HTMLParser().unescape(value)
             print('{prefix}copying field: {}'.format(
                 field_id, prefix=prefix
             ))
