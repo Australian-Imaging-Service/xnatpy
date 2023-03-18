@@ -765,7 +765,7 @@ class BaseXNATSession(object):
         if not path.is_file():
             raise FileNotFoundError("The path points to a non-file object")
 
-        with open(path) as file_handle:
+        with open(path, 'rb') as file_handle:
             self.upload_stream(uri=uri, stream=file_handle, **kwargs)
 
     def upload_string(self,
