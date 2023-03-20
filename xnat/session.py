@@ -766,7 +766,7 @@ class BaseXNATSession(object):
             raise FileNotFoundError("The path points to a non-file object")
 
         with open(path, 'rb') as file_handle:
-            self.upload_stream(uri=uri, stream=file_handle, **kwargs)
+            return self.upload_stream(uri=uri, stream=file_handle, **kwargs)
 
     def upload_string(self,
                       uri: str,
@@ -795,9 +795,9 @@ class BaseXNATSession(object):
         else:
             data_stream = io.BytesIO(data)
 
-        self.upload_stream(uri=uri,
-                           stream=data_stream,
-                           **kwargs)
+        return self.upload_stream(uri=uri,
+                                  stream=data_stream,
+                                  **kwargs)
 
     def upload(self,
                uri: str,
@@ -830,20 +830,20 @@ class BaseXNATSession(object):
         # Check if file is an opened file
         if isinstance(data, (io.BufferedIOBase, io.TextIOBase)):
             self.logger.info("Auto-selected upload_stream to handle the upload")
-            self.upload_stream(uri=uri,
-                               stream=data,
-                               **kwargs)
+            return self.upload_stream(uri=uri,
+                                      stream=data,
+                                      **kwargs)
         elif isinstance(data, Path) or (isinstance(data, str) and '\0' not in data and os.path.isfile(data)):
             self.logger.info("Auto-selected upload_file to handle the upload")
-            self.upload_file(uri=uri,
-                             path=data,
-                             **kwargs)
+            return self.upload_file(uri=uri,
+                                    path=data,
+                                    **kwargs)
         elif isinstance(data, (str, bytes)):
             # File is path to upload
             self.logger.info("Auto-selected upload_string to handle the upload")
-            self.upload_string(uri=uri,
-                               data=data,
-                               **kwargs)
+            return self.upload_string(uri=uri,
+                                      data=data,
+                                      **kwargs)
         else:
             raise XNATValueError(f'Cannot find correct method to upload data of type {type(data)}')
 
