@@ -9,6 +9,13 @@ and this project adheres to `Semantic Versioning <http://semver.org/>`_
 UNRELEASED VERSION
 ------------------
 
+Fixed
+~~~~~
+
+- Fixed bugs in upload where files would be opened in string instead of bytes mode, leading to encoding errors
+- Fixed bugs in upload where return values were omitted in some nested function, leading to breaking responses
+- Fixed bug in object creation when secondary id was not supplied, see issue #37
+
 0.5.0 - 2023-02-27
 ------------------
 
