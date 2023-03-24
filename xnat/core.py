@@ -17,6 +17,7 @@ from abc import ABCMeta, abstractmethod
 from collections import namedtuple, OrderedDict
 import csv
 from collections.abc import MutableMapping, MutableSequence, Mapping, Sequence
+import datetime
 import fnmatch
 import io
 import keyword
@@ -543,6 +544,14 @@ class XNATObject(XNATBaseObject):
     @property
     def xpath(self) -> str:
         return '{}'.format(self.__xsi_type__)
+
+    @property
+    def is_history(self) -> bool:
+        return bool(self.fulldata['meta']['isHistory'])
+
+    @property
+    def insert_date(self) -> datetime:
+        return datetime.datetime.strptime(self.fulldata['meta']['start_date'], '%a %b %d %H:%M:%S %Z %Y')
 
 
 class XNATNestedObject(XNATBaseObject):
