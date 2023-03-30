@@ -15,6 +15,7 @@
 
 import contextlib
 import logging
+import os
 import warnings
 
 import requests
@@ -147,13 +148,21 @@ def xnatpy_connection(mocker: MockerFixture,
 @pytest.fixture(scope="session")
 def xnat4tests_config(tmp_path_factory) -> Config:
     tmp_path = tmp_path_factory.mktemp('config')
+
+    if os.environ.get('GITLAB_CI') == "true":
+        print('In Gitlab CI runner, set docker_host to "docker"')
+        docker_host = 'docker'
+    else:
+        print('Not in Gitlab CI runner, set docker_host to "localhost"')
+        docker_host = 'localhost'
+
     set_loggers(loglevel='INFO')
     yield Config(
         xnat_root_dir=tmp_path,
         xnat_port=9999,
         docker_image="xnatpy_xnat4tests",
         docker_container="xnatpy_xnat4tests",
-        docker_host="docker",
+        docker_host=docker_host,
         build_args={
             "xnat_version": "1.8.5",
             "xnat_cs_plugin_version": "3.2.0",
