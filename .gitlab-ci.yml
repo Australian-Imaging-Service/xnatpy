@@ -31,13 +31,18 @@ license_scanning:
 .parallel:
   parallel:
     matrix:
-      - PYTHON_VERSION: ["3.7", "3.8", "3.9", "3.10"]
+      - PYTHON_VERSION: ["3.7", "3.8", "3.9", "3.10", "3.11"]
 
 test:
   parallel: !reference [.parallel,parallel]
   needs: []
   stage: test
   image: python:${PYTHON_VERSION}-slim
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+  services:
+    - name: 'docker:dind'
+      alias: 'docker'
   allow_failure: false
   script:
     - pip install --upgrade pip wheel setuptools

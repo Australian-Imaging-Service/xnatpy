@@ -801,7 +801,7 @@ class BaseXNATSession(object):
 
     def upload(self,
                uri: str,
-               data: Union[str, bytes, Path, IO],
+               file_: Union[str, bytes, Path, IO],
                **kwargs):
         """
         Upload path to XNAT, this method attempt to automatically figure out what
@@ -814,7 +814,7 @@ class BaseXNATSession(object):
             instead). This method will be removed in a future release of XNATpy
 
         :param uri: uri to upload to
-        :param data: the path to upload
+        :param file_: the data to upload
         :param retries: amount of times xnatpy should retry in case of
                         failure
         :param query: extra query string content
@@ -828,24 +828,24 @@ class BaseXNATSession(object):
                             "unexpected behaviour. It is advised to use upload_stream , upload_file, or "
                             "upload_string instead. The upload method might be removed in a future release.")
         # Check if file is an opened file
-        if isinstance(data, (io.BufferedIOBase, io.TextIOBase)):
+        if isinstance(file_, (io.BufferedIOBase, io.TextIOBase)):
             self.logger.info("Auto-selected upload_stream to handle the upload")
             return self.upload_stream(uri=uri,
-                                      stream=data,
+                                      stream=file_,
                                       **kwargs)
-        elif isinstance(data, Path) or (isinstance(data, str) and '\0' not in data and os.path.isfile(data)):
+        elif isinstance(file_, Path) or (isinstance(file_, str) and '\0' not in file_ and os.path.isfile(file_)):
             self.logger.info("Auto-selected upload_file to handle the upload")
             return self.upload_file(uri=uri,
-                                    path=data,
+                                    path=file_,
                                     **kwargs)
-        elif isinstance(data, (str, bytes)):
+        elif isinstance(file_, (str, bytes)):
             # File is path to upload
             self.logger.info("Auto-selected upload_string to handle the upload")
             return self.upload_string(uri=uri,
-                                      data=data,
+                                      data=file_,
                                       **kwargs)
         else:
-            raise XNATValueError(f'Cannot find correct method to upload data of type {type(data)}')
+            raise XNATValueError(f'Cannot find correct method to upload data of type {type(file_)}')
 
     def upload_stream(self,
                       uri: str,

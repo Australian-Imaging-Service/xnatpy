@@ -12,23 +12,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import docker
-import pytest
+
+from typing import Any, Pattern, Union
+
+from requests import Response
+from requests_mock import Mocker
 
 
-def test_import():
-    from xnat import connect
+class CreatedObject:
+    def __init__(self, uri, type_, fieldname, **kwargs):
+        self.uri = uri
+        self.type = type_
+        self.fieldname = fieldname
+        self.kwargs = kwargs
 
 
-@pytest.mark.functional_test
-def test_connect():
-    from xnat import connect
-    with connect('https://central.xnat.org') as connection:
-        print('Connected to XNAT central, running version {}'.format(connection.xnat_version))
-
-
-@pytest.mark.functional_test
-def test_list_projects():
-    from xnat import connect
-    with connect('https://central.xnat.org') as connection:
-        print('Projects on XNAT central: {}'.format(connection.projects))
+class XnatpyRequestsMocker(Mocker):
+    def request(self,
+                method: str,
+                url: Union[str, Pattern[str]],
+                **kwargs: Any) -> Response:
+        url = f"https://xnat.example.com/{url.lstrip('/')}"
+        return super().request(method, url, **kwargs)

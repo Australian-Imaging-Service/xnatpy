@@ -12,6 +12,7 @@ UNRELEASED VERSION
 Added
 ~~~~~
 
+- Testing infrastructure for functional tests based on xnat4tests
 - Added the `insert_date` and `is_history` properties to XNAT objects (Project, Subject, Experiment, Scan) to
   allow access to these metadata fields
 - Option to retrieve users per project
