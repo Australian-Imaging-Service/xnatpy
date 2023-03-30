@@ -38,8 +38,8 @@ test:
   needs: []
   stage: test
   image: python:${PYTHON_VERSION}-slim
-  #variables:
-  #  DOCKER_HOST: tcp://docker:2375
+  variables:
+    DOCKER_HOST: tcp://docker:2375
   services:
     - docker:dind
   allow_failure: false
