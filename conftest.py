@@ -17,6 +17,7 @@ import contextlib
 import logging
 import os
 import warnings
+from urllib.parse import urlparse
 
 import requests
 import requests.cookies
@@ -149,18 +150,14 @@ def xnatpy_connection(mocker: MockerFixture,
 def xnat4tests_config(tmp_path_factory) -> Config:
     tmp_path = tmp_path_factory.mktemp('config')
 
-    print('=' * 80)
-    print('os.environ')
-    print('=' * 80)
-    print('\n'.join(f'{k}: {v}' for k, v in os.environ.items()))
-    print('=' * 80)
-
-    if 'GITLAB_CI' in os.environ or 'DOCKER_ENV_GITLAB_CI' in os.environ:
-        print('In Gitlab CI runner, set docker_host to "docker"')
-        docker_host = 'docker'
+    docker_host = os.environ.get('DOCKER_HOST')
+    if docker_host:
+        print(f'Docker host set in environment set to {docker_host}.')
+        docker_host = urlparse(docker_host).netloc.split(':')[0]
     else:
-        print('Not in Gitlab CI runner, set docker_host to "localhost"')
+        print('No docker host set in environment, using localhost as default.')
         docker_host = 'localhost'
+    print(f'Determined docker hostname to be {docker_host}')
 
     set_loggers(loglevel='INFO')
     yield Config(
