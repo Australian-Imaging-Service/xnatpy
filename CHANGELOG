@@ -13,6 +13,9 @@ Added
 ~~~~~
 
 - Testing infrastructure for functional tests based on xnat4tests
+- Added the `insert_date` and `is_history` properties to XNAT objects (Project, Subject, Experiment, Scan) to
+  allow access to these metadata fields
+- Option to retrieve users per project
 
 Fixed
 ~~~~~
@@ -20,7 +23,6 @@ Fixed
 - Fixed bugs in upload where files would be opened in string instead of bytes mode, leading to encoding errors
 - Fixed bugs in upload where return values were omitted in some nested function, leading to breaking responses
 - Fixed bug in object creation when secondary id was not supplied, see issue #37
-- Fixed bug in upload where the file_ argument got renamed to data which break compatability (reverted name change)
 
 0.5.0 - 2023-02-27
 ------------------

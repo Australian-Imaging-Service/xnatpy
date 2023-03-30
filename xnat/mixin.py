@@ -25,6 +25,7 @@ from io import BytesIO
 
 from .core import caching, XNATBaseObject, XNATListing
 from .search import SearchField
+from .users import Users
 from .utils import mixedproperty, pythonize_attribute_name
 from . import exceptions
 
@@ -46,6 +47,11 @@ class ProjectData(XNATBaseObject):
     @property
     def project(self):
         return self.id
+
+    @property
+    def users(self):
+        return Users(self.xnat_session, path=self.uri + '/users')
+
 
     @property
     def fulluri(self):

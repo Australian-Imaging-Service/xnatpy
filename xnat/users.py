@@ -21,16 +21,17 @@ class Users(Mapping):
     """
     Listing of the users on the connected XNAT installation
     """
-    def __init__(self, xnat_session):
+    def __init__(self, xnat_session, path='/data/users'):
         # cache fields
         self._cache = {}
         self.caching = True
+        self.path = path
 
         # keep session available
         self._xnat_session = xnat_session
 
     def __repr__(self):
-        return '<Users {}>'.format(self.data)
+        return 'Users:\n------\n{}'.format('\n'.join(str(x) for x in self.data.values()))
 
     def __getitem__(self, item):
         return self.data[item]
@@ -49,7 +50,7 @@ class Users(Mapping):
     @property
     @caching
     def data(self):
-        users = self.xnat_session.get_json('/data/users')['ResultSet']['Result']
+        users = self.xnat_session.get_json(self.path, accepted_status=[200, 403])['ResultSet']['Result']
         return {x['login']: User(x) for x in users}
 
 
@@ -60,8 +61,14 @@ class User(object):
     def __init__(self, data):
         self._fulldata = data
 
-    def __repr__(self):
-        return '<User {} [{}]>'.format(self.login, self.id)
+    def __repr__(self) -> str:
+        return '<User {}>'.format(self.login)
+
+    def __str__(self) -> str:
+        if self.access_level:
+            return f'{self.login} ({self.access_level})'
+        else:
+            return self.login
 
     @property
     def data(self):
@@ -72,7 +79,7 @@ class User(object):
         """
         The id of the user
         """
-        return self.data['xdat_user_id']
+        return self.data.get('xdat_user_id', None)
 
     @property
     def login(self):
@@ -80,6 +87,14 @@ class User(object):
         The login name of the user
         """
         return self.data['login']
+
+    @property
+    def access_level(self):
+        return self.data.get('displayname', None)
+
+    @property
+    def group(self):
+        return self.data.get('GROUP_ID', None)
 
     @property
     def email(self):
