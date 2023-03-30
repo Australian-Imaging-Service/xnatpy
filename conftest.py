@@ -155,7 +155,7 @@ def xnat4tests_config(tmp_path_factory) -> Config:
     print('\n'.join(f'{k}: {v}' for k, v in os.environ.items()))
     print('=' * 80)
 
-    if 'GITLAB_CI' in os.environ:
+    if 'GITLAB_CI' in os.environ or 'DOCKER_ENV_GITLAB_CI' in os.environ:
         print('In Gitlab CI runner, set docker_host to "docker"')
         docker_host = 'docker'
     else:
@@ -173,7 +173,7 @@ def xnat4tests_config(tmp_path_factory) -> Config:
             "xnat_version": "1.8.5",
             "xnat_cs_plugin_version": "3.2.0",
         },
-        connection_attempts=5,
+        connection_attempts=15,
         connection_attempt_sleep=10,
     )
 
