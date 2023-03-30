@@ -149,7 +149,7 @@ def xnatpy_connection(mocker: MockerFixture,
 def xnat4tests_config(tmp_path_factory) -> Config:
     tmp_path = tmp_path_factory.mktemp('config')
 
-    if os.environ.get('GITLAB_CI') == "true":
+    if os.environ.get('GITLAB_CI'):
         print('In Gitlab CI runner, set docker_host to "docker"')
         docker_host = 'docker'
     else:
@@ -159,7 +159,7 @@ def xnat4tests_config(tmp_path_factory) -> Config:
     set_loggers(loglevel='INFO')
     yield Config(
         xnat_root_dir=tmp_path,
-        xnat_port=9999,
+        xnat_port=8080,
         docker_image="xnatpy_xnat4tests",
         docker_container="xnatpy_xnat4tests",
         docker_host=docker_host,
