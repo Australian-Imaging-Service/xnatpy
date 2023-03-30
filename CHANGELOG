@@ -6,6 +6,24 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <http://keepachangelog.com/>`_
 and this project adheres to `Semantic Versioning <http://semver.org/>`_
 
+0.5.1 - 2023-03-30
+------------------
+
+Added
+~~~~~
+
+- Testing infrastructure for functional tests based on xnat4tests
+- Added the `insert_date` and `is_history` properties to XNAT objects (Project, Subject, Experiment, Scan) to
+  allow access to these metadata fields
+- Option to retrieve users per project
+
+Fixed
+~~~~~
+
+- Fixed bugs in upload where files would be opened in string instead of bytes mode, leading to encoding errors
+- Fixed bugs in upload where return values were omitted in some nested function, leading to breaking responses
+- Fixed bug in object creation when secondary id was not supplied, see issue #37
+
 0.5.0 - 2023-02-27
 ------------------
 

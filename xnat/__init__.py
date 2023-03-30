@@ -45,7 +45,7 @@ from .utils import JSessionAuth
 
 GEN_MODULES = {}
 
-__version__ = '0.5.0'
+__version__ = '0.5.1'
 __all__ = ['connect', 'exceptions']
 
 
@@ -149,7 +149,7 @@ def check_auth(requests_session, server, user, jsession, logger):
             else:
                 logger.warning('Logged in as {} but expected to be logged in as {}'.format(username, user))
         elif jsession is not None:
-            if re.match("[\w]{32}", jsession):
+            if re.match(r"[\w]{32}", jsession):
                 logger.info('JSESSION login successful for {}'.format(username))
 
         return username
@@ -570,11 +570,7 @@ def connect(server=None, user=None, password=None, verify=True, netrc_file=None,
                             server=server,
                             debug=debug)
             jsession_token = None
-
-        logger.debug("Retrieved JSESSION_TOKEN: {}".format(jsession_token))
-        logger.debug("Requests session cookies: {}".format(requests_session.cookies))
     else:
-        logger.debug("Set JSESSION_TOKEN to: {}".format(jsession))
         if requests_session.cookies.get('JSESSIONID', domain=domain) != jsession:
             message = 'Failed to login by re-using existing jsession, the session is probably close on the server!'
             logger.error(message)
@@ -595,7 +591,7 @@ def connect(server=None, user=None, password=None, verify=True, netrc_file=None,
         if user is None and jsession is None:
             logged_in_user = check_auth_guest(requests_session, server=server, logger=logger)
         else:
-            logger.debug('Checking login for {}, jsession argument {}'.format(user, jsession))
+            logger.debug('Checking login for {}'.format(user))
             logged_in_user = check_auth(requests_session, server=server, user=user, jsession=jsession, logger=logger)
 
         if jsession and logged_in_user == 'guest':

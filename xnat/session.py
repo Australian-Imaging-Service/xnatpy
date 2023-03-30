@@ -765,8 +765,8 @@ class BaseXNATSession(object):
         if not path.is_file():
             raise FileNotFoundError("The path points to a non-file object")
 
-        with open(path) as file_handle:
-            self.upload_stream(uri=uri, stream=file_handle, **kwargs)
+        with open(path, 'rb') as file_handle:
+            return self.upload_stream(uri=uri, stream=file_handle, **kwargs)
 
     def upload_string(self,
                       uri: str,
@@ -795,13 +795,13 @@ class BaseXNATSession(object):
         else:
             data_stream = io.BytesIO(data)
 
-        self.upload_stream(uri=uri,
-                           stream=data_stream,
-                           **kwargs)
+        return self.upload_stream(uri=uri,
+                                  stream=data_stream,
+                                  **kwargs)
 
     def upload(self,
                uri: str,
-               data: Union[str, bytes, Path, IO],
+               file_: Union[str, bytes, Path, IO],
                **kwargs):
         """
         Upload path to XNAT, this method attempt to automatically figure out what
@@ -814,7 +814,7 @@ class BaseXNATSession(object):
             instead). This method will be removed in a future release of XNATpy
 
         :param uri: uri to upload to
-        :param data: the path to upload
+        :param file_: the data to upload
         :param retries: amount of times xnatpy should retry in case of
                         failure
         :param query: extra query string content
@@ -828,24 +828,24 @@ class BaseXNATSession(object):
                             "unexpected behaviour. It is advised to use upload_stream , upload_file, or "
                             "upload_string instead. The upload method might be removed in a future release.")
         # Check if file is an opened file
-        if isinstance(data, (io.BufferedIOBase, io.TextIOBase)):
+        if isinstance(file_, (io.BufferedIOBase, io.TextIOBase)):
             self.logger.info("Auto-selected upload_stream to handle the upload")
-            self.upload_stream(uri=uri,
-                               stream=data,
-                               **kwargs)
-        elif isinstance(data, Path) or (isinstance(data, str) and '\0' not in data and os.path.isfile(data)):
+            return self.upload_stream(uri=uri,
+                                      stream=file_,
+                                      **kwargs)
+        elif isinstance(file_, Path) or (isinstance(file_, str) and '\0' not in file_ and os.path.isfile(file_)):
             self.logger.info("Auto-selected upload_file to handle the upload")
-            self.upload_file(uri=uri,
-                             path=data,
-                             **kwargs)
-        elif isinstance(data, (str, bytes)):
+            return self.upload_file(uri=uri,
+                                    path=file_,
+                                    **kwargs)
+        elif isinstance(file_, (str, bytes)):
             # File is path to upload
             self.logger.info("Auto-selected upload_string to handle the upload")
-            self.upload_string(uri=uri,
-                               data=data,
-                               **kwargs)
+            return self.upload_string(uri=uri,
+                                      data=file_,
+                                      **kwargs)
         else:
-            raise XNATValueError(f'Cannot find correct method to upload data of type {type(data)}')
+            raise XNATValueError(f'Cannot find correct method to upload data of type {type(file_)}')
 
     def upload_stream(self,
                       uri: str,
@@ -978,11 +978,14 @@ class BaseXNATSession(object):
         :param kwargs: arguments to pass to object creation
         :return: newly created xnatpy object
         """
+        # Normalise url here so in the cache lookup it is consistent
         if uri.startswith('/REST/'):
             uri = uri.replace('/REST/', '/data/')
         elif uri.startswith('/data/archive/'):
             uri = uri.replace('/data/archive/', '/data/')
 
+        # If the object is not in cache, check type and try to see if fieldname needs updating
+        datafields = {}
         if (uri, fieldname) not in self._cache['__objects__']:
             if type_ is None:
                 if self.xnat_session.debug:
@@ -990,12 +993,10 @@ class BaseXNATSession(object):
                 data = self.xnat_session.get_json(uri)
                 type_ = data['items'][0]['meta']['xsi:type']
                 datafields = data['items'][0]['data_fields']
-            else:
-                datafields = None
 
             fieldname = FIELD_HINTS.get(type_, 'UNKNOWN')
 
-
+        # If object no in cache, create the object and add it to the cache
         if (uri, fieldname) not in self._cache['__objects__']:
             if self.xnat_session.debug:
                 self.logger.debug('Looking up type {} [{}]'.format(type_, type(type_).__name__))
@@ -1017,15 +1018,18 @@ class BaseXNATSession(object):
             else:
                 overwrites = None
 
-            if cls.SECONDARY_LOOKUP_FIELD not in kwargs:
-                kwargs[cls.SECONDARY_LOOKUP_FIELD] = datafields.get(cls.SECONDARY_LOOKUP_FIELD)
+            # If the secondary lookup wasn't given in kwargs but is in the extracted datafields, use that instead
+            if cls.SECONDARY_LOOKUP_FIELD not in kwargs and cls.SECONDARY_LOOKUP_FIELD in datafields:
+                kwargs[cls.SECONDARY_LOOKUP_FIELD] = datafields[cls.SECONDARY_LOOKUP_FIELD]
 
+            # Call object constructor based on collected desired class and arguments
             obj = cls(uri, self, datafields=datafields, fieldname=fieldname, overwrites=overwrites, **kwargs)
 
             self._cache['__objects__'][uri, fieldname] = obj
         elif self.debug:
             self.logger.debug('Fetching object {} from cache'.format(uri))
 
+        # Return the object from cache
         return self._cache['__objects__'][uri, fieldname]
 
     def remove_object(self, obj: XNATBaseObject):
