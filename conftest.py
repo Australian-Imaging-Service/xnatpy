@@ -153,6 +153,7 @@ def xnat4tests_config(tmp_path_factory) -> Config:
         xnat_port=9999,
         docker_image="xnatpy_xnat4tests",
         docker_container="xnatpy_xnat4tests",
+        docker_host="docker",
         build_args={
             "xnat_version": "1.8.5",
             "xnat_cs_plugin_version": "3.2.0",
