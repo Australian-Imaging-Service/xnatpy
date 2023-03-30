@@ -149,6 +149,12 @@ def xnatpy_connection(mocker: MockerFixture,
 def xnat4tests_config(tmp_path_factory) -> Config:
     tmp_path = tmp_path_factory.mktemp('config')
 
+    print('=' * 80)
+    print('os.environ')
+    print('=' * 80)
+    print('\n'.join(f'{k}: {v}' for k, v in os.environ.items()))
+    print('=' * 80)
+
     if 'GITLAB_CI' in os.environ:
         print('In Gitlab CI runner, set docker_host to "docker"')
         docker_host = 'docker'
@@ -167,7 +173,7 @@ def xnat4tests_config(tmp_path_factory) -> Config:
             "xnat_version": "1.8.5",
             "xnat_cs_plugin_version": "3.2.0",
         },
-        connection_attempts=30,
+        connection_attempts=5,
         connection_attempt_sleep=10,
     )
 
