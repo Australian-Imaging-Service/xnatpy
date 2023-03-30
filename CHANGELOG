@@ -6,8 +6,44 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <http://keepachangelog.com/>`_
 and this project adheres to `Semantic Versioning <http://semver.org/>`_
 
-UNRELEASED
-----------
+UNRELEASED VERSION
+------------------
+
+Fixed
+~~~~~
+
+- Fixed bugs in upload where files would be opened in string instead of bytes mode, leading to encoding errors
+- Fixed bugs in upload where return values were omitted in some nested function, leading to breaking responses
+- Fixed bug in object creation when secondary id was not supplied, see issue #37
+
+0.5.0 - 2023-02-27
+------------------
+
+Changed
+~~~~~~~
+
+- Dropped Python 2 support, code can now use more modern features and is easier to maintain
+
+Added
+~~~~~
+
+- Support for XNAT search engine usings XNATpy
+- Exposes more server information (xnat_uptime, xnat_build_info, plugins list)
+
+
+Improved
+~~~~~~~~
+
+- Reworked upload functions to have more clear behaviour
+
+Fixed
+~~~~~
+
+- Creating experiments with an existing label now does not acccidentally move the
+  experiment to a different subject (added safety checks)
+- Files had the ID/path swapped, making it possible to have non-unique IDs
+- ProjectData creation now uses the id parameter correctly
+
 
 0.4.3 - 2022-10-31
 ------------------

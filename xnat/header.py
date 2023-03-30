@@ -72,7 +72,7 @@ class FileData(XNATObjectMixin):
     SECONDARY_LOOKUP_FIELD = "{file_secondary_lookup}"
     _XSI_TYPE = 'xnat:fileData'
 
-    def __init__(self, uri=None, xnat_session=None, id_=None, datafields=None, parent=None, fieldname=None, overwrites=None, path=None):
+    def __init__(self, uri=None, xnat_session=None, id_=None, datafields=None, parent=None, fieldname=None, overwrites=None, name=None):
         super(FileData, self).__init__(uri=uri,
                                        xnat_session=xnat_session,
                                        id_=id_,
@@ -81,19 +81,23 @@ class FileData(XNATObjectMixin):
                                        fieldname=fieldname,
                                        overwrites=overwrites)
 
-        # Save id because we need it if cache gets wiped
-        self._id = id_
+        # Save path (that functions as id) because we need it if cache gets wiped
+        self._path = id_
 
-        if path is not None:
-            self._path = path
+        if name is not None:
+            self._name = name
 
     @property
     def id(self):
-        return self._id
+        return self._path
 
     @property
     def path(self):
         return self._path
+
+    @property
+    def name(self):
+        return self._name
 
     def delete(self):
         self.xnat_session.delete(self.uri)
@@ -120,10 +124,11 @@ class FileData(XNATObjectMixin):
     @property
     @caching
     def fulldata(self):
-        listing_uri = self.uri[:-len(self.id)-1]
+        # Find the url of the parent listing by splitting on /files/ (most left split)
+        listing_uri = self.uri.split('/files/', 1)[0] + '/files'
         data = self.xnat_session.get_json(listing_uri)
         data = data['ResultSet']['Result']
-        item = next(x for x in data if x['Name'] == self.id)
+        item = next(x for x in data if x['URI'] == self.uri)
         return item
 
     @property
@@ -141,10 +146,6 @@ class FileData(XNATObjectMixin):
     @property
     def digest(self):
         return self.get('digest', str)
-
-    @property
-    def name(self):
-        return self.get('Name', str)
 
     @property
     def file_content(self):
